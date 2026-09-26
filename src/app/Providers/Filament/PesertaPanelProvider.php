@@ -19,16 +19,16 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-class AdminPanelProvider extends PanelProvider
+class PesertaPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
         return $panel
-            ->id('admin')
-            ->path('admin')
-            ->brandName('DSC - Admin')
+            ->id('peserta')
+            ->path('peserta')
+            ->brandName('DSC - Peserta')
             ->login()
-            ->colors(['primary' => Color::Blue])
+            ->colors(['primary' => Color::Amber])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->pages([Pages\Dashboard::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
