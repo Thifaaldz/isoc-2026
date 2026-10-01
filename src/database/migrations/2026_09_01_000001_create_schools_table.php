@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('city')->nullable();
             $table->string('province')->nullable();
             $table->text('address')->nullable();
+            $table->string('maps_url')->nullable();
             $table->string('pic_name')->nullable();
             $table->string('pic_phone', 30)->nullable();
             $table->unsignedSmallInteger('participant_target')->default(100);

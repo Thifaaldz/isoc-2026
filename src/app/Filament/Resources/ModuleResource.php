@@ -20,17 +20,19 @@ class ModuleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationGroup = 'Pembelajaran';
 
     protected static ?string $modelLabel = 'Modul OTS';
 
     protected static ?string $pluralModelLabel = 'Modul OTS';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 4;
 
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta];
+        return [UserRole::SuperAdmin, UserRole::Admin];
     }
 
     public static function manageRoles(): array

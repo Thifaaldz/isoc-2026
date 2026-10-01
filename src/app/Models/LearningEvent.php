@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class LearningEvent extends Model
+{
+    protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return [
+            'starts_at' => 'datetime',
+            'ends_at' => 'datetime',
+            'local_updated_at' => 'datetime',
+            'publish_approved_at' => 'datetime',
+            'registration_open' => 'boolean',
+            'is_published' => 'boolean',
+            'participant_rows' => 'array',
+            'tutor_rows' => 'array',
+            'budget_items' => 'array',
+            'rundown_items' => 'array',
+            'evidence_checklist' => 'array',
+        ];
+    }
+
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function moduleTemplate(): BelongsTo
+    {
+        return $this->belongsTo(ModuleTemplate::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function participants(): BelongsToMany
+    {
+        return $this->belongsToMany(Participant::class)
+            ->withPivot([
+                'status',
+                'registered_at',
+                'admin_approval_status',
+                'admin_approved_by',
+                'admin_approved_at',
+                'tutor_approval_status',
+                'tutor_approved_by',
+                'tutor_approved_at',
+                'approval_notes',
+            ])
+            ->withTimestamps();
+    }
+
+    public function tutors(): BelongsToMany
+    {
+        return $this->belongsToMany(Tutor::class, 'learning_event_tutor')
+            ->withPivot(['status', 'assigned_at'])
+            ->withTimestamps();
+    }
+
+    public function meetings(): HasMany
+    {
+        return $this->hasMany(LearningMeeting::class);
+    }
+
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(Assessment::class);
+    }
+
+    public function certificateTemplates(): HasMany
+    {
+        return $this->hasMany(CertificateTemplate::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(Evidence::class);
+    }
+
+    public function totAssessments(): HasMany
+    {
+        return $this->hasMany(TotAssessment::class);
+    }
+}

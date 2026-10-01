@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\CreateSeminarShortcut;
+use App\Filament\Pages\ParticipantApproval;
+use App\Filament\Pages\Profile;
 use App\Filament\Widgets\KpiOverview;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -29,8 +32,18 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('DSC - Admin')
             ->login()
             ->colors(['primary' => Color::Blue])
+            ->navigationGroups([
+                'Seminar',
+                'Konten & Penilaian',
+                'Penilaian',
+                'Absensi & Peserta',
+                'Tugas Peserta',
+                'Komunitas',
+                'Validasi & Sertifikat',
+                'Administrasi',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

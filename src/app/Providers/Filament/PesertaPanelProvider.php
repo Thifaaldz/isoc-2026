@@ -2,7 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\ParticipantLearning;
+use App\Filament\Pages\ParticipantTests;
+use App\Filament\Pages\EventRundown;
+use App\Filament\Pages\Profile;
 use App\Filament\Widgets\KpiOverview;
+use App\Filament\Widgets\ParticipantDashboardOverview;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -29,9 +34,14 @@ class PesertaPanelProvider extends PanelProvider
             ->brandName('DSC - Peserta')
             ->login()
             ->colors(['primary' => Color::Amber])
+            ->navigationGroups([
+                'Seminar & Materi',
+                'Tugas Peserta',
+                'Validasi & Sertifikat',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class])
-            ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
+            ->pages([Pages\Dashboard::class, ParticipantLearning::class, ParticipantTests::class, EventRundown::class, Profile::class])
+            ->widgets([ParticipantDashboardOverview::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

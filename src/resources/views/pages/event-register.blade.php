@@ -1,0 +1,215 @@
+@extends('layouts.app')
+
+@section('title', __('Daftar Event') . ' - ' . $event->title)
+
+@section('content')
+@php
+    $isGeneralEvent = ($event->audience_type ?? 'school') === 'general';
+@endphp
+<section class="bg-navy relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-20">
+        <div class="max-w-3xl">
+            <a href="{{ route('events') }}" class="inline-flex items-center gap-1 text-white/60 hover:text-white text-sm mb-4 transition-colors">
+                <span class="material-symbols-outlined text-lg">arrow_back</span> {{ __('Kembali ke Events') }}
+            </a>
+            <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-[1.1] mb-4">{{ $event->title }}</h1>
+            <div class="flex flex-wrap gap-4 text-sm text-white/70">
+                @if($event->date)
+                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-blue-light text-lg">calendar_today</span> {{ $event->date->translatedFormat('d F Y') }}</span>
+                @endif
+                @if($event->time_info)
+                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-blue-light text-lg">schedule</span> {{ $event->time_info }}</span>
+                @endif
+                @if($event->location)
+                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-blue-light text-lg">location_on</span> {{ $event->location }}</span>
+                @endif
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-16 lg:py-24">
+    <div class="max-w-3xl mx-auto px-6 lg:px-8">
+        <div class="bg-white rounded-2xl shadow-lg border border-grey-100 overflow-hidden">
+            <div class="bg-grey-50 px-8 py-6 border-b border-grey-100">
+                <h2 class="text-xl font-bold text-navy">{{ __('Formulir Pendaftaran') }}</h2>
+                <p class="text-grey-600 text-sm mt-1">{{ __('Isi data berikut untuk mendaftar event ini.') }}</p>
+                @if($event->max_participants)
+                <div class="mt-3 flex items-center gap-2">
+                    <div class="flex-1 bg-grey-200 rounded-full h-2 overflow-hidden">
+                        <div class="bg-teal h-full rounded-full transition-all" style="width: {{ min(100, ($registrationCount / $event->max_participants) * 100) }}%"></div>
+                    </div>
+                    <span class="text-xs font-medium text-grey-500">{{ $registrationCount }}/{{ $event->max_participants }} {{ __('peserta') }}</span>
+                </div>
+                @endif
+            </div>
+
+            <form action="{{ route('event.register.store', $event) }}" method="POST" enctype="multipart/form-data" class="p-8 space-y-6">
+                @csrf
+
+                @if($errors->any())
+                <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+                    <ul class="list-disc list-inside space-y-1">
+                        @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+
+                <div>
+                    <label class="block text-sm font-semibold text-navy mb-2" for="name">{{ __('Nama Lengkap') }} <span class="text-red-500">*</span></label>
+                    <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="name" name="name" required type="text" value="{{ old('name') }}" placeholder="{{ __('Masukkan nama lengkap Anda') }}"/>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="email">{{ __('Email') }} <span class="text-red-500">*</span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="email" name="email" required type="email" value="{{ old('email') }}" placeholder="{{ __('contoh@email.com') }}"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="phone">{{ __('Nomor Telepon') }} <span class="text-red-500">*</span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="phone" name="phone" required type="tel" value="{{ old('phone') }}" placeholder="{{ __('08xxxxxxxxxx') }}"/>
+                    </div>
+                </div>
+
+                @if(! $isGeneralEvent)
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="school_id">{{ __('Sekolah') }} <span class="text-red-500">*</span></label>
+                        <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="school_id" name="school_id" required>
+                            <option value="">{{ __('Pilih sekolah') }}</option>
+                            @foreach($schools as $school)
+                            <option value="{{ $school->id }}" @selected(old('school_id') == $school->id)>{{ $school->name }}{{ $school->city ? ' - ' . $school->city : '' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+
+                <div class="grid md:grid-cols-3 gap-6">
+                    @if(! $isGeneralEvent)
+                        <div>
+                            <label class="block text-sm font-semibold text-navy mb-2" for="nis">{{ __('NIS') }}</label>
+                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="nis" name="nis" type="text" value="{{ old('nis') }}" placeholder="{{ __('Nomor induk siswa') }}"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-navy mb-2" for="grade">{{ __('Kelas') }} <span class="text-red-500">*</span></label>
+                            <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="grade" name="grade" required>
+                                <option value="">{{ __('Pilih') }}</option>
+                                @foreach(['X', 'XI', 'XII'] as $grade)
+                                <option value="{{ $grade }}" @selected(old('grade') === $grade)>{{ $grade }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @else
+                        <div>
+                            <label class="block text-sm font-semibold text-navy mb-2" for="organization">{{ __('Organisasi / Instansi') }}</label>
+                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="organization" name="organization" type="text" value="{{ old('organization') }}" placeholder="{{ __('Opsional') }}"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-navy mb-2" for="position">{{ __('Jabatan / Peran') }}</label>
+                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="position" name="position" type="text" value="{{ old('position') }}" placeholder="{{ __('Opsional') }}"/>
+                        </div>
+                    @endif
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="gender">{{ __('Jenis Kelamin') }} <span class="text-red-500">*</span></label>
+                        <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="gender" name="gender" required>
+                            <option value="">{{ __('Pilih') }}</option>
+                            <option value="L" @selected(old('gender') === 'L')>{{ __('Laki-laki') }}</option>
+                            <option value="P" @selected(old('gender') === 'P')>{{ __('Perempuan') }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-navy mb-2" for="birth_date">{{ __('Tanggal Lahir') }}</label>
+                    <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="birth_date" name="birth_date" type="date" value="{{ old('birth_date') }}"/>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="password">{{ __('Password Panel Peserta') }} <span class="text-red-500">*</span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="password" name="password" required type="password" placeholder="{{ __('Minimal 8 karakter') }}"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="password_confirmation">{{ __('Konfirmasi Password') }} <span class="text-red-500">*</span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="password_confirmation" name="password_confirmation" required type="password" placeholder="{{ __('Ulangi password') }}"/>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-blue/20 bg-blue/5 p-5 space-y-4">
+                    <div>
+                        <h3 class="font-bold text-navy flex items-center gap-2 text-sm">
+                            <span class="material-symbols-outlined text-blue text-lg">verified_user</span>
+                            {{ __('Validasi Peserta') }}
+                        </h3>
+                        <p class="text-grey-600 text-xs mt-1">{{ __('Upload screenshot bukti follow Instagram ISOC. Admin akan mengecek bukti ini melalui panel.') }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="instagram_evidence">{{ __('Bukti Follow Instagram') }} <span class="text-red-500">*</span></label>
+                        <input class="block w-full rounded-xl bg-white border border-grey-200 p-3 text-sm text-grey-600 file:mr-4 file:rounded-xl file:border-0 file:bg-blue file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-dark" id="instagram_evidence" name="instagram_evidence" type="file" accept="image/*" required>
+                        <p class="text-grey-500 text-xs mt-2">{{ __('Format gambar, maksimal 4 MB.') }}</p>
+                        @error('instagram_evidence')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <label class="flex items-start gap-3 rounded-xl border border-grey-200 bg-white p-4 text-sm text-grey-600">
+                        <input type="checkbox" name="joined_wag" value="1" class="mt-1 rounded border-grey-300 text-blue focus:ring-blue" @checked(old('joined_wag'))>
+                        <span>{{ __('Saya sudah bergabung ke WhatsApp Group kegiatan.') }}</span>
+                    </label>
+                </div>
+
+                <label class="flex items-start gap-3 rounded-xl border border-grey-200 p-4 text-sm text-grey-600">
+                    <input type="checkbox" name="consent" value="1" required class="mt-1 rounded border-grey-300 text-blue focus:ring-blue">
+                    <span>{{ __('Saya menyetujui pemrosesan data pendaftaran dan bersedia mengikuti ketentuan kegiatan ISOC.') }}</span>
+                </label>
+
+                <div class="pt-2">
+                    <button class="w-full bg-blue hover:bg-blue-dark text-white py-3.5 px-8 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2" type="submit">
+                        <span class="material-symbols-outlined text-lg">how_to_reg</span>
+                        {{ __('Daftar Sekarang') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="mt-8 bg-grey-50 rounded-2xl p-8">
+            <h3 class="font-bold text-navy mb-4">{{ __('Detail Event') }}</h3>
+            <div class="space-y-3 text-sm text-grey-600">
+                @if($event->date)
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-blue text-lg mt-0.5">calendar_today</span>
+                    <div>
+                        <p class="font-medium text-navy">{{ __('Tanggal') }}</p>
+                        <p>{{ $event->date->translatedFormat('l, d F Y') }}</p>
+                    </div>
+                </div>
+                @endif
+                @if($event->time_info)
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-blue text-lg mt-0.5">schedule</span>
+                    <div>
+                        <p class="font-medium text-navy">{{ __('Waktu') }}</p>
+                        <p>{{ $event->time_info }}</p>
+                    </div>
+                </div>
+                @endif
+                @if($event->location)
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-blue text-lg mt-0.5">location_on</span>
+                    <div>
+                        <p class="font-medium text-navy">{{ __('Lokasi') }}</p>
+                        <p>{{ $event->location }}</p>
+                    </div>
+                </div>
+                @endif
+                @if($event->description)
+                <div class="pt-3 border-t border-grey-200">
+                    <p class="font-medium text-navy mb-2">{{ __('Deskripsi') }}</p>
+                    <p class="leading-relaxed">{{ $event->description }}</p>
+                </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</section>
+@endsection

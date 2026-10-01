@@ -30,7 +30,7 @@ class PeerGroupResource extends Resource
 
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta];
+        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
     }
 
     public static function manageRoles(): array
@@ -46,8 +46,8 @@ class PeerGroupResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('school_id')->label('Sekolah')->relationship('school', 'name')->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
-            Forms\Components\Select::make('tutor_id')->label('Tutor pendamping')->options(fn () => \App\Models\Tutor::with('user')->get()->pluck('user.name', 'id'))->searchable()->nullable(),
+            Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
+            Forms\Components\Select::make('tutor_id')->label('Tutor pendamping')->options(fn () => static::scopedTutorOptions())->searchable()->nullable(),
             Forms\Components\TextInput::make('name')->label('Nama kelompok')->required(),
             Forms\Components\TextInput::make('member_count')->label('Jumlah anggota')->numeric()->default(0),
             Forms\Components\Select::make('status')->label('Status')->options(['active' => 'Aktif', 'inactive' => 'Nonaktif'])->default('active'),
@@ -63,6 +63,21 @@ class PeerGroupResource extends Resource
                 Tables\Columns\TextColumn::make('tutor.user.name')->label('Tutor')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('member_count')->label('Anggota')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('school_id')
+                    ->label('Sekolah')
+                    ->options(fn () => static::scopedSchoolOptions())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('tutor_id')
+                    ->label('Tutor')
+                    ->options(fn () => static::scopedTutorOptions())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['active' => 'Aktif', 'inactive' => 'Nonaktif']),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

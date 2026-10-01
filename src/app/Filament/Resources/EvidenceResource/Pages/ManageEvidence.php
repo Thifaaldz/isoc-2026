@@ -12,6 +12,10 @@ class ManageEvidence extends ManageRecords
 
     protected function getHeaderActions(): array
     {
-        return [Actions\CreateAction::make()];
+        return [
+            Actions\CreateAction::make()
+                ->label('Upload Bukti Dukung')
+                ->modalWidth('5xl'),
+        ];
     }
 }

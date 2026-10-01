@@ -20,17 +20,17 @@ class WagGroupResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
 
-    protected static ?string $navigationGroup = 'Komunitas';
+    protected static ?string $navigationGroup = 'Absensi & Peserta';
 
     protected static ?string $modelLabel = 'WAG Mentoring';
 
     protected static ?string $pluralModelLabel = 'WAG Mentoring';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 5;
 
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta];
+        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
     }
 
     public static function manageRoles(): array
@@ -46,7 +46,7 @@ class WagGroupResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('school_id')->label('Sekolah')->relationship('school', 'name')->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
+            Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
             Forms\Components\TextInput::make('name')->label('Nama grup')->required(),
             Forms\Components\TextInput::make('invite_link')->label('Tautan undangan')->url(),
             Forms\Components\TextInput::make('member_count')->label('Jumlah anggota')->numeric()->default(0),
@@ -61,11 +61,34 @@ class WagGroupResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Grup')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('invite_link')
+                    ->label('Link WhatsApp')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka WhatsApp' : '-')
+                    ->url(fn (WagGroup $record) => $record->invite_link ?: null)
+                    ->openUrlInNewTab()
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-o-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'success' : 'gray'),
                 Tables\Columns\TextColumn::make('member_count')->label('Anggota')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('active_members')->label('Aktif')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
             ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('school_id')
+                    ->label('Sekolah')
+                    ->options(fn () => static::scopedSchoolOptions())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['active' => 'Aktif', 'inactive' => 'Nonaktif']),
+            ])
             ->actions([
+                Tables\Actions\Action::make('open_whatsapp')
+                    ->label('Buka WAG')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->url(fn (WagGroup $record) => $record->invite_link)
+                    ->openUrlInNewTab()
+                    ->visible(fn (WagGroup $record) => filled($record->invite_link)),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

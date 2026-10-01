@@ -10,7 +10,7 @@ class AssessmentAttempt extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array { return ['submitted_at' => 'datetime']; }
+    protected function casts(): array { return ['answers' => 'array', 'submitted_at' => 'datetime']; }
     public function assessment(): BelongsTo { return $this->belongsTo(Assessment::class); }
     public function participant(): BelongsTo { return $this->belongsTo(Participant::class); }
 

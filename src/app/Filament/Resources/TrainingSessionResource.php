@@ -20,17 +20,17 @@ class TrainingSessionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationGroup = 'Operasional';
+    protected static ?string $navigationGroup = 'Absensi & Peserta';
 
-    protected static ?string $modelLabel = 'Sesi Pelatihan';
+    protected static ?string $modelLabel = 'Jadwal Sesi';
 
-    protected static ?string $pluralModelLabel = 'Sesi Pelatihan';
+    protected static ?string $pluralModelLabel = 'Jadwal Sesi';
 
     protected static ?int $navigationSort = 1;
 
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta];
+        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
     }
 
     public static function manageRoles(): array
@@ -46,7 +46,7 @@ class TrainingSessionResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('school_id')->label('Sekolah')->relationship('school', 'name')->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
+            Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
             Forms\Components\TextInput::make('title')->label('Judul')->required(),
             Forms\Components\DatePicker::make('date')->label('Tanggal')->required(),
             Forms\Components\TimePicker::make('start_time')->label('Mulai')->default('09:00'),
@@ -65,8 +65,23 @@ class TrainingSessionResource extends Resource
                 Tables\Columns\TextColumn::make('date')->label('Tanggal')->searchable()->sortable()->date(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
             ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('school_id')
+                    ->label('Sekolah')
+                    ->options(fn () => static::scopedSchoolOptions())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['planned' => 'Direncanakan', 'running' => 'Berjalan', 'done' => 'Selesai']),
+            ])
             ->defaultSort('date')
             ->actions([
+                Tables\Actions\Action::make('template')
+                    ->label('Absensi Kering')
+                    ->icon('heroicon-o-printer')
+                    ->url(fn (TrainingSession $record) => route('attendance.template', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

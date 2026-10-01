@@ -2,6 +2,10 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\CertificateDesignStudio;
+use App\Filament\Pages\CreateSeminarShortcut;
+use App\Filament\Pages\Profile;
+use App\Filament\Widgets\EventApprovalUpdates;
 use App\Filament\Widgets\KpiOverview;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -29,9 +33,19 @@ class SuperAdminPanelProvider extends PanelProvider
             ->brandName('DSC - Super Admin')
             ->login()
             ->colors(['primary' => Color::Red])
+            ->navigationGroups([
+                'Seminar',
+                'Konten & Penilaian',
+                'Penilaian',
+                'Absensi & Peserta',
+                'Tugas Peserta',
+                'Komunitas',
+                'Validasi & Sertifikat',
+                'Administrasi',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class])
-            ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, CertificateDesignStudio::class, Profile::class])
+            ->widgets([Widgets\AccountWidget::class, EventApprovalUpdates::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

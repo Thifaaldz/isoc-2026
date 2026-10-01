@@ -2,7 +2,12 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\EventRundown;
+use App\Filament\Pages\ParticipantApproval;
+use App\Filament\Pages\Profile;
+use App\Filament\Pages\TutorTraining;
 use App\Filament\Widgets\KpiOverview;
+use App\Http\Middleware\EnsureTutorTrainingCompleted;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -28,9 +33,19 @@ class TutorPanelProvider extends PanelProvider
             ->path('tutor')
             ->brandName('DSC - Tutor')
             ->login()
+            ->homeUrl(fn () => url('/tutor/pelatihan-tutor'))
             ->colors(['primary' => Color::Green])
+            ->navigationGroups([
+                'Pelatihan Tutor',
+                'Seminar & Materi',
+                'Tes & Nilai',
+                'Peserta & Sekolah',
+                'Absensi & Sesi',
+                'Komunitas',
+                'Validasi & Sertifikat',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class])
+            ->pages([TutorTraining::class, Pages\Dashboard::class, EventRundown::class, ParticipantApproval::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,
@@ -42,6 +57,7 @@ class TutorPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                EnsureTutorTrainingCompleted::class,
             ])
             ->authMiddleware([Authenticate::class]);
     }

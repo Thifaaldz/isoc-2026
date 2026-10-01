@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\PaymentResource\Pages;
+use App\Models\LearningEvent;
 use App\Models\Payment;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -18,15 +19,15 @@ class PaymentResource extends Resource
 
     protected static ?string $model = Payment::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-banknotes';
+    protected static ?string $navigationIcon = 'heroicon-o-credit-card';
 
-    protected static ?string $navigationGroup = 'Administrasi';
+    protected static ?string $navigationGroup = 'Validasi & Sertifikat';
 
-    protected static ?string $modelLabel = 'Pembayaran Termin';
+    protected static ?string $modelLabel = 'Payment Terms';
 
-    protected static ?string $pluralModelLabel = 'Pembayaran Termin';
+    protected static ?string $pluralModelLabel = 'Payment Terms';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 5;
 
     public static function viewRoles(): array
     {
@@ -40,18 +41,47 @@ class PaymentResource extends Resource
 
     public static function scopeType(): ?string
     {
-        return null;
+        return 'payment';
     }
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('school_id')->label('Sekolah')->relationship('school', 'name')->searchable()->preload()->required(),
-            Forms\Components\Select::make('term')->label('Termin')->options([1 => 'Termin 1', 2 => 'Termin 2'])->required(),
-            Forms\Components\TextInput::make('amount')->label('Nominal (Rp)')->numeric()->prefix('Rp'),
-            Forms\Components\Select::make('status')->label('Status')->options(['pending' => 'Menunggu', 'eligible' => 'Layak dibayar', 'paid' => 'Dibayar'])->default('pending'),
+            Forms\Components\Select::make('learning_event_id')
+                ->label('Event / Lokus')
+                ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+            Forms\Components\Select::make('school_id')
+                ->label('Sekolah')
+                ->options(fn () => static::scopedSchoolOptions())
+                ->searchable()
+                ->preload()
+                ->required(),
+            Forms\Components\Select::make('term')
+                ->label('Termin')
+                ->options([1 => 'Termin-1 Persiapan', 2 => 'Termin-2 Pelaksanaan', 3 => 'Termin-3 Final'])
+                ->required(),
+            Forms\Components\TextInput::make('amount')->label('Nominal')->numeric()->prefix('Rp')->required(),
+            Forms\Components\Select::make('status')
+                ->label('Status')
+                ->options(['pending' => 'Menunggu', 'eligible' => 'Eligible', 'paid' => 'Dibayar', 'revision' => 'Revisi'])
+                ->default('pending')
+                ->required(),
+            Forms\Components\DatePicker::make('due_at')->label('Deadline / Reminder'),
             Forms\Components\DatePicker::make('paid_at')->label('Tanggal bayar'),
-            Forms\Components\Textarea::make('notes')->label('Catatan'),
+            Forms\Components\FileUpload::make('invoice_path')->label('Invoice')->disk('public')->directory('payments'),
+            Forms\Components\FileUpload::make('receipt_path')->label('Kuitansi')->disk('public')->directory('payments'),
+            Forms\Components\Repeater::make('checklist')
+                ->label('Checklist Termin')
+                ->schema([
+                    Forms\Components\TextInput::make('label')->label('Item')->required(),
+                    Forms\Components\Toggle::make('done')->label('Selesai'),
+                ])
+                ->columns(2)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('notes')->label('Catatan')->columnSpanFull(),
         ]);
     }
 
@@ -59,13 +89,52 @@ class PaymentResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('term')->label('Termin')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('amount')->label('Nominal')->searchable()->sortable()->money('IDR'),
-                Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
-                Tables\Columns\TextColumn::make('paid_at')->label('Dibayar')->searchable()->sortable()->date(),
+                Tables\Columns\TextColumn::make('term')->label('Termin')->badge(),
+                Tables\Columns\TextColumn::make('amount')->label('Nominal')->money('IDR')->sortable(),
+                Tables\Columns\TextColumn::make('status')->label('Status')->badge()->color(fn ($state) => match ($state) {
+                    'paid' => 'success',
+                    'eligible' => 'info',
+                    'revision' => 'warning',
+                    default => 'gray',
+                }),
+                Tables\Columns\TextColumn::make('due_at')->label('Deadline')->date()->sortable(),
+                Tables\Columns\TextColumn::make('approved_at')->label('Disetujui')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('notes')
+                    ->label('Catatan')
+                    ->limit(55)
+                    ->tooltip(fn (Payment $record) => $record->notes)
+                    ->toggleable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('learning_event_id')
+                    ->label('Event')
+                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id')),
+                Tables\Filters\SelectFilter::make('term')
+                    ->label('Termin')
+                    ->options([1 => 'Termin-1', 2 => 'Termin-2', 3 => 'Termin-3']),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['pending' => 'Menunggu', 'eligible' => 'Eligible', 'paid' => 'Dibayar', 'revision' => 'Revisi']),
             ])
             ->actions([
+                Tables\Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check')
+                    ->color('success')
+                    ->visible(fn (Payment $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->status !== 'paid')
+                    ->action(fn (Payment $record) => $record->update([
+                        'status' => 'eligible',
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
+                    ])),
+                Tables\Actions\Action::make('markPaid')
+                    ->label('Paid')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('info')
+                    ->visible(fn (Payment $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->status !== 'paid')
+                    ->action(fn (Payment $record) => $record->update(['status' => 'paid', 'paid_at' => now()])),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

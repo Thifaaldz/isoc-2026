@@ -20,13 +20,13 @@ class TutorResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $navigationGroup = 'Absensi & Peserta';
 
     protected static ?string $modelLabel = 'Tutor';
 
     protected static ?string $pluralModelLabel = 'Tutor';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 4;
 
     public static function viewRoles(): array
     {
@@ -40,14 +40,14 @@ class TutorResource extends Resource
 
     public static function scopeType(): ?string
     {
-        return 'school';
+        return 'tutor_self';
     }
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('user_id')->label('Akun Pengguna')->relationship('user', 'name', fn ($query) => $query->where('role', 'tutor'))->searchable()->preload()->required(),
-            Forms\Components\Select::make('school_id')->label('Sekolah')->relationship('school', 'name')->searchable()->preload()->required(),
+            Forms\Components\Select::make('user_id')->label('Akun Pengguna')->options(fn () => static::scopedUserOptions(UserRole::Tutor))->searchable()->preload()->required(),
+            Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required(),
             Forms\Components\TextInput::make('institution')->label('Institusi'),
             Forms\Components\Toggle::make('tot_completed')->label('ToT selesai'),
             Forms\Components\Toggle::make('is_cadre')->label('Kader pelatih mandiri'),
@@ -63,6 +63,17 @@ class TutorResource extends Resource
                 Tables\Columns\TextColumn::make('institution')->label('Institusi')->searchable()->sortable(),
                 Tables\Columns\IconColumn::make('tot_completed')->label('ToT')->boolean(),
                 Tables\Columns\IconColumn::make('is_cadre')->label('Kader')->boolean(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('school_id')
+                    ->label('Sekolah')
+                    ->options(fn () => static::scopedSchoolOptions())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\TernaryFilter::make('tot_completed')
+                    ->label('ToT selesai'),
+                Tables\Filters\TernaryFilter::make('is_cadre')
+                    ->label('Kader'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

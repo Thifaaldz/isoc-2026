@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\AssessmentAttemptResource\Pages;
 use App\Models\AssessmentAttempt;
+use App\Models\LearningEvent;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -20,17 +21,17 @@ class AssessmentAttemptResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
-    protected static ?string $navigationGroup = 'Pembelajaran';
+    protected static ?string $navigationGroup = 'Penilaian';
 
-    protected static ?string $modelLabel = 'Hasil Tes';
+    protected static ?string $modelLabel = 'Nilai Siswa & Progress';
 
-    protected static ?string $pluralModelLabel = 'Hasil Tes & KPI';
+    protected static ?string $pluralModelLabel = 'Nilai Siswa & Progress';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 1;
 
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta];
+        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
     }
 
     public static function manageRoles(): array
@@ -46,11 +47,13 @@ class AssessmentAttemptResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('assessment_id')->label('Tes')->relationship('assessment', 'title')->required(),
+            Forms\Components\Select::make('assessment_id')->label('Tes')->options(fn () => static::scopedAssessmentOptions())->searchable()->required(),
             auth()->user()?->role === UserRole::Peserta
                 ? Forms\Components\Hidden::make('participant_id')->default(fn () => auth()->user()->participant?->id)
-                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => \App\Models\Participant::with('user')->get()->pluck('user.name', 'id'))->searchable()->required(),
+                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => static::scopedParticipantOptions())->searchable()->required(),
             Forms\Components\TextInput::make('score')->label('Skor')->numeric(),
+            Forms\Components\TextInput::make('correct_count')->label('Jawaban benar')->numeric(),
+            Forms\Components\TextInput::make('total_questions')->label('Jumlah soal')->numeric(),
             Forms\Components\TextInput::make('threat_identification')->label('Identifikasi ancaman (%)')->numeric(),
             Forms\Components\TextInput::make('self_efficacy')->label('Self-efficacy')->numeric(),
             Forms\Components\DateTimePicker::make('submitted_at')->label('Waktu submit')->default(now()),
@@ -62,11 +65,28 @@ class AssessmentAttemptResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('participant.user.name')->label('Peserta')->searchable(),
+                Tables\Columns\TextColumn::make('assessment.learningEvent.title')->label('Event')->searchable(),
                 Tables\Columns\TextColumn::make('assessment.title')->label('Tes')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('assessment.type')->label('Jenis')->badge(),
                 Tables\Columns\TextColumn::make('score')->label('Skor')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('correct_count')->label('Benar')->formatStateUsing(fn ($state, $record) => $state . '/' . $record->total_questions),
                 Tables\Columns\TextColumn::make('threat_identification')->label('Identifikasi (%)')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('self_efficacy')->label('Self-efficacy')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('submitted_at')->label('Submit')->searchable()->sortable()->dateTime(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('learning_event_id')
+                    ->label('Event')
+                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('assessment', fn ($assessmentQuery) => $assessmentQuery->where('learning_event_id', $data['value']))
+                        : $query),
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Jenis Tes')
+                    ->options(['pre' => 'Pre-Test', 'quiz' => 'Kuis Modul', 'post' => 'Post-Test'])
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('assessment', fn ($assessmentQuery) => $assessmentQuery->where('type', $data['value']))
+                        : $query),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

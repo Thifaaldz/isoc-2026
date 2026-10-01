@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\MicrositePracticeResource\Pages;
+use App\Models\LearningEvent;
 use App\Models\MicrositePractice;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -20,13 +21,13 @@ class MicrositePracticeResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-link';
 
-    protected static ?string $navigationGroup = 'Pembelajaran';
+    protected static ?string $navigationGroup = 'Tugas Peserta';
 
-    protected static ?string $modelLabel = 'Praktik Microsite s.id';
+    protected static ?string $modelLabel = 'Praktik Microsite';
 
-    protected static ?string $pluralModelLabel = 'Praktik Microsite s.id';
+    protected static ?string $pluralModelLabel = 'Praktik Microsite';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 1;
 
     public static function viewRoles(): array
     {
@@ -48,7 +49,7 @@ class MicrositePracticeResource extends Resource
         return $form->schema([
             auth()->user()?->role === UserRole::Peserta
                 ? Forms\Components\Hidden::make('participant_id')->default(fn () => auth()->user()->participant?->id)
-                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => \App\Models\Participant::with('user')->get()->pluck('user.name', 'id'))->searchable()->required(),
+                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => static::scopedParticipantOptions())->searchable()->required(),
             Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->url(),
             Forms\Components\Textarea::make('notes')->label('Catatan'),
             Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default('submitted'),
@@ -62,6 +63,17 @@ class MicrositePracticeResource extends Resource
                 Tables\Columns\TextColumn::make('participant.user.name')->label('Peserta')->searchable(),
                 Tables\Columns\TextColumn::make('sid_url')->label('Tautan')->url(fn ($record) => $record->sid_url, true),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('learning_event_id')
+                    ->label('Event')
+                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('participant.learningEvents', fn ($eventQuery) => $eventQuery->where('learning_events.id', $data['value']))
+                        : $query),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau']),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

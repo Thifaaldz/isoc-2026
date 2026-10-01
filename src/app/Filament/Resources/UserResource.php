@@ -22,9 +22,9 @@ class UserResource extends Resource
 
     protected static ?string $navigationGroup = 'Administrasi';
 
-    protected static ?string $modelLabel = 'Pengguna';
+    protected static ?string $modelLabel = 'Users & Akses';
 
-    protected static ?string $pluralModelLabel = 'Pengguna';
+    protected static ?string $pluralModelLabel = 'Users & Akses';
 
     protected static ?int $navigationSort = 1;
 
@@ -65,6 +65,18 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('role')->label('Role')->badge()->formatStateUsing(fn ($state) => $state instanceof UserRole ? $state->label() : $state),
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah'),
                 Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('role')
+                    ->label('Role')
+                    ->options(UserRole::options()),
+                Tables\Filters\SelectFilter::make('school_id')
+                    ->label('Sekolah')
+                    ->relationship('school', 'name')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Aktif'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
