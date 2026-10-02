@@ -29,6 +29,7 @@ class ModuleTemplateMeetingSyncer
                     'learning_event_id' => null,
                     'title' => 'Pertemuan ' . $order,
                     'description' => null,
+                    'duration_minutes' => 25,
                     'task_title' => null,
                     'task_description' => null,
                     'starts_at' => null,

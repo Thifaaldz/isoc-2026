@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Sumber Daya - ISOC Indonesia Jakarta Chapter')
+@section('title', 'Sumber Daya - ' . config('app.name', 'sena'))
 
 @section('content')
 <div class="pt-12 pb-20 px-8 max-w-7xl mx-auto">

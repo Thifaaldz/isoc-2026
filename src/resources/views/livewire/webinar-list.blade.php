@@ -1,7 +1,7 @@
 <div>
     <div class="bg-indigo-600 text-white">
         <div class="max-w-6xl mx-auto px-4 py-12">
-            <h1 class="text-3xl font-bold mb-2">Daftar Webinar ISOC</h1>
+            <h1 class="text-3xl font-bold mb-2">Daftar Webinar {{ config('app.name', 'sena') }}</h1>
             <p class="text-indigo-100">Ikuti webinar terbaru, dapatkan sertifikat &amp; kompetensi JP.</p>
         </div>
     </div>

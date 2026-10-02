@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Certificate;
-use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
@@ -18,6 +17,7 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Url;
 
 class ParticipantLearning extends Page
 {
@@ -33,6 +33,7 @@ class ParticipantLearning extends Page
 
     protected static string $view = 'filament.pages.participant-learning';
 
+    #[Url(as: 'event')]
     public ?int $selectedEventId = null;
 
     public ?int $activeAssessmentId = null;
@@ -51,7 +52,9 @@ class ParticipantLearning extends Page
 
     public function mount(): void
     {
-        $this->selectedEventId = $this->events->first()?->id;
+        if (! $this->events->firstWhere('id', (int) $this->selectedEventId)) {
+            $this->selectedEventId = $this->events->first()?->id;
+        }
     }
 
     public function updatedSelectedEventId(): void
@@ -150,10 +153,7 @@ class ParticipantLearning extends Page
                 'participant_id' => $this->participant->id,
             ],
             [
-                'certificate_template_id' => CertificateTemplate::query()
-                    ->where('learning_event_id', $this->selectedEvent->id)
-                    ->where('is_default', true)
-                    ->value('id'),
+                'certificate_template_id' => $this->selectedEvent->certificate_template_id,
                 'number' => $this->generateCertificateNumber(),
                 'status' => 'pending',
                 'eligibility_status' => 'pending',
@@ -193,7 +193,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Dashboard belum terbuka')
-                ->body('Event umum perlu satu approval dari Admin RTIK Daerah atau Tutor terlebih dahulu.')
+                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -223,7 +223,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Modul belum bisa dibuka')
-                ->body('Event umum perlu satu approval dari Admin RTIK Daerah atau Tutor terlebih dahulu.')
+                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -302,7 +302,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Tes belum bisa dikerjakan')
-                ->body('Event umum perlu satu approval dari Admin RTIK Daerah atau Tutor terlebih dahulu.')
+                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -519,7 +519,7 @@ class ParticipantLearning extends Page
     public function meetingLockReason(LearningMeeting $meeting): string
     {
         if (! $this->selectedEventApproved()) {
-            return 'Event umum perlu satu approval dari Admin RTIK Daerah atau Tutor terlebih dahulu.';
+            return 'Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.';
         }
 
         if ($this->allAssessmentsCompleted()) {

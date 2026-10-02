@@ -16,6 +16,7 @@ use App\Models\MicrositePractice;
 use App\Models\Module;
 use App\Models\Participant;
 use App\Models\Payment;
+use App\Models\Partner;
 use App\Models\PeerGroup;
 use App\Models\School;
 use App\Models\Tutor;
@@ -52,7 +53,7 @@ class DatabaseSeeder extends Seeder
             'maps_url' => 'https://www.google.com/maps/search/?api=1&query=SMK%20Negeri%202%20Jakarta',
             'pic_name' => 'Budi Santoso',
             'pic_phone' => '081200000000',
-            'participant_target' => 100,
+            'participant_target' => 10,
             'training_date' => '2026-10-24',
         ]);
 
@@ -79,7 +80,7 @@ class DatabaseSeeder extends Seeder
                 'attendance_code' => 'DSC24A',
                 'workflow_status' => 'tot_in_progress',
                 'publish_approval_status' => 'published',
-                'target_participants' => 100,
+                'target_participants' => 10,
                 'target_tutors' => 3,
                 'status' => 'active',
                 'registration_open' => true,
@@ -117,13 +118,15 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->seedPayments($event, $school, $superAdmin);
+        $partners = $this->seedPartners();
+        $event->partners()->sync($partners->pluck('id')->all());
         $this->seedModules();
         $meetings = $this->seedMeetings($event);
         $this->seedAssessments($event, $meetings, $participants);
         $this->call(ModuleAjarSeeder::class);
         $this->seedOperations($event, $school, $participants, $tutors, $admin);
         $this->seedCertificate($event, $participants->first());
-        $this->seedWebinarEvent($school, $admin, $superAdmin, $participants->first(), $tutors->first(), $budgetItems);
+        $this->seedWebinarEvent($school, $admin, $superAdmin, $participants->first(), $tutors->first(), $budgetItems, $partners);
 
         LearningEvent::query()
             ->whereKey($event->id)
@@ -163,11 +166,16 @@ class DatabaseSeeder extends Seeder
     private function seedParticipants(School $school): array
     {
         $rows = [
-            ['name' => 'Peserta Contoh', 'email' => 'peserta@isoc.id', 'phone' => '081322220000', 'nis' => '1001', 'grade' => 'X', 'gender' => 'L', 'birth_date' => '2010-02-14'],
-            ['name' => 'Alya Putri', 'email' => 'alya.putri@isoc.id', 'phone' => '081322220001', 'nis' => '1002', 'grade' => 'X', 'gender' => 'P', 'birth_date' => '2010-05-02'],
-            ['name' => 'Dimas Pratama', 'email' => 'dimas.pratama@isoc.id', 'phone' => '081322220002', 'nis' => '1003', 'grade' => 'XI', 'gender' => 'L', 'birth_date' => '2009-08-20'],
-            ['name' => 'Nabila Salsabila', 'email' => 'nabila.salsabila@isoc.id', 'phone' => '081322220003', 'nis' => '1004', 'grade' => 'XI', 'gender' => 'P', 'birth_date' => '2009-11-11'],
-            ['name' => 'Raka Wijaya', 'email' => 'raka.wijaya@isoc.id', 'phone' => '081322220004', 'nis' => '1005', 'grade' => 'XII', 'gender' => 'L', 'birth_date' => '2008-04-18'],
+            ['name' => 'Peserta Contoh', 'email' => 'peserta@isoc.id', 'phone' => '081322220000', 'nis' => '0031000001', 'grade' => 'SMA 10', 'gender' => 'L', 'birth_date' => '2010-02-14'],
+            ['name' => 'Alya Putri', 'email' => 'alya.putri@isoc.id', 'phone' => '081322220001', 'nis' => '0031000002', 'grade' => 'SMA 10', 'gender' => 'P', 'birth_date' => '2010-05-02'],
+            ['name' => 'Dimas Pratama', 'email' => 'dimas.pratama@isoc.id', 'phone' => '081322220002', 'nis' => '0031000003', 'grade' => 'SMA 11', 'gender' => 'L', 'birth_date' => '2009-08-20'],
+            ['name' => 'Nabila Salsabila', 'email' => 'nabila.salsabila@isoc.id', 'phone' => '081322220003', 'nis' => '0031000004', 'grade' => 'SMA 11', 'gender' => 'P', 'birth_date' => '2009-11-11'],
+            ['name' => 'Raka Wijaya', 'email' => 'raka.wijaya@isoc.id', 'phone' => '081322220004', 'nis' => '0031000005', 'grade' => 'SMA 12', 'gender' => 'L', 'birth_date' => '2008-04-18'],
+            ['name' => 'Siti Nurhaliza', 'email' => 'siti.nurhaliza@isoc.id', 'phone' => '081322220005', 'nis' => '0031000006', 'grade' => 'SMA 10', 'gender' => 'P', 'birth_date' => '2010-06-10'],
+            ['name' => 'Fajar Ramadhan', 'email' => 'fajar.ramadhan@isoc.id', 'phone' => '081322220006', 'nis' => '0031000007', 'grade' => 'SMA 11', 'gender' => 'L', 'birth_date' => '2009-03-22'],
+            ['name' => 'Maya Lestari', 'email' => 'maya.lestari@isoc.id', 'phone' => '081322220007', 'nis' => '0031000008', 'grade' => 'SMA 12', 'gender' => 'P', 'birth_date' => '2008-12-05'],
+            ['name' => 'Bagas Saputra', 'email' => 'bagas.saputra@isoc.id', 'phone' => '081322220008', 'nis' => '0031000009', 'grade' => 'SMA 10', 'gender' => 'L', 'birth_date' => '2010-09-17'],
+            ['name' => 'Intan Permata', 'email' => 'intan.permata@isoc.id', 'phone' => '081322220009', 'nis' => '0031000010', 'grade' => 'SMA 11', 'gender' => 'P', 'birth_date' => '2009-01-29'],
         ];
 
         $participants = collect($rows)->map(function (array $row) use ($school): Participant {
@@ -195,6 +203,29 @@ class DatabaseSeeder extends Seeder
         });
 
         return [$participants, $rows];
+    }
+
+    private function seedPartners()
+    {
+        return collect([
+            [
+                'name' => 'APJII',
+                'category' => 'national',
+                'subtitle' => 'Asosiasi Penyelenggara Jasa Internet Indonesia',
+                'logo_path' => 'images/partners/apjii.png',
+                'website_url' => 'https://apjii.or.id',
+            ],
+            [
+                'name' => 'PANDI',
+                'category' => 'national',
+                'subtitle' => 'Pengelola Nama Domain Internet Indonesia',
+                'logo_path' => 'images/partners/pandi.png',
+                'website_url' => 'https://pandi.id',
+            ],
+        ])->map(fn (array $partner) => Partner::query()->updateOrCreate(
+            ['name' => $partner['name']],
+            array_merge($partner, ['status' => 'active']),
+        ));
     }
 
     private function budgetItems(): array
@@ -342,8 +373,10 @@ class DatabaseSeeder extends Seeder
             'questions' => $this->questions('post'),
         ]);
 
+        $quizzes = collect();
+
         foreach ($meetings as $meeting) {
-            Assessment::create([
+            $quizzes->push(Assessment::create([
                 'learning_event_id' => $event->id,
                 'learning_meeting_id' => $meeting->id,
                 'type' => 'quiz',
@@ -351,7 +384,7 @@ class DatabaseSeeder extends Seeder
                 'passing_score' => 85,
                 'is_open' => true,
                 'questions' => $this->questions('quiz'),
-            ]);
+            ]));
         }
 
         foreach ($participants as $index => $participant) {
@@ -376,6 +409,19 @@ class DatabaseSeeder extends Seeder
                 'correct_count' => 5,
                 'total_questions' => 5,
             ]);
+
+            foreach ($quizzes as $quizIndex => $quiz) {
+                AssessmentAttempt::create([
+                    'assessment_id' => $quiz->id,
+                    'participant_id' => $participant->id,
+                    'score' => min(100, 88 + $index + ($quizIndex % 2)),
+                    'threat_identification' => min(100, 84 + $index),
+                    'self_efficacy' => min(100, 72 + $index),
+                    'submitted_at' => now()->subDay()->addMinutes($quizIndex * 8),
+                    'correct_count' => 5,
+                    'total_questions' => 5,
+                ]);
+            }
         }
 
         MicrositePractice::create([
@@ -454,6 +500,7 @@ class DatabaseSeeder extends Seeder
                 'school_id' => $school->id,
                 'type' => $type,
                 'session_index' => str_contains($type, 'foto') ? (($index % 6) + 1) : null,
+                'file_path' => 'images/sena-logo.png',
                 'link' => 'https://example.com/bukti/dsc-smkn2/' . $type,
                 'status' => $index < 9 ? 'approved' : 'pending',
                 'uploaded_by' => $admin->id,
@@ -466,20 +513,16 @@ class DatabaseSeeder extends Seeder
     private function seedCertificate(LearningEvent $event, Participant $participant): void
     {
         $template = CertificateTemplate::create([
-            'learning_event_id' => $event->id,
             'name' => 'Template Sertifikat DSC - Landscape',
             'orientation' => 'landscape',
             'width_mm' => 297,
             'height_mm' => 210,
             'background_color' => '#ffffff',
             'is_default' => true,
-            'elements' => [
-                ['type' => 'custom_text', 'label' => 'Judul', 'content' => 'Sertifikat Peserta', 'x' => 30, 'y' => 38, 'width' => 237, 'height' => 14, 'font_size' => 28, 'font_weight' => '700', 'align' => 'center', 'color' => '#111827'],
-                ['type' => 'participant_name', 'label' => 'Nama peserta', 'x' => 30, 'y' => 90, 'width' => 237, 'height' => 14, 'font_size' => 26, 'font_weight' => '700', 'align' => 'center', 'color' => '#111827'],
-                ['type' => 'custom_text', 'label' => 'Deskripsi', 'content' => 'Atas partisipasinya dalam program {{event_title}}.', 'x' => 48, 'y' => 113, 'width' => 201, 'height' => 22, 'font_size' => 12, 'font_weight' => '400', 'align' => 'center', 'color' => '#374151'],
-                ['type' => 'qr_code', 'label' => 'QR verifikasi', 'x' => 255, 'y' => 172, 'width' => 24, 'height' => 24],
-            ],
+            'elements' => $this->certificateTemplateElements(),
         ]);
+
+        $event->update(['certificate_template_id' => $template->id]);
 
         Certificate::create([
             'learning_event_id' => $event->id,
@@ -493,6 +536,25 @@ class DatabaseSeeder extends Seeder
         ]);
     }
 
+    private function certificateTemplateElements(): array
+    {
+        return [
+            ['type' => 'event_partner_logos', 'label' => 'Logo Mitra Event', 'x' => 18, 'y' => 13, 'width' => 86, 'height' => 16],
+            ['type' => 'sena_logo', 'label' => 'Logo Sena', 'image_path' => '/images/sena-logo.png', 'x' => 230, 'y' => 13, 'width' => 45, 'height' => 18],
+            ['type' => 'white_box', 'label' => 'Penutup nomor sertifikat', 'x' => 65, 'y' => 56.8, 'width' => 167, 'height' => 12, 'color' => '#ffffff'],
+            ['type' => 'custom_text', 'label' => 'Nomor sertifikat', 'content' => 'No. {{certificate_number}}', 'x' => 70, 'y' => 57.8, 'width' => 157, 'height' => 9, 'font_size' => 14, 'font_weight' => '500', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'white_box', 'label' => 'Penutup label penerima', 'x' => 66, 'y' => 69, 'width' => 165, 'height' => 8, 'color' => '#ffffff'],
+            ['type' => 'custom_text', 'label' => 'Diberikan kepada', 'content' => 'diberikan kepada:', 'x' => 70, 'y' => 70.2, 'width' => 157, 'height' => 8, 'font_size' => 18, 'font_weight' => '400', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'white_box', 'label' => 'Penutup nama peserta', 'x' => 44, 'y' => 78.2, 'width' => 209, 'height' => 18, 'color' => '#ffffff'],
+            ['type' => 'participant_name', 'label' => 'Nama peserta', 'x' => 48, 'y' => 80, 'width' => 201, 'height' => 15, 'font_size' => 26, 'font_weight' => '800', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'white_box', 'label' => 'Penutup narasi kegiatan', 'x' => 0, 'y' => 96.5, 'width' => 297, 'height' => 43, 'color' => '#ffffff'],
+            ['type' => 'custom_text', 'label' => 'Narasi kegiatan', 'content' => "Atas dedikasi, integritas, dan keberhasilan menyelesaikan seluruh rangkaian pelatihan intensif\n{{event_title}}\nyang diselenggarakan pada {{event_date}}, serta dinyatakan kompeten sebagai:\n{{competency_title}}", 'x' => 14, 'y' => 98.8, 'width' => 269, 'height' => 40, 'font_size' => 13.5, 'font_weight' => '700', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'custom_text', 'label' => 'TTD Penyelenggara', 'content' => "________________________\n{{organizer_name}}\nPenyelenggara", 'x' => 35, 'y' => 148, 'width' => 85, 'height' => 34, 'font_size' => 9, 'font_weight' => '600', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'custom_text', 'label' => 'TTD Tutor / Mitra', 'content' => "________________________\n{{tutor_name}}\n{{tutor_institution}}", 'x' => 177, 'y' => 148, 'width' => 85, 'height' => 34, 'font_size' => 9, 'font_weight' => '600', 'align' => 'center', 'color' => '#202427'],
+            ['type' => 'qr_code', 'label' => 'QR Verifikasi', 'x' => 255, 'y' => 172, 'width' => 24, 'height' => 24],
+        ];
+    }
+
     private function seedWebinarEvent(
         School $school,
         User $admin,
@@ -500,6 +562,7 @@ class DatabaseSeeder extends Seeder
         Participant $participant,
         Tutor $tutor,
         array $budgetItems,
+        $partners,
     ): void {
         $event = LearningEvent::query()->updateOrCreate(
             ['slug' => 'webinar-digital-safety-awareness'],
@@ -573,6 +636,7 @@ class DatabaseSeeder extends Seeder
         $event->tutors()->syncWithoutDetaching([
             $tutor->id => ['status' => 'assigned', 'assigned_at' => now()],
         ]);
+        $event->partners()->sync($partners->pluck('id')->all());
 
         $event->meetings()->delete();
         $event->assessments()->delete();

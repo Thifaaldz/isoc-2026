@@ -416,7 +416,7 @@
                                                 {{ $this->activeMaterial ? 'Preview: ' . $this->activeMaterial->title : 'Preview Materi' }}
                                             </h4>
                                         </div>
-                                        <a href="{{ \App\Filament\Pages\ParticipantTests::getUrl() }}" class="learning-button learning-button-primary">
+                                        <a href="{{ \App\Filament\Pages\ParticipantTests::getUrl(['event' => $this->selectedEventId]) }}" class="learning-button learning-button-primary">
                                             <x-heroicon-o-clipboard-document-check />
                                             Buka Tes
                                         </a>

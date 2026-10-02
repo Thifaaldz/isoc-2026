@@ -51,6 +51,7 @@ class LearningEventProvisioner
                 ['user_id' => $user->id],
                 [
                     'school_id' => $event->school_id,
+                    'participant_category' => ($event->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar',
                     'nis' => $row['nis'] ?? $row['nisn'] ?? null,
                     'grade' => $row['grade'] ?? null,
                     'organization' => $row['organization'] ?? null,
@@ -63,6 +64,7 @@ class LearningEventProvisioner
 
             $participant->update([
                 'school_id' => $event->school_id,
+                'participant_category' => $participant->participant_category ?: (($event->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar'),
                 'nis' => $row['nis'] ?? $row['nisn'] ?? $participant->nis,
                 'grade' => $row['grade'] ?? $participant->grade,
                 'organization' => $row['organization'] ?? $participant->organization,
@@ -122,9 +124,14 @@ class LearningEventProvisioner
         }
 
         $totalBudget = collect($event->budget_items ?? [])->sum(fn (array $item) => (float) ($item['amount'] ?? 0));
-        $termAmount = $totalBudget > 0 ? round($totalBudget / 3, 2) : 0;
+        $termAmount = $totalBudget > 0 ? round($totalBudget / 2, 2) : 0;
 
-        foreach ([1, 2, 3] as $term) {
+        Payment::query()
+            ->where('learning_event_id', $event->id)
+            ->where('term', '>', 2)
+            ->delete();
+
+        foreach ([1, 2] as $term) {
             $payment = Payment::query()->firstOrNew(
                 ['learning_event_id' => $event->id, 'term' => $term],
             );
@@ -208,26 +215,16 @@ class LearningEventProvisioner
                 'Berita acara persiapan',
             ], fn (string $label) => ['label' => $label, 'done' => false]),
             2 => Arr::map([
-                'ToT tutor lulus sempurna',
-                'Absensi basah',
-                'Foto kegiatan',
-                'Video slogan',
-                'Bukti follow IG',
-                'Bukti join WAG',
-                'Pre-test dan post-test lengkap',
-                'Bukti 6 modul tersampaikan',
-                'Praktik microsite s.id',
+                'Dokumentasi acara lengkap',
+                'Hasil pre-test dan post-test',
+                'Daftar hadir registrasi / absensi',
+                'Video slogan ISOC',
+                'Bukti praktik microsite s.id',
+                'RAB final dan kuitansi/invoice',
+                'Laporan kegiatan per lokasi disubmit',
+                'Laporan kegiatan disetujui Admin RTIK Pusat',
             ], fn (string $label) => ['label' => $label, 'done' => false]),
-            default => Arr::map([
-                'RAB final',
-                'Kuitansi dan invoice',
-                'Bukti pembelian logistik',
-                'Laporan KPI',
-                'Sertifikat peserta eligible',
-                'WAG Mentoring aktif',
-                'Laporan akhir disetujui',
-                'Berita acara serah terima',
-            ], fn (string $label) => ['label' => $label, 'done' => false]),
+            default => [],
         };
     }
 }

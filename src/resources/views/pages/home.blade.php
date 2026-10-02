@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'ISOC Indonesia Jakarta Chapter - Internet is for Everyone')
+@section('title', config('app.name', 'sena') . ' - Internet is for Everyone')
 
 @section('content')
 {{-- Hero --}}

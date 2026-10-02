@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Models\Participant;
 use App\Models\School;
 use App\Models\User;
+use App\Models\WagGroup;
 use App\Support\PublicEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,21 @@ use Illuminate\View\View;
 
 class ParticipantRegistrationController
 {
+    private const GRADE_OPTIONS = [
+        'SD 1' => 'SD Kelas 1',
+        'SD 2' => 'SD Kelas 2',
+        'SD 3' => 'SD Kelas 3',
+        'SD 4' => 'SD Kelas 4',
+        'SD 5' => 'SD Kelas 5',
+        'SD 6' => 'SD Kelas 6',
+        'SMP 7' => 'SMP Kelas 7',
+        'SMP 8' => 'SMP Kelas 8',
+        'SMP 9' => 'SMP Kelas 9',
+        'SMA 10' => 'SMA/SMK Kelas 10',
+        'SMA 11' => 'SMA/SMK Kelas 11',
+        'SMA 12' => 'SMA/SMK Kelas 12',
+    ];
+
     public function create(): View
     {
         return $this->showEventRegistration();
@@ -30,7 +46,7 @@ class ParticipantRegistrationController
     {
         $learningEvent = LearningEvent::query()
             ->withCount('participants')
-            ->with('school')
+            ->with('school.wagGroups')
             ->where('is_published', true)
             ->where('status', 'active')
             ->when($event, fn ($query) => $query->where('slug', $event))
@@ -54,9 +70,21 @@ class ParticipantRegistrationController
                 capacity_info: Participant::query()->count() . '/500 peserta'
             );
 
+        $wagGroup = $learningEvent?->school?->wagGroups
+            ?->filter(fn (WagGroup $group): bool => $group->status === 'active' && filled($group->invite_link))
+            ->sortByDesc('updated_at')
+            ->first()
+            ?: WagGroup::query()
+                ->where('status', 'active')
+                ->whereNotNull('invite_link')
+                ->latest()
+                ->first();
+
         return view('pages.event-register', [
             'event' => $registrationEvent,
+            'wagGroup' => $wagGroup,
             'registrationCount' => Participant::query()->count(),
+            'gradeOptions' => self::GRADE_OPTIONS,
             'schools' => School::query()
                 ->where('status', 'active')
                 ->orderBy('city')
@@ -98,44 +126,62 @@ class ParticipantRegistrationController
                 ->where('status', 'active')
                 ->first()
             : null;
-        $isGeneralEvent = ($learningEvent?->audience_type ?? 'school') === 'general';
+        $participantCategory = $request->input('participant_category', (($learningEvent?->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar'));
+        $isStudent = $participantCategory === 'pelajar';
+        $identityLabel = $this->identityLabel($participantCategory);
+        $identityRules = match ($participantCategory) {
+            'pelajar' => ['required', 'digits:10'],
+            'umum', 'karyawan' => ['required', 'digits:16'],
+            'mahasiswa' => ['required', 'string', 'min:3', 'max:50'],
+            default => ['required', 'string', 'max:50'],
+        };
+        $programLocationId = $learningEvent?->school_id
+            ?: $request->input('school_id')
+            ?: School::query()->where('status', 'active')->orderBy('id')->value('id');
+        $identityUniqueRule = Rule::unique('participants', 'nis')
+            ->where(fn ($query) => $query
+                ->where('school_id', $programLocationId)
+                ->where('participant_category', $participantCategory));
 
         $validated = $request->validate([
+            'participant_category' => ['required', Rule::in(['pelajar', 'mahasiswa', 'umum', 'karyawan'])],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'phone' => ['required', 'string', 'max:30'],
-            'school_id' => [$isGeneralEvent ? 'nullable' : 'required', 'integer', Rule::exists('schools', 'id')->where('status', 'active')],
+            'school_id' => ['nullable', 'integer', Rule::exists('schools', 'id')->where('status', 'active')],
             'nis' => [
-                'nullable',
-                'string',
-                'max:30',
-                Rule::unique('participants', 'nis')->where(fn ($query) => $query->where('school_id', $request->input('school_id'))),
+                ...$identityRules,
+                $identityUniqueRule,
             ],
-            'grade' => [$isGeneralEvent ? 'nullable' : 'required', Rule::in(['X', 'XI', 'XII'])],
-            'organization' => ['nullable', 'string', 'max:255'],
+            'grade' => [$isStudent ? 'required' : 'nullable', Rule::in(array_keys(self::GRADE_OPTIONS))],
+            'organization' => [$isStudent ? 'required' : 'nullable', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
             'gender' => ['required', Rule::in(['L', 'P'])],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'instagram_evidence' => ['required', 'image', 'max:4096'],
-            'joined_wag' => ['nullable', 'boolean'],
+            'instagram_evidence' => ['required', 'image'],
+            'joined_wag' => ['accepted'],
             'consent' => ['accepted'],
+        ], [], [
+            'nis' => $identityLabel,
+            'participant_category' => 'kategori peserta',
         ]);
 
-        $user = DB::transaction(function () use ($request, $validated, $learningEvent): User {
+        $user = DB::transaction(function () use ($request, $validated, $learningEvent, $programLocationId): User {
             $user = User::query()->create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'role' => UserRole::Peserta,
                 'phone' => $validated['phone'],
-                'school_id' => $validated['school_id'] ?? null,
+                'school_id' => $programLocationId,
                 'is_active' => true,
             ]);
 
             $participant = Participant::query()->create([
                 'user_id' => $user->id,
-                'school_id' => $validated['school_id'] ?? null,
+                'school_id' => $programLocationId,
+                'participant_category' => $validated['participant_category'],
                 'nis' => $validated['nis'] ?? null,
                 'grade' => $validated['grade'] ?? null,
                 'organization' => $validated['organization'] ?? null,
@@ -144,28 +190,31 @@ class ParticipantRegistrationController
                 'birth_date' => $validated['birth_date'] ?? null,
                 'consent_at' => now(),
                 'followed_instagram' => true,
-                'joined_wag' => $request->boolean('joined_wag'),
+                'joined_wag' => true,
                 'registered_ecert' => false,
             ]);
 
             Evidence::query()->create([
                 'learning_event_id' => $learningEvent?->id,
-                'school_id' => $validated['school_id'] ?? $learningEvent?->school_id,
+                'school_id' => $programLocationId,
                 'type' => 'follow_ig',
                 'file_path' => $request->file('instagram_evidence')->store('evidences', 'public'),
-                'status' => 'pending',
+                'status' => 'approved',
                 'uploaded_by' => $user->id,
+                'verified_at' => now(),
+                'review_notes' => 'Auto-approved dari registrasi: bukti follow IG dan checklist WAG lengkap.',
             ]);
 
             if ($learningEvent) {
-                $approvalStatus = $learningEvent->audience_type === 'general' ? 'pending' : 'approved';
-
                 $participant->learningEvents()->syncWithoutDetaching([
                     $learningEvent->id => [
                         'status' => 'registered',
                         'registered_at' => now(),
-                        'admin_approval_status' => $approvalStatus,
-                        'tutor_approval_status' => $approvalStatus,
+                        'admin_approval_status' => 'approved',
+                        'admin_approved_at' => now(),
+                        'tutor_approval_status' => 'approved',
+                        'tutor_approved_at' => now(),
+                        'approval_notes' => 'Auto-approved: bukti follow IG dan checklist join WAG sudah lengkap.',
                     ],
                 ]);
             }
@@ -204,5 +253,15 @@ class ParticipantRegistrationController
             capacity_info: ($event->participants_count ?? 0) . '/' . ($event->target_participants ?: 0) . ' peserta',
             audience_type: $event->audience_type ?? 'school',
         );
+    }
+
+    private function identityLabel(string $category): string
+    {
+        return match ($category) {
+            'pelajar' => 'NISN',
+            'mahasiswa' => 'NIM',
+            'karyawan', 'umum' => 'NIK',
+            default => 'Nomor Identitas',
+        };
     }
 }

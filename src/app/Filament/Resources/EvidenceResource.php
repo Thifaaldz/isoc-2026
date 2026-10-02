@@ -62,7 +62,7 @@ class EvidenceResource extends Resource
                             ->afterStateUpdated(fn ($state, Set $set) => $set('school_id', LearningEvent::query()->find($state)?->school_id))
                             ->required(),
                         Forms\Components\Select::make('school_id')
-                            ->label('Sekolah / Lokus')
+                            ->label('Lokasi')
                             ->options(fn () => static::scopedSchoolOptions())
                             ->searchable()
                             ->preload()
@@ -128,7 +128,7 @@ class EvidenceResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('type')->label('Jenis')->formatStateUsing(fn ($state) => \App\Models\Evidence::TYPES[$state] ?? $state),
                 Tables\Columns\TextColumn::make('session_index')->label('Sesi'),
@@ -141,7 +141,7 @@ class EvidenceResource extends Resource
                     ->searchable()
                     ->preload(),
                 Tables\Filters\SelectFilter::make('school_id')
-                    ->label('Sekolah')
+                    ->label('Lokasi')
                     ->options(fn () => static::scopedSchoolOptions())
                     ->searchable()
                     ->preload(),

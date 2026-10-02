@@ -5,6 +5,7 @@
 @section('content')
 @php
     $isGeneralEvent = ($event->audience_type ?? 'school') === 'general';
+    $defaultParticipantCategory = old('participant_category', $isGeneralEvent ? 'umum' : 'pelajar');
 @endphp
 <section class="bg-navy relative overflow-hidden">
     <div class="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-20">
@@ -44,7 +45,33 @@
                 @endif
             </div>
 
-            <form action="{{ route('event.register.store', $event) }}" method="POST" enctype="multipart/form-data" class="p-8 space-y-6">
+            <form
+                action="{{ route('event.register.store', $event) }}"
+                method="POST"
+                enctype="multipart/form-data"
+                class="p-8 space-y-6"
+                x-data="{
+                    category: @js($defaultParticipantCategory),
+                    identityLabel() {
+                        return { pelajar: 'NISN', mahasiswa: 'NIM', umum: 'NIK', karyawan: 'NIK' }[this.category] || 'Nomor Identitas';
+                    },
+                    identityPlaceholder() {
+                        return { pelajar: '10 digit NISN', mahasiswa: 'Nomor Induk Mahasiswa', umum: '16 digit NIK', karyawan: '16 digit NIK' }[this.category] || 'Nomor Identitas';
+                    },
+                    requiresSchool() {
+                        return this.category === 'pelajar';
+                    },
+                    needsOrganization() {
+                        return true;
+                    },
+                    organizationLabel() {
+                        return this.category === 'pelajar' ? 'Nama Sekolah' : 'Organisasi / Instansi';
+                    },
+                    organizationPlaceholder() {
+                        return this.category === 'pelajar' ? 'Contoh: SMK Negeri 1 Jakarta' : 'Opsional';
+                    },
+                }"
+            >
                 @csrf
 
                 @if($errors->any())
@@ -73,43 +100,60 @@
                     </div>
                 </div>
 
-                @if(! $isGeneralEvent)
+                <div class="rounded-2xl border border-grey-200 bg-grey-50 p-5">
+                    <label class="block text-sm font-semibold text-navy mb-2" for="participant_category">{{ __('Kategori Peserta') }} <span class="text-red-500">*</span></label>
+                    <select
+                        class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm bg-white"
+                        id="participant_category"
+                        name="participant_category"
+                        required
+                        x-model="category"
+                    >
+                        <option value="pelajar">{{ __('Pelajar') }}</option>
+                        <option value="mahasiswa">{{ __('Mahasiswa') }}</option>
+                        <option value="umum">{{ __('Umum') }}</option>
+                        <option value="karyawan">{{ __('Karyawan') }}</option>
+                    </select>
+                    <p class="text-grey-500 text-xs mt-2">{{ __('Kategori ini menentukan nomor identitas: Pelajar=NISN, Mahasiswa=NIM, Umum/Karyawan=NIK.') }}</p>
+                    @error('participant_category')
+                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
-                        <label class="block text-sm font-semibold text-navy mb-2" for="school_id">{{ __('Sekolah') }} <span class="text-red-500">*</span></label>
-                        <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="school_id" name="school_id" required>
-                            <option value="">{{ __('Pilih sekolah') }}</option>
-                            @foreach($schools as $school)
-                            <option value="{{ $school->id }}" @selected(old('school_id') == $school->id)>{{ $school->name }}{{ $school->city ? ' - ' . $school->city : '' }}</option>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="nis"><span x-text="identityLabel()"></span> <span class="text-red-500">*</span></label>
+                        <input
+                            class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm"
+                            id="nis"
+                            name="nis"
+                            type="text"
+                            value="{{ old('nis') }}"
+                            :placeholder="identityPlaceholder()"
+                            required
+                        />
+                        <p class="text-grey-500 text-xs mt-1">{{ __('Mengikuti kategori peserta yang dipilih.') }}</p>
+                        @error('nis')
+                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div x-show="requiresSchool()" x-cloak>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="grade">{{ __('Kelas') }} <span class="text-red-500">*</span></label>
+                        <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="grade" name="grade" :required="requiresSchool()">
+                            <option value="">{{ __('Pilih') }}</option>
+                            @foreach($gradeOptions as $grade => $gradeLabel)
+                            <option value="{{ $grade }}" @selected(old('grade') === $grade)>{{ $gradeLabel }}</option>
                             @endforeach
                         </select>
                     </div>
-                @endif
-
-                <div class="grid md:grid-cols-3 gap-6">
-                    @if(! $isGeneralEvent)
-                        <div>
-                            <label class="block text-sm font-semibold text-navy mb-2" for="nis">{{ __('NIS') }}</label>
-                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="nis" name="nis" type="text" value="{{ old('nis') }}" placeholder="{{ __('Nomor induk siswa') }}"/>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-navy mb-2" for="grade">{{ __('Kelas') }} <span class="text-red-500">*</span></label>
-                            <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="grade" name="grade" required>
-                                <option value="">{{ __('Pilih') }}</option>
-                                @foreach(['X', 'XI', 'XII'] as $grade)
-                                <option value="{{ $grade }}" @selected(old('grade') === $grade)>{{ $grade }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @else
-                        <div>
-                            <label class="block text-sm font-semibold text-navy mb-2" for="organization">{{ __('Organisasi / Instansi') }}</label>
-                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="organization" name="organization" type="text" value="{{ old('organization') }}" placeholder="{{ __('Opsional') }}"/>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-navy mb-2" for="position">{{ __('Jabatan / Peran') }}</label>
-                            <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="position" name="position" type="text" value="{{ old('position') }}" placeholder="{{ __('Opsional') }}"/>
-                        </div>
-                    @endif
+                    <div x-show="needsOrganization()" x-cloak>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="organization"><span x-text="organizationLabel()"></span> <span x-show="requiresSchool()" class="text-red-500">*</span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="organization" name="organization" type="text" value="{{ old('organization') }}" :required="requiresSchool()" :placeholder="organizationPlaceholder()"/>
+                    </div>
+                    <div x-show="needsOrganization()" x-cloak>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="position">{{ __('Jabatan / Peran') }}</label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="position" name="position" type="text" value="{{ old('position') }}" placeholder="{{ __('Opsional') }}"/>
+                    </div>
                     <div>
                         <label class="block text-sm font-semibold text-navy mb-2" for="gender">{{ __('Jenis Kelamin') }} <span class="text-red-500">*</span></label>
                         <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="gender" name="gender" required>
@@ -142,19 +186,34 @@
                             <span class="material-symbols-outlined text-blue text-lg">verified_user</span>
                             {{ __('Validasi Peserta') }}
                         </h3>
-                        <p class="text-grey-600 text-xs mt-1">{{ __('Upload screenshot bukti follow Instagram ISOC. Admin akan mengecek bukti ini melalui panel.') }}</p>
+                        <p class="text-grey-600 text-xs mt-1">{{ __('Upload screenshot bukti follow Instagram dan ceklis WhatsApp Group. Jika keduanya lengkap, sistem otomatis menyetujui akses awal peserta.') }}</p>
                     </div>
+                    @if(! empty($wagGroup?->invite_link))
+                        <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+                            <p class="font-semibold text-green-800 text-sm">{{ __('WhatsApp Group Kegiatan') }}</p>
+                            <p class="text-green-700 text-xs mt-1">{{ $wagGroup->name }}</p>
+                            <a class="mt-3 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700" href="{{ $wagGroup->invite_link }}" target="_blank" rel="noopener noreferrer">
+                                <span class="material-symbols-outlined text-base">open_in_new</span>
+                                {{ __('Buka Link WAG') }}
+                            </a>
+                        </div>
+                    @else
+                        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                            <p class="font-semibold">{{ __('Link WhatsApp Group belum tersedia') }}</p>
+                            <p class="text-xs mt-1">{{ __('Silakan lanjutkan pendaftaran. Admin akan melengkapi link WAG kegiatan.') }}</p>
+                        </div>
+                    @endif
                     <div>
                         <label class="block text-sm font-semibold text-navy mb-2" for="instagram_evidence">{{ __('Bukti Follow Instagram') }} <span class="text-red-500">*</span></label>
                         <input class="block w-full rounded-xl bg-white border border-grey-200 p-3 text-sm text-grey-600 file:mr-4 file:rounded-xl file:border-0 file:bg-blue file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-dark" id="instagram_evidence" name="instagram_evidence" type="file" accept="image/*" required>
-                        <p class="text-grey-500 text-xs mt-2">{{ __('Format gambar, maksimal 4 MB.') }}</p>
+                        <p class="text-grey-500 text-xs mt-2">{{ __('Format gambar screenshot bukti follow.') }}</p>
                         @error('instagram_evidence')
                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                         @enderror
                     </div>
                     <label class="flex items-start gap-3 rounded-xl border border-grey-200 bg-white p-4 text-sm text-grey-600">
-                        <input type="checkbox" name="joined_wag" value="1" class="mt-1 rounded border-grey-300 text-blue focus:ring-blue" @checked(old('joined_wag'))>
-                        <span>{{ __('Saya sudah bergabung ke WhatsApp Group kegiatan.') }}</span>
+                        <input type="checkbox" name="joined_wag" value="1" required class="mt-1 rounded border-grey-300 text-blue focus:ring-blue" @checked(old('joined_wag'))>
+                        <span>{{ __('Saya sudah bergabung ke WhatsApp Group kegiatan.') }} <span class="text-red-500">*</span></span>
                     </label>
                 </div>
 

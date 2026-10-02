@@ -30,8 +30,10 @@ class SuperAdminPanelProvider extends PanelProvider
         return $panel
             ->id('superadmin')
             ->path('superadmin')
-            ->brandName('DSC - Super Admin')
-            ->login()
+            ->brandName('sena - Super Admin')
+            ->brandLogo(asset('images/sena-symbol.png'))
+            ->brandLogoHeight('2.25rem')
+            ->login(fn () => redirect('/login'))
             ->colors(['primary' => Color::Red])
             ->navigationGroups([
                 'Seminar',

@@ -23,9 +23,9 @@ class SchoolResource extends Resource
 
     protected static ?string $navigationGroup = 'Absensi & Peserta';
 
-    protected static ?string $modelLabel = 'Sekolah';
+    protected static ?string $modelLabel = 'Lokasi';
 
-    protected static ?string $pluralModelLabel = 'Sekolah / Lokasi';
+    protected static ?string $pluralModelLabel = 'Lokasi';
 
     protected static ?int $navigationSort = 6;
 
@@ -47,7 +47,7 @@ class SchoolResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\TextInput::make('name')->label('Nama Sekolah')->required(),
+            Forms\Components\TextInput::make('name')->label('Nama Lokasi')->required(),
             Forms\Components\TextInput::make('npsn')->label('NPSN')->unique(ignoreRecord: true),
             Forms\Components\Select::make('type')->label('Jenjang')->options(['SMA' => 'SMA', 'SMK' => 'SMK'])->required()->default('SMA'),
             ...SchoolLocationFields::schema(),
@@ -57,7 +57,7 @@ class SchoolResource extends Resource
                 ->url()
                 ->maxLength(255)
                 ->placeholder('https://maps.google.com/...'),
-            Forms\Components\TextInput::make('pic_name')->label('PIC Sekolah'),
+            Forms\Components\TextInput::make('pic_name')->label('PIC Lokasi'),
             Forms\Components\TextInput::make('pic_phone')->label('Telepon PIC'),
             Forms\Components\TextInput::make('participant_target')->label('Target Peserta')->numeric()->default(100),
             Forms\Components\DatePicker::make('training_date')->label('Tanggal Pelatihan'),
@@ -69,7 +69,7 @@ class SchoolResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Sekolah')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('name')->label('Lokasi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('type')->label('Jenjang')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('province')->label('Provinsi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('city')->label('Kota')->searchable()->sortable(),

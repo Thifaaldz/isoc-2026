@@ -10,6 +10,7 @@ use App\Models\AssessmentAttempt;
 use App\Models\LearningEvent;
 use Filament\Widgets\Widget;
 use Filament\Notifications\Notification;
+use Livewire\Attributes\Url;
 
 class ParticipantDashboardOverview extends Widget
 {
@@ -19,9 +20,22 @@ class ParticipantDashboardOverview extends Widget
 
     protected static ?int $sort = -2;
 
+    #[Url(as: 'event')]
+    public ?int $selectedEventId = null;
+
     public static function canView(): bool
     {
         return auth()->user()?->role === UserRole::Peserta;
+    }
+
+    public function mount(): void
+    {
+        $this->selectedEventId = $this->resolveSelectedEvent()?->id;
+    }
+
+    public function updatedSelectedEventId(): void
+    {
+        $this->selectedEventId = $this->resolveSelectedEvent()?->id;
     }
 
     protected function getViewData(): array
@@ -49,8 +63,8 @@ class ParticipantDashboardOverview extends Widget
             ->orderByDesc('starts_at')
             ->get();
 
-        $selectedEventId = (int) request()->query('event');
-        $event = $events->firstWhere('id', $selectedEventId) ?? $events->first();
+        $event = $events->firstWhere('id', (int) $this->selectedEventId) ?? $events->first();
+        $this->selectedEventId = $event?->id;
 
         if (! $event) {
             return [
@@ -71,14 +85,13 @@ class ParticipantDashboardOverview extends Widget
             ->first()
             ?->pivot;
         $approval = [
-            'requires_approval' => $event->audience_type === 'general',
             'admin' => $pivot?->admin_approval_status ?? 'approved',
             'tutor' => $pivot?->tutor_approval_status ?? 'approved',
             'notes' => $pivot?->approval_notes,
         ];
-        $approval['approved'] = ! $approval['requires_approval']
-            || $approval['admin'] === 'approved'
+        $approval['approved'] = $approval['admin'] === 'approved'
             || $approval['tutor'] === 'approved';
+        $approval['requires_approval'] = ! $approval['approved'];
         $approval['status'] = $approval['approved'] ? 'approved' : 'pending';
 
         if (! $approval['approved']) {
@@ -130,10 +143,27 @@ class ParticipantDashboardOverview extends Widget
                 'progress' => (int) round(($doneSteps / $totalSteps) * 100),
             ],
             'approval' => $approval,
-            'learningUrl' => ParticipantLearning::getUrl(),
-            'testsUrl' => ParticipantTests::getUrl(),
+            'learningUrl' => ParticipantLearning::getUrl(['event' => $event->id]),
+            'testsUrl' => ParticipantTests::getUrl(['event' => $event->id]),
             'rundownUrl' => EventRundown::getUrl(['event' => $event->id]),
         ];
+    }
+
+    private function resolveSelectedEvent(): ?LearningEvent
+    {
+        $participant = auth()->user()?->participant;
+
+        if (! $participant) {
+            return null;
+        }
+
+        $events = LearningEvent::query()
+            ->where('is_published', true)
+            ->whereHas('participants', fn ($query) => $query->where('participants.id', $participant->id))
+            ->orderByDesc('starts_at')
+            ->get();
+
+        return $events->firstWhere('id', (int) $this->selectedEventId) ?? $events->first();
     }
 
     private function emptyStats(): array
@@ -170,6 +200,11 @@ class ParticipantDashboardOverview extends Widget
         }
 
         $participant->update(['joined_wag' => ! $participant->joined_wag]);
+
+        LearningEvent::query()
+            ->whereHas('participants', fn ($query) => $query->where('participants.id', $participant->id))
+            ->get()
+            ->each(fn (LearningEvent $event) => $participant->syncInitialApprovalForEvent($event));
 
         Notification::make()
             ->title('Status WhatsApp Group diperbarui')

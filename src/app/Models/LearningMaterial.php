@@ -18,7 +18,10 @@ class LearningMaterial extends Model
 
     protected function casts(): array
     {
-        return ['is_published' => 'boolean'];
+        return [
+            'is_published' => 'boolean',
+            'duration_minutes' => 'integer',
+        ];
     }
 
     public function meeting(): BelongsTo

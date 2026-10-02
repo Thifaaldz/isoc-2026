@@ -3,6 +3,8 @@
 use App\Http\Controllers\CertificateVerificationController;
 use App\Http\Controllers\AttendanceTemplateController;
 use App\Http\Controllers\CertificatePdfController;
+use App\Http\Controllers\CertificateTemplatePreviewController;
+use App\Http\Controllers\EventActivityReportController;
 use App\Http\Controllers\ImportTemplateController;
 use App\Http\Controllers\ParticipantRegistrationController;
 use App\Http\Controllers\PublicPageController;
@@ -31,8 +33,13 @@ Route::post('/events/{event}/register', [ParticipantRegistrationController::clas
     ->name('event.register.store');
 
 Route::redirect('/webinars', '/events');
-Route::redirect('/student/login', '/peserta/login');
-Route::redirect('/portal/login', '/peserta/login')->name('participant.login');
+Route::redirect('/login', '/auth/login');
+Route::redirect('/student/login', '/login');
+Route::redirect('/portal/login', '/login')->name('participant.login');
+Route::redirect('/superadmin/login', '/login');
+Route::redirect('/admin/login', '/login');
+Route::redirect('/tutor/login', '/login');
+Route::redirect('/peserta/login', '/login');
 Route::redirect('/student/register', '/events/digital-safety-champions/register');
 
 Route::get('/program', [ParticipantRegistrationController::class, 'showProgram'])
@@ -53,6 +60,12 @@ Route::middleware('auth')->get('/certificates/{certificate}/preview-pdf', [Certi
     ->name('certificates.preview-pdf');
 Route::middleware('auth')->get('/certificates/{certificate}/download-pdf', [CertificatePdfController::class, 'download'])
     ->name('certificates.download-pdf');
+Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
+    ->name('certificate-templates.preview-pdf');
+Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])
+    ->name('reports.events.activity.preview');
+Route::middleware('auth')->get('/reports/events/{event}/activity-report/download', [EventActivityReportController::class, 'download'])
+    ->name('reports.events.activity.download');
 Route::get('/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
     ->name('certificate.verify');
@@ -61,7 +74,7 @@ Route::get('/verify/{certificateNumber}', [CertificateVerificationController::cl
 Route::get('/dashboard', function () {
     $user = auth()->user();
 
-    return $user ? redirect('/' . $user->role->panelId()) : redirect('/');
+    return $user ? redirect('/' . $user->role->panelId()) : redirect('/auth/login');
 });
 
 Route::get('/attendance-template/{session}', [AttendanceTemplateController::class, 'show'])
@@ -75,3 +88,7 @@ Route::get('/templates/import/participants.xlsx', [ImportTemplateController::cla
 Route::get('/templates/import/tutors.xlsx', [ImportTemplateController::class, 'tutors'])
     ->middleware('auth')
     ->name('import-templates.tutors');
+
+Route::get('/templates/import/rab.xlsx', [ImportTemplateController::class, 'rab'])
+    ->middleware('auth')
+    ->name('import-templates.rab');

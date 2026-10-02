@@ -13,6 +13,11 @@ class ManagePayment extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('downloadRabTemplate')
+                ->label('Template RAB')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->url(fn () => route('import-templates.rab'))
+                ->openUrlInNewTab(),
             Actions\CreateAction::make(),
         ];
     }

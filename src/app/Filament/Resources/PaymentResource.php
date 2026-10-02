@@ -54,14 +54,14 @@ class PaymentResource extends Resource
                 ->preload()
                 ->required(),
             Forms\Components\Select::make('school_id')
-                ->label('Sekolah')
+                ->label('Lokasi')
                 ->options(fn () => static::scopedSchoolOptions())
                 ->searchable()
                 ->preload()
                 ->required(),
             Forms\Components\Select::make('term')
                 ->label('Termin')
-                ->options([1 => 'Termin-1 Persiapan', 2 => 'Termin-2 Pelaksanaan', 3 => 'Termin-3 Final'])
+                ->options([1 => 'Termin-1 Persiapan & Publish', 2 => 'Termin-2 Laporan Final'])
                 ->required(),
             Forms\Components\TextInput::make('amount')->label('Nominal')->numeric()->prefix('Rp')->required(),
             Forms\Components\Select::make('status')
@@ -90,7 +90,7 @@ class PaymentResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('term')->label('Termin')->badge(),
                 Tables\Columns\TextColumn::make('amount')->label('Nominal')->money('IDR')->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge()->color(fn ($state) => match ($state) {
@@ -113,7 +113,7 @@ class PaymentResource extends Resource
                     ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id')),
                 Tables\Filters\SelectFilter::make('term')
                     ->label('Termin')
-                    ->options([1 => 'Termin-1', 2 => 'Termin-2', 3 => 'Termin-3']),
+                    ->options([1 => 'Termin-1', 2 => 'Termin-2']),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options(['pending' => 'Menunggu', 'eligible' => 'Eligible', 'paid' => 'Dibayar', 'revision' => 'Revisi']),

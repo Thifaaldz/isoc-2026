@@ -27,6 +27,30 @@ class ModuleTemplateApplier
         }
 
         $generatedRundown = [];
+        $current = $event->starts_at?->copy();
+
+        if ($current) {
+            $openingEnd = $current->copy()->addMinutes(15);
+            $generatedRundown[] = [
+                'start_time' => $current->format('H:i'),
+                'end_time' => $openingEnd->format('H:i'),
+                'activity' => 'Registrasi, pembukaan, dan ice breaking',
+                'pic' => 'Admin RTIK Local / Tutor',
+                'notes' => 'Cek daftar hadir registrasi dan kesiapan peserta.',
+            ];
+            $current = $openingEnd;
+
+            $preEnd = $current->copy()->addMinutes(15);
+            $generatedRundown[] = [
+                'start_time' => $current->format('H:i'),
+                'end_time' => $preEnd->format('H:i'),
+                'activity' => 'Pre-Test peserta',
+                'pic' => 'Tutor / Fasilitator',
+                'notes' => 'Peserta wajib menyelesaikan pre-test sebelum modul.',
+            ];
+            $current = $preEnd;
+        }
+
         $templateMeetings = $template->learningMeetings()
             ->with([
                 'materials' => fn ($query) => $query->orderBy('order'),
@@ -55,8 +79,9 @@ class ModuleTemplateApplier
 
         foreach ($templateMeetings as $templateMeeting) {
             $order = (int) $templateMeeting->order;
-            $start = $event->starts_at?->copy()->addMinutes(max(0, $order - 1) * 25);
-            $end = $start?->copy()->addMinutes(25);
+            $duration = max(5, (int) ($templateMeeting->duration_minutes ?: 25));
+            $start = $current?->copy() ?? $event->starts_at?->copy()->addMinutes(max(0, $order - 1) * $duration);
+            $end = $start?->copy()->addMinutes($duration);
 
             $meeting = LearningMeeting::query()->create([
                 'learning_event_id' => $event->id,
@@ -64,6 +89,7 @@ class ModuleTemplateApplier
                 'order' => $order,
                 'title' => $templateMeeting->title,
                 'description' => $templateMeeting->description,
+                'duration_minutes' => $duration,
                 'task_title' => $templateMeeting->task_title,
                 'task_description' => $templateMeeting->task_description,
                 'starts_at' => $start,
@@ -75,8 +101,9 @@ class ModuleTemplateApplier
                 'end_time' => $end?->format('H:i') ?? null,
                 'activity' => $meeting->title,
                 'pic' => 'Tutor / Fasilitator',
-                'notes' => $meeting->description,
+                'notes' => trim((string) $meeting->description) ?: ($duration . ' menit'),
             ];
+            $current = $end;
 
             foreach ($templateMeeting->materials as $material) {
                 LearningMaterial::query()->create([
@@ -84,6 +111,7 @@ class ModuleTemplateApplier
                     'order' => $material->order,
                     'title' => $material->title,
                     'type' => $material->type,
+                    'duration_minutes' => $material->duration_minutes,
                     'file_path' => $material->file_path,
                     'external_url' => $material->external_url,
                     'is_published' => $material->is_published,
@@ -104,7 +132,28 @@ class ModuleTemplateApplier
             }
         }
 
-        if (blank($event->rundown_items) && $generatedRundown !== []) {
+        if ($current) {
+            $postEnd = $current->copy()->addMinutes(15);
+            $generatedRundown[] = [
+                'start_time' => $current->format('H:i'),
+                'end_time' => $postEnd->format('H:i'),
+                'activity' => 'Post-Test, refleksi, dan penutup',
+                'pic' => 'Tutor / Admin RTIK Local',
+                'notes' => 'Post-test dibuka setelah pre-test dan kuis modul aktif selesai.',
+            ];
+            $current = $postEnd;
+
+            $docEnd = $current->copy()->addMinutes(5);
+            $generatedRundown[] = [
+                'start_time' => $current->format('H:i'),
+                'end_time' => $docEnd->format('H:i'),
+                'activity' => 'Dokumentasi akhir dan video slogan',
+                'pic' => 'Tutor / Admin RTIK Local',
+                'notes' => 'Foto kegiatan, video slogan, daftar hadir, dan bukti microsite.',
+            ];
+        }
+
+        if ($generatedRundown !== []) {
             $event->update(['rundown_items' => $generatedRundown]);
         }
     }

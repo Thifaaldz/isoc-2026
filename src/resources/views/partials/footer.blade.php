@@ -2,7 +2,10 @@
     <div class="max-w-7xl mx-auto px-6 lg:px-8 py-12">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div>
-                <img src="{{ asset('images/isoc-logo.png') }}" alt="ISOC Indonesia Jakarta Chapter" class="h-8 brightness-0 invert mb-4">
+                <div class="mb-4 flex items-center gap-3">
+                    <img src="{{ asset('images/isoc-logo.png') }}" alt="{{ config('app.name', 'sena') }}" class="h-8 brightness-0 invert">
+                    <span class="font-headline text-xl font-extrabold tracking-tight">{{ config('app.name', 'sena') }}</span>
+                </div>
                 <p class="text-white/50 text-sm leading-relaxed">{{ $settings['footer_description'] ?? 'Mendukung pengembangan internet yang berkelanjutan, inklusif, aman, dan mudah diakses.' }}</p>
             </div>
             <div>
@@ -36,7 +39,7 @@
             </div>
         </div>
         <div class="border-t border-white/10 mt-12 pt-8 text-center">
-            <p class="text-white/40 text-sm">&copy; {{ date('Y') }} ISOC Indonesia Jakarta Chapter. {{ __('All rights reserved.') }}</p>
+            <p class="text-white/40 text-sm">&copy; {{ date('Y') }} {{ config('app.name', 'sena') }}. {{ __('All rights reserved.') }}</p>
         </div>
     </div>
 </footer>

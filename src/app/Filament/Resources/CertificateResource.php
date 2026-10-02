@@ -63,11 +63,6 @@ class CertificateResource extends Resource
             Forms\Components\Select::make('certificate_template_id')
                 ->label('Desain Sertifikat')
                 ->options(fn () => CertificateTemplate::query()
-                    ->where(function ($query): void {
-                        $query
-                            ->whereNull('learning_event_id')
-                            ->orWhereHas('learningEvent', fn ($eventQuery) => static::scopeLearningEventBuilder($eventQuery));
-                    })
                     ->orderByDesc('is_default')
                     ->orderBy('name')
                     ->pluck('name', 'id'))

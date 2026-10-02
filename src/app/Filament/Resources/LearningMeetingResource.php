@@ -68,6 +68,13 @@ class LearningMeetingResource extends Resource
                 ->schema([
                     Forms\Components\TextInput::make('order')->label('Urutan')->numeric()->default(1)->required(),
                     Forms\Components\TextInput::make('title')->label('Judul pertemuan')->required(),
+                    Forms\Components\TextInput::make('duration_minutes')
+                        ->label('Lama Waktu Materi (menit)')
+                        ->numeric()
+                        ->minValue(5)
+                        ->default(25)
+                        ->required()
+                        ->helperText('Dipakai otomatis untuk membuat rundown event saat materi ini dipilih.'),
                     Forms\Components\Textarea::make('description')->label('Deskripsi')->rows(4)->columnSpanFull(),
                     Forms\Components\TextInput::make('task_title')->label('Judul Tugas')->columnSpanFull(),
                     Forms\Components\Textarea::make('task_description')->label('Instruksi Tugas')->rows(4)->columnSpanFull(),
@@ -96,6 +103,11 @@ class LearningMeetingResource extends Resource
                                 ->options(LearningMaterial::TYPES)
                                 ->default('pdf')
                                 ->required(),
+                            Forms\Components\TextInput::make('duration_minutes')
+                                ->label('Durasi materi (menit)')
+                                ->numeric()
+                                ->minValue(1)
+                                ->helperText('Opsional. Jika kosong, rundown memakai durasi pertemuan.'),
                             Forms\Components\FileUpload::make('file_path')
                                 ->label('Upload file materi')
                                 ->directory('learning-materials')
@@ -131,6 +143,7 @@ class LearningMeetingResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('order')->label('Urutan')->sortable(),
                 Tables\Columns\TextColumn::make('title')->label('Pertemuan')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('duration_minutes')->label('Durasi')->suffix(' menit')->sortable(),
                 Tables\Columns\TextColumn::make('task_title')->label('Tugas')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('materials_count')->counts('materials')->label('Materi')->sortable(),
                 Tables\Columns\TextColumn::make('assessments_count')->counts('assessments')->label('Kuis')->sortable(),

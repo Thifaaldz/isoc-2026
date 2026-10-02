@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', ($sections['hero']->title ?? __('Mitra Kami')) . ' - ISOC Indonesia Jakarta Chapter')
+@section('title', ($sections['hero']->title ?? __('Mitra Kami')) . ' - ' . config('app.name', 'sena'))
 
 @section('content')
 {{-- Hero --}}

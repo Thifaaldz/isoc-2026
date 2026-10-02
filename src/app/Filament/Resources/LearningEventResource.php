@@ -6,8 +6,11 @@ use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\LearningEventResource\Pages;
 use App\Filament\Support\SchoolLocationFields;
+use App\Models\Evidence;
+use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\ModuleTemplate;
+use App\Models\Partner;
 use App\Models\School;
 use App\Services\ImportSpreadsheetParser;
 use App\Services\LearningEventProvisioner;
@@ -70,7 +73,7 @@ class LearningEventResource extends Resource
     {
         return $form->schema([
             Forms\Components\Wizard::make([
-                Forms\Components\Wizard\Step::make('Sekolah / Tempat')
+                Forms\Components\Wizard\Step::make('Lokasi')
                     ->description('Data lokasi event dan jadwal pelatihan.')
                     ->icon('heroicon-o-building-office-2')
                     ->schema([
@@ -94,16 +97,16 @@ class LearningEventResource extends Resource
                             ->live()
                             ->required(),
                         Forms\Components\Select::make('school_id')
-                            ->label('Sekolah / Tempat Event')
+                            ->label('Lokasi Event')
                             ->options(fn () => static::scopedSchoolOptions())
                             ->searchable()
                             ->preload()
                             ->required(fn (Get $get) => $get('audience_type') !== 'general')
                             ->helperText(fn (Get $get) => $get('audience_type') === 'general'
                                 ? 'Opsional untuk event umum.'
-                                : 'Wajib untuk event khusus sekolah/tempat.')
+                                : 'Wajib untuk event khusus lokasi.')
                             ->createOptionForm([
-                                Forms\Components\TextInput::make('name')->label('Nama sekolah/tempat')->required(),
+                                Forms\Components\TextInput::make('name')->label('Nama lokasi')->required(),
                                 Forms\Components\TextInput::make('npsn')->label('NPSN')->maxLength(20),
                                 Forms\Components\Select::make('type')->label('Tipe')->options(['SMA' => 'SMA', 'SMK' => 'SMK', 'Tempat' => 'Tempat Event'])->default('SMA')->required(),
                                 ...SchoolLocationFields::schema(),
@@ -128,6 +131,50 @@ class LearningEventResource extends Resource
                             ->label('Materi Event')
                             ->helperText('Pilih materi event dari Super Admin. Sistem akan generate pertemuan, materi, tugas, dan kuis ke seminar ini.')
                             ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->nullable(),
+                        Forms\Components\Select::make('partners')
+                            ->label('Mitra Event')
+                            ->helperText('Logo mitra yang dipilih akan otomatis tersusun di sertifikat pada elemen Logo Mitra Event.')
+                            ->relationship('partners', 'name', fn ($query) => $query->where('status', 'active')->orderBy('name'))
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')->label('Nama Mitra')->required(),
+                                Forms\Components\Select::make('category')
+                                    ->label('Kategori')
+                                    ->options([
+                                        'international' => 'Internasional',
+                                        'national' => 'Nasional',
+                                        'local' => 'Lokal',
+                                        'school' => 'Sekolah / Kampus',
+                                        'community' => 'Komunitas',
+                                    ])
+                                    ->default('national')
+                                    ->required(),
+                                Forms\Components\FileUpload::make('logo_path')
+                                    ->label('Logo Mitra')
+                                    ->image()
+                                    ->imageEditor()
+                                    ->disk('public')
+                                    ->directory('partners')
+                                    ->visibility('public')
+                                    ->columnSpanFull(),
+                                Forms\Components\TextInput::make('website_url')->label('Website')->url()->columnSpanFull(),
+                                Forms\Components\Hidden::make('status')->default('active'),
+                            ])
+                            ->createOptionUsing(fn (array $data) => Partner::query()->create($data)->id)
+                            ->columnSpanFull(),
+                        Forms\Components\Select::make('certificate_template_id')
+                            ->label('Template Sertifikat')
+                            ->helperText('Template ini dipakai otomatis untuk sertifikat peserta event ini.')
+                            ->options(fn () => CertificateTemplate::query()
+                                ->orderByDesc('is_default')
+                                ->orderBy('name')
+                                ->pluck('name', 'id'))
+                            ->default(fn () => CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->value('id'))
                             ->searchable()
                             ->preload()
                             ->nullable(),
@@ -231,7 +278,9 @@ class LearningEventResource extends Resource
                             ->label('Data Peserta')
                             ->schema([
                                 Forms\Components\TextInput::make('name')->label('Nama lengkap')->required(),
-                                Forms\Components\TextInput::make('nis')->label('NIS/NISN'),
+                                Forms\Components\TextInput::make('nis')
+                                    ->label(fn (Get $get) => ($get('../../audience_type') === 'general') ? 'NIK' : 'NISN')
+                                    ->helperText('Berdasarkan Kategori Peserta: Khusus Lokasi memakai NISN 10 digit, Umum memakai NIK 16 digit.'),
                                 Forms\Components\TextInput::make('grade')->label('Kelas'),
                                 Forms\Components\TextInput::make('organization')->label('Organisasi / Instansi'),
                                 Forms\Components\TextInput::make('position')->label('Jabatan / Peran'),
@@ -336,6 +385,13 @@ class LearningEventResource extends Resource
                             ->schema([
                                 Forms\Components\FileUpload::make('rab_file')
                                     ->label('Upload RAB Awal')
+                                    ->hintAction(
+                                        Forms\Components\Actions\Action::make('downloadRabTemplate')
+                                            ->label('Download template RAB')
+                                            ->icon('heroicon-o-arrow-down-tray')
+                                            ->url(fn () => route('import-templates.rab'))
+                                            ->openUrlInNewTab(),
+                                    )
                                     ->disk('public')
                                     ->directory('event-documents'),
                                 Forms\Components\Textarea::make('local_admin_notes')
@@ -377,7 +433,7 @@ class LearningEventResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Event')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('event_type')
                     ->label('Tipe')
                     ->badge()
@@ -399,6 +455,14 @@ class LearningEventResource extends Resource
                     ->openUrlInNewTab()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('moduleTemplate.name')->label('Materi Event')->searchable()->toggleable(),
+                Tables\Columns\TextColumn::make('partners.name')
+                    ->label('Mitra')
+                    ->badge()
+                    ->separator(',')
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('certificateTemplate.name')
+                    ->label('Template Sertifikat')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('starts_at')->label('Mulai')->dateTime()->sortable(),
                 Tables\Columns\TextColumn::make('participants_count')->counts('participants')->label('Peserta')->sortable(),
                 Tables\Columns\TextColumn::make('tutors_count')->counts('tutors')->label('Tutor')->sortable(),
@@ -441,6 +505,16 @@ class LearningEventResource extends Resource
                         'revision' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('final_report_status')
+                    ->label('Laporan Final')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => static::finalReportStatusOptions()[$state ?: 'draft'] ?? $state)
+                    ->color(fn (?string $state) => match ($state) {
+                        'approved' => 'success',
+                        'submitted' => 'warning',
+                        'revision' => 'danger',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('status')->label('Publik')->badge(),
                 Tables\Columns\TextColumn::make('local_updated_at')
                     ->label('Update Daerah')
@@ -472,7 +546,7 @@ class LearningEventResource extends Resource
                     ->label('Kategori Peserta')
                     ->options(static::audienceTypeOptions()),
                 Tables\Filters\SelectFilter::make('school_id')
-                    ->label('Sekolah')
+                    ->label('Lokasi')
                     ->options(fn () => static::scopedSchoolOptions()),
                 Tables\Filters\SelectFilter::make('workflow_status')
                     ->label('Workflow')
@@ -480,6 +554,9 @@ class LearningEventResource extends Resource
                 Tables\Filters\SelectFilter::make('publish_approval_status')
                     ->label('Approval Publish')
                     ->options(static::publishApprovalStatusOptions()),
+                Tables\Filters\SelectFilter::make('final_report_status')
+                    ->label('Laporan Final')
+                    ->options(static::finalReportStatusOptions()),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options(['draft' => 'Draft', 'active' => 'Aktif', 'closed' => 'Ditutup']),
@@ -721,23 +798,107 @@ class LearningEventResource extends Resource
                         $record->update(['attendance_code' => $code]);
                         Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
                     }),
-                Tables\Actions\Action::make('verifyTerm2')
-                    ->label('Verify T2')
+                Tables\Actions\Action::make('previewFinalReport')
+                    ->label('Preview Laporan')
+                    ->icon('heroicon-o-document-magnifying-glass')
+                    ->url(fn (LearningEvent $record) => route('reports.events.activity.preview', $record))
+                    ->openUrlInNewTab(),
+                Tables\Actions\Action::make('downloadFinalReport')
+                    ->label('Download Laporan')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->url(fn (LearningEvent $record) => route('reports.events.activity.download', $record))
+                    ->openUrlInNewTab(),
+                Tables\Actions\Action::make('submitFinalReport')
+                    ->label('Submit Laporan Final')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('warning')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
+                        && in_array($record->workflow_status, ['verified_term_1', 'tot_completed', 'field_training_completed', 'verified_term_2'], true)
+                        && in_array($record->final_report_status ?? 'draft', ['draft', 'revision'], true))
+                    ->requiresConfirmation()
+                    ->modalDescription('Sistem akan membuat laporan kegiatan dari data event, rundown, materi, nilai, dan bukti dukung. Laporan dikirim ke Admin RTIK Pusat untuk approval Termin-2.')
+                    ->action(function (LearningEvent $record): void {
+                        $missing = static::missingFinalReportRequirements($record);
+
+                        if ($missing !== []) {
+                            Notification::make()
+                                ->title('Laporan belum lengkap')
+                                ->body('Lengkapi dulu: ' . implode(', ', $missing))
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $record->update([
+                            'workflow_status' => 'final_report_submitted',
+                            'final_report_status' => 'submitted',
+                            'final_report_submitted_at' => now(),
+                            'final_report_notes' => null,
+                            'local_updated_at' => now(),
+                            'local_update_summary' => 'Laporan kegiatan final dikirim ke Admin RTIK Pusat.',
+                        ]);
+
+                        Notification::make()
+                            ->title('Laporan final dikirim')
+                            ->body('Admin RTIK Pusat dapat membuka preview laporan dan approve Termin-2.')
+                            ->success()
+                            ->send();
+                    }),
+                Tables\Actions\Action::make('approveFinalReport')
+                    ->label('Approve Laporan + T2')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && in_array($record->workflow_status, ['evidence_submitted', 'field_training_completed', 'tot_completed'], true))
-                    ->action(function (LearningEvent $record): void {
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && ($record->final_report_status ?? 'draft') === 'submitted')
+                    ->form([
+                        Forms\Components\Textarea::make('final_report_notes')
+                            ->label('Catatan approval')
+                            ->rows(3),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
                         $record->update(['workflow_status' => 'verified_term_2']);
-                        $record->payments()->where('term', 2)->update(['status' => 'eligible', 'approved_by' => auth()->id(), 'approved_at' => now()]);
+                        $record->update([
+                            'workflow_status' => 'verified_term_2',
+                            'final_report_status' => 'approved',
+                            'final_report_approved_by' => auth()->id(),
+                            'final_report_approved_at' => now(),
+                            'final_report_notes' => $data['final_report_notes'] ?? null,
+                        ]);
+                        $record->payments()->where('term', 2)->update([
+                            'status' => 'eligible',
+                            'notes' => $data['final_report_notes'] ?? null,
+                            'approved_by' => auth()->id(),
+                            'approved_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Laporan final approved')
+                            ->body('Termin-2 sekarang eligible.')
+                            ->success()
+                            ->send();
                     }),
-                Tables\Actions\Action::make('verifyTerm3')
-                    ->label('Verify T3')
-                    ->icon('heroicon-o-flag')
-                    ->color('success')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->workflow_status === 'final_report_submitted')
-                    ->action(function (LearningEvent $record): void {
-                        $record->update(['workflow_status' => 'verified_term_3']);
-                        $record->payments()->where('term', 3)->update(['status' => 'eligible', 'approved_by' => auth()->id(), 'approved_at' => now()]);
+                Tables\Actions\Action::make('reviseFinalReport')
+                    ->label('Revisi Laporan')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && ($record->final_report_status ?? 'draft') === 'submitted')
+                    ->form([
+                        Forms\Components\Textarea::make('final_report_notes')
+                            ->label('Catatan revisi')
+                            ->required()
+                            ->rows(4),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        $record->update([
+                            'workflow_status' => 'verified_term_1',
+                            'final_report_status' => 'revision',
+                            'final_report_notes' => $data['final_report_notes'],
+                        ]);
+
+                        Notification::make()
+                            ->title('Laporan dikembalikan untuk revisi')
+                            ->warning()
+                            ->send();
                     }),
                 Tables\Actions\EditAction::make()
                     ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
@@ -775,7 +936,6 @@ class LearningEventResource extends Resource
             'evidence_submitted' => 'Evidence Submitted',
             'verified_term_2' => 'Verified for Termin-2',
             'final_report_submitted' => 'Final Report Submitted',
-            'verified_term_3' => 'Verified for Termin-3',
             'closed' => 'Closed',
             'needs_revision' => 'Needs Revision',
             'rejected' => 'Rejected',
@@ -795,7 +955,7 @@ class LearningEventResource extends Resource
     public static function audienceTypeOptions(): array
     {
         return [
-            'school' => 'Khusus Sekolah / Tempat',
+            'school' => 'Khusus Lokasi',
             'general' => 'Umum',
         ];
     }
@@ -808,6 +968,59 @@ class LearningEventResource extends Resource
             'revision' => 'Revisi publish',
             'published' => 'Published',
         ];
+    }
+
+    public static function finalReportStatusOptions(): array
+    {
+        return [
+            'draft' => 'Belum disubmit',
+            'submitted' => 'Menunggu approval pusat',
+            'revision' => 'Perlu revisi',
+            'approved' => 'Approved',
+        ];
+    }
+
+    /** @return array<int, string> */
+    public static function missingFinalReportRequirements(LearningEvent $event): array
+    {
+        $event->loadMissing(['participants', 'meetings', 'assessments', 'evidences']);
+
+        $missing = [];
+        $requiredEvidence = [
+            'absensi_basah' => 'absensi basah / daftar hadir',
+            'foto_sesi' => 'foto dokumentasi acara',
+            'video_slogan' => 'video slogan',
+            'praktik_microsite' => 'bukti hasil microsite',
+        ];
+
+        foreach ($requiredEvidence as $type => $label) {
+            $exists = $event->evidences
+                ->where('type', $type)
+                ->where('status', 'approved')
+                ->isNotEmpty();
+
+            if (! $exists) {
+                $missing[] = $label;
+            }
+        }
+
+        if ($event->participants->isEmpty()) {
+            $missing[] = 'daftar registrasi peserta';
+        }
+
+        if (! $event->assessments->where('type', 'pre')->count()) {
+            $missing[] = 'pre-test';
+        }
+
+        if (! $event->assessments->where('type', 'post')->count()) {
+            $missing[] = 'post-test';
+        }
+
+        if ($event->meetings->isEmpty()) {
+            $missing[] = 'materi/pertemuan';
+        }
+
+        return $missing;
     }
 
     public static function budgetCategoryOptions(): array

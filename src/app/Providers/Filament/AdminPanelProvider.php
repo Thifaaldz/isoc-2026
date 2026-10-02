@@ -29,8 +29,10 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->id('admin')
             ->path('admin')
-            ->brandName('DSC - Admin')
-            ->login()
+            ->brandName('sena - Admin')
+            ->brandLogo(asset('images/sena-symbol.png'))
+            ->brandLogoHeight('2.25rem')
+            ->login(fn () => redirect('/login'))
             ->colors(['primary' => Color::Blue])
             ->navigationGroups([
                 'Seminar',

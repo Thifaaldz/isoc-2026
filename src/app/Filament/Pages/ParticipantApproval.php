@@ -37,7 +37,7 @@ class ParticipantApproval extends Page
 
     public static function getNavigationGroup(): ?string
     {
-        return auth()->user()?->role === UserRole::Tutor ? 'Peserta & Sekolah' : 'Absensi & Peserta';
+        return auth()->user()?->role === UserRole::Tutor ? 'Peserta & Lokasi' : 'Absensi & Peserta';
     }
 
     public function mount(): void
@@ -95,7 +95,6 @@ class ParticipantApproval extends Page
         }
 
         $query = LearningEvent::query()
-            ->where('audience_type', 'general')
             ->where('is_published', true)
             ->orderByDesc('starts_at');
 
@@ -128,17 +127,27 @@ class ParticipantApproval extends Page
             ->sortBy(fn (Participant $participant) => $participant->user?->name ?? '')
             ->values()
             ->map(function (Participant $participant): array {
-                $pivot = $participant->pivot;
                 $evidence = Evidence::query()
                     ->where('learning_event_id', $this->selectedEvent->id)
                     ->where('uploaded_by', $participant->user_id)
                     ->where('type', 'follow_ig')
                     ->latest()
                     ->first();
+                $proofComplete = $participant->joined_wag && filled($evidence?->file_path);
+
+                if ($proofComplete) {
+                    $participant->syncInitialApprovalForEvent($this->selectedEvent);
+                }
+
+                $pivot = $participant->learningEvents()
+                    ->where('learning_events.id', $this->selectedEvent->id)
+                    ->first()
+                    ?->pivot;
 
                 return [
                     'participant' => $participant,
                     'status' => $this->approvalStatus($pivot),
+                    'proof_complete' => $proofComplete,
                     'evidence' => $evidence,
                     'evidence_src' => $this->evidenceImageSrc($evidence),
                     'evidence_url' => $evidence?->file_path ? Storage::disk('public')->url($evidence->file_path) : null,
@@ -146,7 +155,7 @@ class ParticipantApproval extends Page
             });
     }
 
-    private function approvalStatus(object $pivot): string
+    private function approvalStatus(?object $pivot): string
     {
         if (($pivot->admin_approval_status ?? null) === 'approved' || ($pivot->tutor_approval_status ?? null) === 'approved') {
             return 'approved';

@@ -31,15 +31,17 @@ class TutorPanelProvider extends PanelProvider
         return $panel
             ->id('tutor')
             ->path('tutor')
-            ->brandName('DSC - Tutor')
-            ->login()
+            ->brandName('sena - Tutor')
+            ->brandLogo(asset('images/sena-symbol.png'))
+            ->brandLogoHeight('2.25rem')
+            ->login(fn () => redirect('/login'))
             ->homeUrl(fn () => url('/tutor/pelatihan-tutor'))
             ->colors(['primary' => Color::Green])
             ->navigationGroups([
                 'Pelatihan Tutor',
                 'Seminar & Materi',
                 'Tes & Nilai',
-                'Peserta & Sekolah',
+                'Peserta & Lokasi',
                 'Absensi & Sesi',
                 'Komunitas',
                 'Validasi & Sertifikat',

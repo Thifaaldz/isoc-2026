@@ -49,7 +49,13 @@ class ParticipantResource extends Resource
         return $form->schema([
             Forms\Components\Select::make('user_id')->label('Akun Pengguna')->options(fn () => static::scopedUserOptions(UserRole::Peserta))->searchable()->preload()->required(),
             Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload(),
-            Forms\Components\TextInput::make('nis')->label('NIS'),
+            Forms\Components\Select::make('participant_category')->label('Kategori Peserta')->options([
+                'pelajar' => 'Pelajar',
+                'mahasiswa' => 'Mahasiswa',
+                'umum' => 'Umum',
+                'karyawan' => 'Karyawan',
+            ])->default('pelajar')->required(),
+            Forms\Components\TextInput::make('nis')->label('NISN / NIM / NIK'),
             Forms\Components\Select::make('grade')->label('Kelas')->options(['X' => 'X', 'XI' => 'XI', 'XII' => 'XII']),
             Forms\Components\TextInput::make('organization')->label('Organisasi / Instansi'),
             Forms\Components\TextInput::make('position')->label('Jabatan / Peran'),
@@ -67,13 +73,14 @@ class ParticipantResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')->label('Nama')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('participant_category')->label('Kategori')->badge()->toggleable(),
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('nis')->label('NIS')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nis')->label('NISN / NIM / NIK')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('grade')->label('Kelas')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('organization')->label('Organisasi')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('position')->label('Jabatan')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('general_approval')
-                    ->label('Approval Event Umum')
+                    ->label('Approval Awal')
                     ->state(fn (Participant $record) => static::generalApprovalStatus($record))
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
@@ -100,6 +107,14 @@ class ParticipantResource extends Resource
                 Tables\Filters\SelectFilter::make('grade')
                     ->label('Kelas')
                     ->options(['X' => 'X', 'XI' => 'XI', 'XII' => 'XII']),
+                Tables\Filters\SelectFilter::make('participant_category')
+                    ->label('Kategori Peserta')
+                    ->options([
+                        'pelajar' => 'Pelajar',
+                        'mahasiswa' => 'Mahasiswa',
+                        'umum' => 'Umum',
+                        'karyawan' => 'Karyawan',
+                    ]),
                 Tables\Filters\SelectFilter::make('gender')
                     ->label('Jenis Kelamin')
                     ->options(['L' => 'Laki-laki', 'P' => 'Perempuan']),
@@ -125,7 +140,6 @@ class ParticipantResource extends Resource
     protected static function generalApprovalPivot(Participant $participant): ?object
     {
         return $participant->learningEvents()
-            ->where('audience_type', 'general')
             ->orderByDesc('starts_at')
             ->first()
             ?->pivot;

@@ -66,7 +66,7 @@ class KpiOverview extends StatsOverviewWidget
         );
 
         return [
-            Stat::make('Sekolah / Lokasi', $schoolQuery->count())->description('Target 20 lokasi'),
+            Stat::make('Lokasi', $schoolQuery->count())->description('Target 20 lokasi'),
             Stat::make('Event Aktif', LearningEvent::query()->where($eventScope)->count())->description('Sesuai akses akun'),
             Stat::make('Peserta', $participantQuery->count())->description('Target 2.000 siswa'),
             Stat::make('Tutor', $tutorQuery->count())->description('Target 3 per lokasi'),

@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Certificate;
+use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
+use App\Models\MicrositePractice;
 use App\Models\Participant;
 
 class CertificateEligibilityService
@@ -18,6 +20,10 @@ class CertificateEligibilityService
         }
 
         $notes = [];
+
+        if (! $participant->isApprovedForEvent($event)) {
+            $notes[] = 'Bukti follow Instagram dan checklist join WAG belum approved.';
+        }
 
         if (! $this->hasAttempt($participant, $event, 'pre')) {
             $notes[] = 'Pre-test belum selesai.';
@@ -45,6 +51,16 @@ class CertificateEligibilityService
             }
         }
 
+        $hasMicrosite = MicrositePractice::query()
+            ->where('participant_id', $participant->id)
+            ->where('learning_event_id', $event->id)
+            ->whereNotNull('sid_url')
+            ->exists();
+
+        if (! $hasMicrosite) {
+            $notes[] = 'Link s.id / microsite belum diisi.';
+        }
+
         return [
             'eligible' => $notes === [],
             'notes' => $notes,
@@ -55,11 +71,18 @@ class CertificateEligibilityService
     {
         $result = $this->check($certificate->participant, $certificate->learningEvent);
 
-        $certificate->update([
+        $updates = [
             'eligibility_status' => $result['eligible'] ? 'eligible' : 'blocked',
             'eligibility_checked_at' => now(),
             'eligibility_notes' => implode("\n", $result['notes']),
-        ]);
+        ];
+
+        if (! $certificate->certificate_template_id) {
+            $updates['certificate_template_id'] = $certificate->learningEvent?->certificate_template_id
+                ?: CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->value('id');
+        }
+
+        $certificate->update($updates);
 
         return $certificate->refresh();
     }

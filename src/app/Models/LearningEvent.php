@@ -18,6 +18,8 @@ class LearningEvent extends Model
             'ends_at' => 'datetime',
             'local_updated_at' => 'datetime',
             'publish_approved_at' => 'datetime',
+            'final_report_submitted_at' => 'datetime',
+            'final_report_approved_at' => 'datetime',
             'registration_open' => 'boolean',
             'is_published' => 'boolean',
             'participant_rows' => 'array',
@@ -36,6 +38,11 @@ class LearningEvent extends Model
     public function moduleTemplate(): BelongsTo
     {
         return $this->belongsTo(ModuleTemplate::class);
+    }
+
+    public function certificateTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CertificateTemplate::class);
     }
 
     public function creator(): BelongsTo
@@ -65,6 +72,15 @@ class LearningEvent extends Model
         return $this->belongsToMany(Tutor::class, 'learning_event_tutor')
             ->withPivot(['status', 'assigned_at'])
             ->withTimestamps();
+    }
+
+    public function partners(): BelongsToMany
+    {
+        return $this->belongsToMany(Partner::class)
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order')
+            ->orderBy('name');
     }
 
     public function meetings(): HasMany

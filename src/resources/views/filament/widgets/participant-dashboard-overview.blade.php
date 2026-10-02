@@ -450,15 +450,15 @@
                     Pantau lokasi kegiatan, akses WhatsApp Group, dan selesaikan modul serta tes dari satu dashboard.
                 </p>
                 @if (($events ?? collect())->count() > 1)
-                    <form class="pd-event-switcher" method="GET" action="{{ url('/peserta') }}">
-                        <select name="event" onchange="this.form.submit()" aria-label="Pilih event">
+                    <div class="pd-event-switcher">
+                        <select wire:model.live="selectedEventId" aria-label="Pilih event">
                             @foreach ($events as $availableEvent)
                                 <option value="{{ $availableEvent->id }}" @selected($event?->id === $availableEvent->id)>
                                     {{ $availableEvent->title }}
                                 </option>
                             @endforeach
                         </select>
-                    </form>
+                    </div>
                 @endif
             </div>
 
@@ -487,7 +487,7 @@
                         <p class="pd-card-title">Dashboard lengkap belum terbuka</p>
                         <p class="pd-card-text">
                             Status approval: {{ ucfirst($approval['status'] ?? 'pending') }}.
-                            Satu approval dari Admin RTIK Daerah atau Tutor sudah cukup untuk membuka dashboard.
+                            Upload bukti follow Instagram dan ceklis join WAG untuk membuka dashboard.
                         </p>
                         @if (! empty($approval['notes']))
                             <p class="pd-card-text">{{ $approval['notes'] }}</p>

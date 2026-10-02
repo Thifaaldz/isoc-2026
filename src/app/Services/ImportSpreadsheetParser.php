@@ -13,7 +13,7 @@ class ImportSpreadsheetParser
     {
         return $this->normalizeRows($this->rows($file), [
             'name' => ['name', 'nama', 'nama_lengkap', 'full_name'],
-            'nis' => ['nis', 'nisn', 'nomor_induk'],
+            'nis' => ['nis', 'nisn', 'nik', 'nisn_or_nik', 'nomor_induk', 'nomor_identitas'],
             'grade' => ['grade', 'kelas'],
             'organization' => ['organization', 'organisasi', 'instansi', 'lembaga'],
             'position' => ['position', 'jabatan', 'peran'],

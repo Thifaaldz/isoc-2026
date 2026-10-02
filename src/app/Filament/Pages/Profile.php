@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Enums\UserRole;
+use App\Models\LearningEvent;
+use App\Models\MicrositePractice;
 use App\Models\School;
 use App\Models\User;
 use Filament\Forms;
@@ -34,6 +36,8 @@ class Profile extends Page implements HasForms
 
     public ?array $passwordData = [];
 
+    public ?array $micrositeData = [];
+
     public function mount(): void
     {
         $user = auth()->user()?->load(['participant', 'tutor']);
@@ -46,6 +50,7 @@ class Profile extends Page implements HasForms
             'school_id' => $user?->school_id,
             'participant' => [
                 'school_id' => $user?->participant?->school_id ?? $user?->school_id,
+                'participant_category' => $user?->participant?->participant_category ?? 'pelajar',
                 'nis' => $user?->participant?->nis,
                 'grade' => $user?->participant?->grade,
                 'gender' => $user?->participant?->gender,
@@ -60,6 +65,15 @@ class Profile extends Page implements HasForms
             ],
         ]);
 
+        $event = $this->currentParticipantEvent();
+        $practice = $user?->participant?->micrositeForEvent($event);
+
+        $this->micrositeForm->fill([
+            'learning_event_id' => $event?->id,
+            'sid_url' => $practice?->sid_url,
+            'notes' => $practice?->notes,
+        ]);
+
         $this->passwordForm->fill();
     }
 
@@ -67,6 +81,7 @@ class Profile extends Page implements HasForms
     {
         return [
             'profileForm',
+            'micrositeForm',
             'passwordForm',
         ];
     }
@@ -124,9 +139,20 @@ class Profile extends Page implements HasForms
                             ->options(fn () => $this->schoolOptions())
                             ->searchable()
                             ->preload()
+                            ->nullable()
+                            ->helperText('Wajib untuk kategori pelajar.'),
+                        Forms\Components\Select::make('participant.participant_category')
+                            ->label('Kategori Peserta')
+                            ->options([
+                                'pelajar' => 'Pelajar',
+                                'mahasiswa' => 'Mahasiswa',
+                                'umum' => 'Umum',
+                                'karyawan' => 'Karyawan',
+                            ])
+                            ->native(false)
                             ->required(),
                         Forms\Components\TextInput::make('participant.nis')
-                            ->label('NIS')
+                            ->label('NISN / NIM / NIK')
                             ->maxLength(50),
                         Forms\Components\Select::make('participant.grade')
                             ->label('Kelas')
@@ -178,6 +204,50 @@ class Profile extends Page implements HasForms
                     ->visible(fn () => auth()->user()?->role === UserRole::Tutor),
             ])
             ->statePath('profileData');
+    }
+
+    public function micrositeForm(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\Section::make('Form s.id / Microsite')
+                    ->description('Isi tautan s.id sesuai event yang kamu ikuti. Setelah tautan tersimpan, bukti akhir s.id dianggap lengkap.')
+                    ->schema([
+                        Forms\Components\Select::make('learning_event_id')
+                            ->label('Event')
+                            ->options(fn () => $this->participantEventOptions())
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set): void {
+                                $participant = auth()->user()?->participant;
+                                $practice = $participant
+                                    ? MicrositePractice::query()
+                                        ->where('participant_id', $participant->id)
+                                        ->where('learning_event_id', $state)
+                                        ->latest()
+                                        ->first()
+                                    : null;
+
+                                $set('sid_url', $practice?->sid_url);
+                                $set('notes', $practice?->notes);
+                            }),
+                        Forms\Components\TextInput::make('sid_url')
+                            ->label('Link s.id')
+                            ->placeholder('https://s.id/...')
+                            ->url()
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan')
+                            ->placeholder('Opsional, jelaskan isi microsite atau tugas yang dikumpulkan.')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2)
+                    ->visible(fn () => auth()->user()?->role === UserRole::Peserta),
+            ])
+            ->statePath('micrositeData');
     }
 
     public function passwordForm(Form $form): Form
@@ -234,6 +304,7 @@ class Profile extends Page implements HasForms
                 ['user_id' => $user->id],
                 [
                     'school_id' => $schoolId,
+                    'participant_category' => $participantData['participant_category'] ?? 'pelajar',
                     'nis' => $participantData['nis'] ?? null,
                     'grade' => $participantData['grade'] ?? null,
                     'gender' => $participantData['gender'] ?? null,
@@ -261,6 +332,34 @@ class Profile extends Page implements HasForms
 
         Notification::make()
             ->title('Profil berhasil diperbarui')
+            ->success()
+            ->send();
+    }
+
+    public function updateMicrosite(): void
+    {
+        $data = $this->micrositeForm->getState();
+        $participant = auth()->user()?->participant;
+
+        if (! $participant) {
+            return;
+        }
+
+        MicrositePractice::query()->updateOrCreate(
+            [
+                'participant_id' => $participant->id,
+                'learning_event_id' => $data['learning_event_id'],
+            ],
+            [
+                'sid_url' => $data['sid_url'],
+                'notes' => $data['notes'] ?? null,
+                'status' => 'reviewed',
+            ],
+        );
+
+        Notification::make()
+            ->title('Link s.id berhasil disimpan')
+            ->body('Bukti akhir s.id sudah dianggap lengkap untuk event yang dipilih.')
             ->success()
             ->send();
     }
@@ -301,5 +400,34 @@ class Profile extends Page implements HasForms
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
+    }
+
+    private function participantEventOptions(): array
+    {
+        $participant = auth()->user()?->participant;
+
+        if (! $participant) {
+            return [];
+        }
+
+        return LearningEvent::query()
+            ->whereHas('participants', fn ($query) => $query->where('participants.id', $participant->id))
+            ->orderByDesc('starts_at')
+            ->pluck('title', 'id')
+            ->all();
+    }
+
+    private function currentParticipantEvent(): ?LearningEvent
+    {
+        $participant = auth()->user()?->participant;
+
+        if (! $participant) {
+            return null;
+        }
+
+        return LearningEvent::query()
+            ->whereHas('participants', fn ($query) => $query->where('participants.id', $participant->id))
+            ->orderByDesc('starts_at')
+            ->first();
     }
 }

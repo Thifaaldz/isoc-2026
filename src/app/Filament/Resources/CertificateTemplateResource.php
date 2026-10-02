@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\CertificateTemplateResource\Pages;
 use App\Models\CertificateTemplate;
-use App\Models\LearningEvent;
 use Filament\Forms;
 use Filament\Facades\Filament;
 use Filament\Forms\Form;
@@ -42,7 +41,7 @@ class CertificateTemplateResource extends Resource
 
     public static function scopeType(): ?string
     {
-        return 'certificate_template';
+        return null;
     }
 
     public static function form(Form $form): Form
@@ -56,12 +55,6 @@ class CertificateTemplateResource extends Resource
                             ->label('Nama Desain')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('learning_event_id')
-                            ->label('Event')
-                            ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                            ->searchable()
-                            ->preload()
-                            ->nullable(),
                         Forms\Components\Select::make('orientation')
                             ->label('Orientasi')
                             ->options([
@@ -125,7 +118,7 @@ class CertificateTemplateResource extends Resource
                                     ->disk('public')
                                     ->directory('certificate-elements')
                                     ->visibility('public')
-                                    ->visible(fn (Forms\Get $get) => in_array($get('type'), ['logo', 'partner_logo', 'signature_image'], true))
+                                    ->visible(fn (Forms\Get $get) => in_array($get('type'), static::imageElementTypes(), true))
                                     ->columnSpanFull(),
                                 Forms\Components\TextInput::make('x')
                                     ->label('X')
@@ -151,7 +144,7 @@ class CertificateTemplateResource extends Resource
                                     ->label('Ukuran Font')
                                     ->numeric()
                                     ->default(14)
-                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), ['logo', 'partner_logo', 'signature_image', 'qr_code'], true)),
+                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), array_merge(static::imageElementTypes(), ['event_partner_logos', 'white_box', 'qr_code']), true)),
                                 Forms\Components\Select::make('font_weight')
                                     ->label('Ketebalan')
                                     ->options([
@@ -161,7 +154,7 @@ class CertificateTemplateResource extends Resource
                                     ])
                                     ->default('400')
                                     ->native(false)
-                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), ['logo', 'partner_logo', 'signature_image', 'qr_code'], true)),
+                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), array_merge(static::imageElementTypes(), ['event_partner_logos', 'white_box', 'qr_code']), true)),
                                 Forms\Components\Select::make('align')
                                     ->label('Rata Teks')
                                     ->options([
@@ -171,11 +164,11 @@ class CertificateTemplateResource extends Resource
                                     ])
                                     ->default('center')
                                     ->native(false)
-                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), ['logo', 'partner_logo', 'signature_image', 'qr_code'], true)),
+                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), array_merge(static::imageElementTypes(), ['event_partner_logos', 'white_box', 'qr_code']), true)),
                                 Forms\Components\ColorPicker::make('color')
                                     ->label('Warna Teks')
                                     ->default('#111827')
-                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), ['logo', 'partner_logo', 'signature_image', 'qr_code'], true)),
+                                    ->visible(fn (Forms\Get $get) => ! in_array($get('type'), array_merge(static::imageElementTypes(), ['event_partner_logos', 'white_box', 'qr_code']), true)),
                             ])
                             ->defaultItems(0)
                             ->reorderableWithDragAndDrop()
@@ -193,16 +186,12 @@ class CertificateTemplateResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('Nama Desain')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('orientation')->label('Orientasi')->badge(),
                 Tables\Columns\TextColumn::make('elements')->label('Elemen')->formatStateUsing(fn ($state) => static::countElements($state)),
                 Tables\Columns\IconColumn::make('is_default')->label('Default')->boolean(),
                 Tables\Columns\TextColumn::make('updated_at')->label('Diubah')->dateTime()->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id')),
                 Tables\Filters\TernaryFilter::make('is_default')
                     ->label('Default'),
             ])
@@ -214,6 +203,11 @@ class CertificateTemplateResource extends Resource
                         'filament.' . Filament::getCurrentPanel()->getId() . '.pages.certificate-design-studio',
                         ['templateId' => $record->id],
                     )),
+                Tables\Actions\Action::make('previewTemplate')
+                    ->label('Preview')
+                    ->icon('heroicon-o-eye')
+                    ->url(fn (CertificateTemplate $record): string => route('certificate-templates.preview-pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
@@ -242,13 +236,24 @@ class CertificateTemplateResource extends Resource
             'tutor_name' => 'Nama Tutor',
             'tutor_institution' => 'Lembaga Tutor',
             'organizer_name' => 'Nama Lembaga',
+            'sena_logo' => 'Logo Sena',
             'logo' => 'Logo Utama',
             'partner_logo' => 'Logo Mitra',
+            'event_partner_logos' => 'Logo Mitra Event',
+            'white_box' => 'Kotak Penutup / Shape',
+            'uploaded_logo' => 'Upload Logo',
+            'image' => 'Gambar Bebas / Logo Tambahan',
             'signature' => 'Teks Tanda Tangan',
             'signature_image' => 'Gambar Tanda Tangan',
+            'uploaded_signature' => 'Upload Tanda Tangan',
             'signature_line' => 'Garis Tanda Tangan',
             'qr_code' => 'QR Verifikasi',
         ];
+    }
+
+    public static function imageElementTypes(): array
+    {
+        return ['sena_logo', 'logo', 'partner_logo', 'uploaded_logo', 'signature_image', 'uploaded_signature', 'image'];
     }
 
     private static function countElements(mixed $state): int

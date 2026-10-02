@@ -72,7 +72,7 @@
             </div>
 
             <div>
-                <label for="nis" class="block text-sm font-medium text-gray-700 mb-1">NIS</label>
+                <label for="nis" class="block text-sm font-medium text-gray-700 mb-1">NISN</label>
                 <input id="nis" name="nis" value="{{ old('nis') }}" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 @error('nis') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
@@ -81,8 +81,21 @@
                 <label for="grade" class="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
                 <select id="grade" name="grade" required class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Pilih kelas</option>
-                    @foreach (['X', 'XI', 'XII'] as $grade)
-                        <option value="{{ $grade }}" @selected(old('grade') === $grade)>{{ $grade }}</option>
+                    @foreach ([
+                        'SD 1' => 'SD Kelas 1',
+                        'SD 2' => 'SD Kelas 2',
+                        'SD 3' => 'SD Kelas 3',
+                        'SD 4' => 'SD Kelas 4',
+                        'SD 5' => 'SD Kelas 5',
+                        'SD 6' => 'SD Kelas 6',
+                        'SMP 7' => 'SMP Kelas 7',
+                        'SMP 8' => 'SMP Kelas 8',
+                        'SMP 9' => 'SMP Kelas 9',
+                        'SMA 10' => 'SMA/SMK Kelas 10',
+                        'SMA 11' => 'SMA/SMK Kelas 11',
+                        'SMA 12' => 'SMA/SMK Kelas 12',
+                    ] as $grade => $gradeLabel)
+                        <option value="{{ $grade }}" @selected(old('grade') === $grade)>{{ $gradeLabel }}</option>
                     @endforeach
                 </select>
                 @error('grade') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
@@ -135,7 +148,7 @@
                 <button type="submit" class="inline-block px-6 py-3 rounded-lg bg-indigo-600 text-white font-medium">
                     Daftar Sebagai Peserta
                 </button>
-                <a href="{{ url('/peserta/login') }}" class="text-sm text-indigo-600">Sudah punya akun? Login peserta</a>
+                <a href="{{ url('/login') }}" class="text-sm text-indigo-600">Sudah punya akun? Login</a>
             </div>
         </form>
     </div>

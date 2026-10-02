@@ -28,7 +28,7 @@
             <tr>
                 <th style="width: 32px;">No</th>
                 <th>Nama Peserta</th>
-                <th style="width: 100px;">NIS/NISN</th>
+                <th style="width: 100px;">NISN/NIK</th>
                 <th style="width: 80px;">Kelas</th>
                 <th style="width: 140px;">Tanda Tangan</th>
                 <th>Catatan</th>

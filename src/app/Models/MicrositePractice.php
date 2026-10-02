@@ -10,5 +10,6 @@ class MicrositePractice extends Model
     protected $guarded = [];
 
     public function participant(): BelongsTo { return $this->belongsTo(Participant::class); }
+    public function learningEvent(): BelongsTo { return $this->belongsTo(LearningEvent::class); }
 
 }

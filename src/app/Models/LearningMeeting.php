@@ -15,6 +15,7 @@ class LearningMeeting extends Model
         return [
             'starts_at' => 'datetime',
             'is_published' => 'boolean',
+            'duration_minutes' => 'integer',
         ];
     }
 

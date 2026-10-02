@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\ParticipantLearning;
+use App\Filament\Pages\ParticipantCompleteness;
 use App\Filament\Pages\ParticipantTests;
 use App\Filament\Pages\EventRundown;
 use App\Filament\Pages\Profile;
@@ -31,8 +32,10 @@ class PesertaPanelProvider extends PanelProvider
         return $panel
             ->id('peserta')
             ->path('peserta')
-            ->brandName('DSC - Peserta')
-            ->login()
+            ->brandName('sena - Peserta')
+            ->brandLogo(asset('images/sena-symbol.png'))
+            ->brandLogoHeight('2.25rem')
+            ->login(fn () => redirect('/login'))
             ->colors(['primary' => Color::Amber])
             ->navigationGroups([
                 'Seminar & Materi',
@@ -40,7 +43,7 @@ class PesertaPanelProvider extends PanelProvider
                 'Validasi & Sertifikat',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, ParticipantLearning::class, ParticipantTests::class, EventRundown::class, Profile::class])
+            ->pages([Pages\Dashboard::class, ParticipantLearning::class, ParticipantTests::class, EventRundown::class, ParticipantCompleteness::class, Profile::class])
             ->widgets([ParticipantDashboardOverview::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

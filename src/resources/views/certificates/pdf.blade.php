@@ -1,13 +1,26 @@
 @php
     use App\Models\Assessment;
     use App\Models\AssessmentAttempt;
+    use App\Models\LearningMeeting;
 
     $participant = $certificate->participant;
     $event = $certificate->learningEvent ?? $participant?->learningEvents()->first();
+    $event?->loadMissing('partners');
     $school = $participant?->school;
     $templateImage = public_path('certificate-templates/esertifikat-litdig-2026.png');
+    $templateImageSrc = file_exists($templateImage)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($templateImage))
+        : null;
+    $senaLogoImage = public_path('images/sena-logo.png');
+    $senaLogoSrc = file_exists($senaLogoImage)
+        ? 'data:image/png;base64,' . base64_encode(file_get_contents($senaLogoImage))
+        : null;
     $issuedDate = optional($certificate->issued_at)->translatedFormat('d F Y') ?? now()->translatedFormat('d F Y');
     $eventDate = optional($event?->starts_at)->translatedFormat('d F Y') ?? $issuedDate;
+    $participantName = $participant?->user?->name ?? 'Nama Peserta';
+    $nameFontSize = mb_strlen($participantName) > 34 ? 20 : (mb_strlen($participantName) > 24 ? 23 : 26);
+    $eventTitle = $event?->title ?? 'Digital Safety Champions';
+    $competencyTitle = 'PESERTA LITERASI DIGITAL SAFETY CHAMPIONS';
 
     $assessments = $event
         ? Assessment::query()
@@ -25,26 +38,193 @@
         ->get()
         ->keyBy('assessment_id');
 
-    $scoreRows = $assessments->map(function (Assessment $assessment) use ($attempts): array {
-        $attempt = $attempts->get($assessment->id);
-        $meetingTitle = $assessment->meeting?->title;
-        $label = match ($assessment->type) {
-            'pre' => 'Pre-Test',
-            'post' => 'Post-Test',
-            'quiz' => 'Kuis Modul',
-            default => strtoupper((string) $assessment->type),
-        };
+    $scoreRows = collect();
 
-        return [
-            'component' => $meetingTitle ?: $assessment->title,
-            'type' => $label,
+    foreach ($assessments->where('type', 'pre') as $assessment) {
+        $attempt = $attempts->get($assessment->id);
+        $scoreRows->push([
+            'component' => $assessment->title ?: 'Pre-Test',
+            'type' => 'Pre-Test',
             'score' => $attempt?->score,
             'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
             'status' => $attempt ? 'Selesai' : 'Belum',
-        ];
-    });
+        ]);
+    }
+
+    $meetings = $event
+        ? LearningMeeting::query()
+            ->with([
+                'materials' => fn ($query) => $query->where('is_published', true)->orderBy('order'),
+                'assessments' => fn ($query) => $query->where('type', 'quiz')->orderBy('id'),
+            ])
+            ->where('learning_event_id', $event->id)
+            ->where('is_published', true)
+            ->orderBy('order')
+            ->get()
+        : collect();
+
+    foreach ($meetings as $meeting) {
+        $quiz = $meeting->assessments->first();
+        $attempt = $quiz ? $attempts->get($quiz->id) : null;
+        $materials = $meeting->materials
+            ->pluck('type')
+            ->filter()
+            ->map(fn ($type) => strtoupper((string) $type))
+            ->unique()
+            ->implode(', ');
+
+        $scoreRows->push([
+            'component' => trim(($meeting->title ?: 'Pertemuan ' . $meeting->order) . ($materials ? ' - Materi: ' . $materials : '')),
+            'type' => 'Kuis Modul',
+            'score' => $attempt?->score,
+            'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
+            'status' => $attempt ? 'Selesai' : 'Belum',
+        ]);
+    }
+
+    foreach ($assessments->where('type', 'post') as $assessment) {
+        $attempt = $attempts->get($assessment->id);
+        $scoreRows->push([
+            'component' => $assessment->title ?: 'Post-Test',
+            'type' => 'Post-Test',
+            'score' => $attempt?->score,
+            'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
+            'status' => $attempt ? 'Selesai' : 'Belum',
+        ]);
+    }
 
     $averageScore = $scoreRows->whereNotNull('score')->avg('score');
+
+    $certificateTemplate = $certificate->certificateTemplate ?? $event?->certificateTemplate;
+    $uploadedPath = function (mixed $value) use (&$uploadedPath): ?string {
+        if (blank($value)) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $uploadedPath($decoded);
+            }
+
+            return $value;
+        }
+
+        if (is_array($value)) {
+            if (isset($value['path'])) {
+                return $uploadedPath($value['path']);
+            }
+
+            if (isset($value['file'])) {
+                return $uploadedPath($value['file']);
+            }
+
+            foreach ($value as $item) {
+                if (filled($item)) {
+                    return $uploadedPath($item);
+                }
+            }
+        }
+
+        return null;
+    };
+
+    $imageDataUri = function (mixed $value) use ($uploadedPath): ?string {
+        $path = $uploadedPath($value);
+
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http')) {
+            return $path;
+        }
+
+        $absolutePath = str_starts_with($path, '/')
+            ? public_path(ltrim($path, '/'))
+            : \Illuminate\Support\Facades\Storage::disk('public')->path($path);
+
+        if (! file_exists($absolutePath)) {
+            $absolutePath = public_path(ltrim($path, '/'));
+        }
+
+        if (! file_exists($absolutePath)) {
+            return null;
+        }
+
+        $mime = mime_content_type($absolutePath) ?: 'image/png';
+
+        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absolutePath));
+    };
+
+    $templateElements = collect($certificateTemplate?->elements ?? [])->values();
+    $imageElementTypes = ['sena_logo', 'logo', 'partner_logo', 'uploaded_logo', 'signature_image', 'uploaded_signature', 'image'];
+    $eventPartnerLogoSrcs = $event?->partners
+        ?->where('status', 'active')
+        ->map(fn ($partner) => $imageDataUri($partner->logo_path) ?: $imageDataUri($partner->logo_url) ?: $senaLogoSrc)
+        ->filter()
+        ->values()
+        ?? collect();
+
+    if (! $templateElements->contains(fn ($element) => ($element['type'] ?? null) === 'event_partner_logos') && $eventPartnerLogoSrcs->isNotEmpty()) {
+        $templateElements->prepend([
+            'type' => 'event_partner_logos',
+            'label' => 'Logo Mitra Event',
+            'x' => 18,
+            'y' => 14,
+            'width' => 86,
+            'height' => 16,
+        ]);
+    }
+
+    $pageTwoLogoSrcs = $eventPartnerLogoSrcs->isNotEmpty()
+        ? $eventPartnerLogoSrcs
+        : collect([$senaLogoSrc])->filter();
+    $hasStudioSenaLogo = $templateElements->contains(fn ($element) => ($element['type'] ?? null) === 'sena_logo');
+    $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $school, $participant, $eventDate, $competencyTitle): string {
+        $type = $element['type'] ?? 'custom_text';
+        $content = match ($type) {
+            'participant_name' => $participantName,
+            'event_title' => $eventTitle,
+            'certificate_number' => $certificate->number ?: '-',
+            'issued_date' => $issuedDate,
+            'school_name' => $school?->name ?? 'Nama Sekolah / Instansi',
+            'class_name' => $participant?->grade ?? 'Kelas / Peran',
+            'tutor_name' => 'Nama Tutor',
+            'tutor_institution' => 'Lembaga Tutor',
+            'organizer_name' => 'Sena',
+            'signature_line' => '________________________',
+            default => $element['content'] ?? 'Tulisan bebas',
+        };
+
+        return strtr((string) $content, [
+            '{{participant_name}}' => $participantName,
+            '{{event_title}}' => $eventTitle,
+            '{{certificate_number}}' => $certificate->number ?: '-',
+            '{{issued_date}}' => $issuedDate,
+            '{{school_name}}' => $school?->name ?? 'Nama Sekolah / Instansi',
+            '{{class_name}}' => $participant?->grade ?? 'Kelas / Peran',
+            '{{event_date}}' => $eventDate,
+            '{{competency_title}}' => $competencyTitle,
+            '{{tutor_name}}' => 'Nama Tutor',
+            '{{tutor_institution}}' => 'Lembaga Tutor',
+            '{{organizer_name}}' => 'Sena',
+        ]);
+    };
+    $elementImageSrc = function (array $element) use ($imageDataUri, $eventPartnerLogoSrcs, $senaLogoSrc): ?string {
+        $type = $element['type'] ?? null;
+
+        if ($type === 'sena_logo') {
+            return $imageDataUri($element['image_path'] ?? null) ?: $senaLogoSrc;
+        }
+
+        if ($type === 'partner_logo') {
+            return $imageDataUri($element['image_path'] ?? null) ?: $eventPartnerLogoSrcs->first();
+        }
+
+        return $imageDataUri($element['image_path'] ?? null);
+    };
 @endphp
 
 <!DOCTYPE html>
@@ -63,11 +243,10 @@
         .page {
             height: 210mm;
             overflow: hidden;
-            page-break-after: always;
             position: relative;
             width: 297mm;
         }
-        .page:last-child { page-break-after: auto; }
+        .page-1 { page-break-after: always; }
         .template-bg {
             height: 210mm;
             left: 0;
@@ -87,82 +266,233 @@
             text-align: center;
             z-index: 3;
         }
+        .sena-page-1 {
+            height: auto;
+            position: absolute;
+            right: 18mm;
+            top: 14mm;
+            width: 45mm;
+            z-index: 4;
+        }
+        .studio-image-element {
+            object-fit: contain;
+            position: absolute;
+            z-index: 5;
+        }
+        .event-partner-logos {
+            overflow: hidden;
+            position: absolute;
+            text-align: left;
+            white-space: nowrap;
+            z-index: 5;
+        }
+        .event-partner-logos img {
+            display: inline-block;
+            height: 100%;
+            margin-right: 3mm;
+            max-width: 26mm;
+            object-fit: contain;
+            vertical-align: middle;
+            width: auto;
+        }
+        .template-text-element {
+            line-height: 1.25;
+            overflow: hidden;
+            position: absolute;
+            white-space: pre-line;
+            z-index: 5;
+        }
+        .template-shape-element {
+            position: absolute;
+            z-index: 4;
+        }
+        .template-qr-element {
+            align-items: center;
+            border: .35mm solid #111827;
+            color: #111827;
+            display: flex;
+            font-size: 7pt;
+            font-weight: 800;
+            justify-content: center;
+            position: absolute;
+            z-index: 5;
+        }
         .cert-number {
             color: #202427;
-            font-size: 15pt;
+            font-size: 14pt;
             font-weight: 500;
-            left: 86mm;
-            top: 60mm;
-            width: 125mm;
+            left: 70mm;
+            top: 57.8mm;
+            width: 157mm;
+        }
+        .given-to {
+            color: #202427;
+            font-size: 18pt;
+            font-weight: 400;
+            left: 70mm;
+            line-height: 1;
+            top: 70.2mm;
+            width: 157mm;
         }
         .participant-name {
             color: #202427;
-            font-size: 26pt;
+            font-size: {{ $nameFontSize }}pt;
             font-weight: 800;
-            left: 61mm;
+            left: 48mm;
             line-height: 1.1;
             top: 80mm;
-            width: 175mm;
+            width: 201mm;
         }
-        .event-date {
+        .event-line {
             color: #202427;
-            font-size: 15pt;
+            font-size: 13.5pt;
+            font-weight: 400;
+            left: 14mm;
+            line-height: 1.34;
+            top: 98.8mm;
+            width: 269mm;
+        }
+        .event-line strong {
             font-weight: 800;
-            left: 113mm;
-            top: 123mm;
-            width: 52mm;
+        }
+        .event-program {
+            display: inline-block;
+            font-size: 15.5pt;
+            font-weight: 800;
+            line-height: 1.25;
+            max-width: 260mm;
+        }
+        .competency-line {
+            display: inline-block;
+            font-size: 15pt;
+            font-weight: 900;
+            letter-spacing: .02em;
+            line-height: 1.25;
+            max-width: 260mm;
         }
         .page-2 {
-            background: #f8fafc;
-            padding: 18mm 20mm;
+            background: #ffffff;
+            height: 210mm;
+            overflow: hidden;
+            padding: 0;
         }
+        .side-pattern {
+            background: #19c6d3;
+            bottom: 0;
+            height: 210mm;
+            overflow: hidden;
+            position: absolute;
+            top: 0;
+            width: 8mm;
+            z-index: 0;
+        }
+        .side-pattern.left { left: 0; }
+        .side-pattern.right { right: 0; }
+        .side-pattern div {
+            display: none;
+            height: 10.5mm;
+        }
+        .side-pattern div:nth-child(4n+1) { background: #19c6d3; }
+        .side-pattern div:nth-child(4n+2) { background: #f5ce39; }
+        .side-pattern div:nth-child(4n+3) { background: #0b2a57; }
+        .side-pattern div:nth-child(4n+4) { background: #15a1dc; }
         .transcript-card {
             background: #fff;
-            border: 1px solid #d9e2ec;
-            border-radius: 10px;
-            height: 174mm;
-            padding: 12mm;
+            height: 166mm;
+            left: 16mm;
+            padding: 5mm 7mm 10mm;
+            position: absolute;
+            top: 10mm;
+            width: 265mm;
+            z-index: 1;
         }
         .transcript-head {
-            border-bottom: 3px solid #072757;
-            margin-bottom: 8mm;
-            padding-bottom: 6mm;
+            margin-bottom: 7mm;
+            padding-bottom: 3mm;
+            position: relative;
+        }
+        .transcript-logo-row {
+            display: table;
+            width: 100%;
+        }
+        .transcript-logo-cell {
+            display: table-cell;
+            vertical-align: top;
+            width: 50%;
+        }
+        .transcript-partner-logo {
+            display: inline-block;
+            height: 16mm;
+            margin-right: 4mm;
+            max-width: 42mm;
+            object-fit: contain;
+            vertical-align: middle;
+        }
+        .transcript-brand {
+            color: #058fce;
+            font-size: 26pt;
+            font-weight: 900;
+            letter-spacing: -.04em;
+            text-align: right;
+        }
+        .transcript-brand span {
+            color: #0b2a57;
+            display: block;
+            font-size: 8pt;
+            font-weight: 800;
+            letter-spacing: 0;
+            margin-top: -2mm;
         }
         .eyebrow {
-            color: #2563eb;
-            font-size: 9pt;
-            font-weight: 800;
-            letter-spacing: .08em;
-            text-transform: uppercase;
+            color: #202427;
+            font-size: 8pt;
+            font-weight: 700;
         }
         h1 {
-            color: #072757;
-            font-size: 24pt;
+            color: #202427;
+            font-size: 11pt;
             line-height: 1.15;
-            margin: 2mm 0 0;
+            margin: 8mm 0 0;
         }
         .meta {
-            color: #475569;
-            font-size: 10pt;
-            line-height: 1.55;
-            margin-top: 3mm;
+            color: #202427;
+            font-size: 8.5pt;
+            line-height: 1.45;
+            margin-top: 1mm;
+        }
+        .watermark {
+            color: rgba(5, 143, 206, .05);
+            font-size: 74pt;
+            font-weight: 900;
+            left: 70mm;
+            letter-spacing: -.08em;
+            position: absolute;
+            top: 73mm;
+            z-index: 0;
         }
         table {
             border-collapse: collapse;
+            page-break-inside: avoid;
             width: 100%;
+            position: relative;
+            z-index: 1;
         }
+        tr { page-break-inside: avoid; }
         th {
-            background: #072757;
-            color: #fff;
-            font-size: 9pt;
-            padding: 3mm;
+            background: #f7f7f7;
+            border: 1px solid #555;
+            color: #202427;
+            font-size: 7.7pt;
+            font-weight: 800;
+            padding: 1.8mm 2.2mm;
             text-align: left;
         }
         td {
-            border-bottom: 1px solid #e2e8f0;
+            border: 1px solid #555;
             color: #202427;
-            font-size: 9pt;
-            padding: 3mm;
+            font-size: 7.5pt;
+            line-height: 1.28;
+            padding: 1.6mm 2.2mm;
             vertical-align: top;
         }
         .score {
@@ -170,55 +500,126 @@
             text-align: center;
         }
         .summary {
-            background: #fff7ed;
-            border: 1px solid #fed7aa;
-            border-radius: 8px;
-            color: #9a3412;
-            font-size: 10pt;
+            color: #202427;
+            font-size: 9pt;
             font-weight: 800;
-            margin-top: 7mm;
-            padding: 4mm;
+            margin-top: 5mm;
+            padding: 3mm;
+            text-align: right;
+        }
+        .page-footer {
+            bottom: 8mm;
+            color: #64748b;
+            font-size: 9pt;
+            left: 25mm;
+            position: absolute;
+            right: 25mm;
+            z-index: 2;
+        }
+        .page-footer .right {
+            float: right;
             text-align: right;
         }
     </style>
 </head>
 <body>
-    <section class="page">
-        @if (file_exists($templateImage))
-            <img class="template-bg" src="{{ $templateImage }}" alt="">
+    <section class="page page-1">
+        @if ($templateImageSrc)
+            <img class="template-bg" src="{{ $templateImageSrc }}" alt="">
         @endif
+        @if ($senaLogoSrc && ! $hasStudioSenaLogo)
+            <img class="sena-page-1" src="{{ $senaLogoSrc }}" alt="">
+        @endif
+        @foreach ($templateElements as $element)
+            @php
+                $type = $element['type'] ?? 'custom_text';
+                $x = (float) ($element['x'] ?? 0);
+                $y = (float) ($element['y'] ?? 0);
+                $widthMm = max(1, (float) ($element['width'] ?? 20));
+                $heightMm = max(1, (float) ($element['height'] ?? 10));
+            @endphp
 
-        <div class="cover-box" style="left: 88mm; top: 59mm; width: 121mm; height: 10mm;"></div>
-        <div class="overlay cert-number">No. {{ $certificate->number }}</div>
-
-        <div class="cover-box" style="left: 70mm; top: 79mm; width: 157mm; height: 18mm;"></div>
-        <div class="overlay participant-name">{{ $participant?->user?->name ?? 'Nama Peserta' }}</div>
-
-        <div class="cover-box" style="left: 112mm; top: 122mm; width: 56mm; height: 8mm;"></div>
-        <div class="overlay event-date">{{ $eventDate }}</div>
+            @if ($type === 'event_partner_logos')
+                @if ($eventPartnerLogoSrcs->isNotEmpty())
+                    <div
+                        class="event-partner-logos"
+                        style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm;"
+                    >
+                        @foreach ($eventPartnerLogoSrcs as $partnerLogoSrc)
+                            <img src="{{ $partnerLogoSrc }}" alt="">
+                        @endforeach
+                    </div>
+                @endif
+            @elseif ($type === 'white_box')
+                <div
+                    class="template-shape-element"
+                    style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm; background: {{ $element['color'] ?? '#ffffff' }};"
+                ></div>
+            @elseif (in_array($type, $imageElementTypes, true))
+                @php $studioImageSrc = $elementImageSrc($element); @endphp
+                @if ($studioImageSrc)
+                    <img
+                        class="studio-image-element"
+                        src="{{ $studioImageSrc }}"
+                        alt=""
+                        style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm;"
+                    >
+                @endif
+            @elseif ($type === 'qr_code')
+                <div
+                    class="template-qr-element"
+                    style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm;"
+                >QR</div>
+            @else
+                <div
+                    class="template-text-element"
+                    style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm; font-size: {{ (float) ($element['font_size'] ?? 12) }}pt; font-weight: {{ $element['font_weight'] ?? '400' }}; text-align: {{ $element['align'] ?? 'center' }}; color: {{ $element['color'] ?? '#111827' }};"
+                >{{ $elementText($element) }}</div>
+            @endif
+        @endforeach
     </section>
 
     <section class="page page-2">
+        <div class="side-pattern left">
+            @for ($i = 0; $i < 19; $i++)
+                <div></div>
+            @endfor
+        </div>
+        <div class="side-pattern right">
+            @for ($i = 0; $i < 19; $i++)
+                <div></div>
+            @endfor
+        </div>
         <div class="transcript-card">
             <div class="transcript-head">
-                <div class="eyebrow">Lampiran Sertifikat</div>
-                <h1>Materi Pembelajaran dan Nilai</h1>
+                <div class="transcript-logo-row">
+                    <div class="transcript-logo-cell">
+                        @foreach ($pageTwoLogoSrcs as $pageTwoLogoSrc)
+                            <img class="transcript-partner-logo" src="{{ $pageTwoLogoSrc }}" alt="">
+                        @endforeach
+                    </div>
+                    <div class="transcript-logo-cell transcript-brand">
+                        SENA
+                        <span>Lampiran Pembelajaran</span>
+                    </div>
+                </div>
+                <h1>{{ $eventTitle }}</h1>
                 <div class="meta">
-                    <strong>{{ $participant?->user?->name ?? '-' }}</strong><br>
-                    {{ $event?->title ?? 'Digital Safety Champions' }}<br>
-                    {{ $school?->name ?? '-' }} - No. Sertifikat: {{ $certificate->number }}
+                    Program literasi keamanan digital<br>
+                    No. Sertifikat: {{ $certificate->number }}<br>
+                    Peserta: <strong>{{ $participant?->user?->name ?? '-' }}</strong>{{ $school?->name ? ' - ' . $school->name : '' }}
                 </div>
             </div>
 
+            <div class="watermark">DSC</div>
             <table>
                 <thead>
                     <tr>
                         <th style="width: 10mm;">No</th>
-                        <th>Materi / Komponen</th>
-                        <th style="width: 34mm;">Jenis</th>
+                        <th>Materi</th>
+                        <th style="width: 34mm;">Komponen</th>
                         <th style="width: 28mm;">Benar</th>
-                        <th style="width: 25mm;">Nilai</th>
-                        <th style="width: 28mm;">Status</th>
+                        <th style="width: 26mm;">Nilai</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -229,11 +630,10 @@
                             <td>{{ $row['type'] }}</td>
                             <td class="score">{{ $row['correct'] }}</td>
                             <td class="score">{{ $row['score'] !== null ? number_format((float) $row['score'], 0) : '-' }}</td>
-                            <td>{{ $row['status'] }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">Belum ada data materi dan nilai.</td>
+                            <td colspan="5">Belum ada data materi dan nilai.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -242,6 +642,10 @@
             <div class="summary">
                 Rata-rata nilai: {{ $averageScore !== null ? number_format((float) $averageScore, 2) : '-' }}
             </div>
+        </div>
+        <div class="page-footer">
+            <strong>sena</strong>
+            <span class="right">Diterbitkan pada {{ $issuedDate }}</span>
         </div>
     </section>
 </body>

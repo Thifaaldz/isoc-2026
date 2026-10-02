@@ -170,7 +170,7 @@
             <div class="approval-head">
                 <div>
                     <h2 class="approval-title">Approval Peserta</h2>
-                    <p class="approval-text">Cek peserta event umum dan preview gambar bukti follow Instagram sebelum approval.</p>
+                    <p class="approval-text">Cek peserta, preview bukti follow Instagram, dan status join WAG. Jika dua bukti awal lengkap, sistem otomatis mengubah status menjadi approved.</p>
                 </div>
 
                 @if ($events->isNotEmpty())
@@ -185,7 +185,7 @@
 
         <section class="approval-card">
             @if (! $event)
-                <div class="approval-empty">Belum ada event umum yang perlu diapproval untuk akun ini.</div>
+                <div class="approval-empty">Belum ada event yang perlu dicek untuk akun ini.</div>
             @elseif ($rows->isEmpty())
                 <div class="approval-empty">Belum ada peserta terdaftar pada event ini.</div>
             @else
@@ -206,6 +206,7 @@
                                 @php
                                     $participant = $row['participant'];
                                     $status = $row['status'];
+                                    $proofComplete = $row['proof_complete'];
                                     $proofSrc = $row['evidence_src'];
                                     $proofUrl = $row['evidence_url'];
                                 @endphp
@@ -240,13 +241,17 @@
                                     </td>
                                     <td>
                                         @if ($status !== 'approved')
-                                            <button
-                                                type="button"
-                                                class="approval-button"
-                                                wire:click="approve({{ $event->id }}, {{ $participant->id }})"
-                                            >
-                                                Approve
-                                            </button>
+                                            @if ($proofComplete)
+                                                <button
+                                                    type="button"
+                                                    class="approval-button"
+                                                    wire:click="approve({{ $event->id }}, {{ $participant->id }})"
+                                                >
+                                                    Sinkronkan
+                                                </button>
+                                            @else
+                                                <span class="approval-muted">Menunggu bukti lengkap</span>
+                                            @endif
                                         @else
                                             <span class="approval-muted">Sudah approved</span>
                                         @endif

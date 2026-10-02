@@ -1,8 +1,10 @@
 <nav class="fixed top-0 w-full z-50 bg-white border-b border-grey-200" x-data="{ mobileOpen: false }">
     <div class="flex justify-between items-center px-6 lg:px-8 h-[72px] max-w-7xl mx-auto">
         {{-- Logo --}}
-        <a href="{{ route('home') }}" class="shrink-0">
-            <img src="{{ asset('images/isoc-logo.png') }}" alt="ISOC Indonesia Jakarta Chapter" class="h-9">
+        <a href="{{ route('home') }}" class="shrink-0 inline-flex items-center gap-3">
+            <img src="{{ asset('images/isoc-logo.png') }}" alt="ISOC" class="h-9 w-auto">
+            <span class="h-8 w-px bg-grey-200" aria-hidden="true"></span>
+            <img src="{{ asset('images/sena-logo.png') }}" alt="Sena" class="h-8 w-auto max-w-[112px] object-contain sm:max-w-[132px]">
         </a>
 
         {{-- Desktop Nav --}}

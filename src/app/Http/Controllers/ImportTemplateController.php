@@ -14,9 +14,9 @@ class ImportTemplateController
             'template-import-peserta.xlsx',
             'Template Peserta',
             [
-                ['name', 'nis', 'grade', 'organization', 'position', 'gender', 'birth_date', 'phone', 'email'],
-                ['Peserta Contoh', '1001', 'X', 'SMK Negeri 2 Jakarta', 'Siswa', 'L', '2010-02-14', '081322220000', 'peserta.contoh@isoc.id'],
-                ['Peserta Umum', '', '', 'Komunitas Digital', 'Relawan', 'P', '2000-05-02', '081322220001', 'peserta.umum@isoc.id'],
+                ['name', 'nisn_or_nik', 'grade', 'organization', 'position', 'gender', 'birth_date', 'phone', 'email'],
+                ['Peserta Sekolah', '0012345678', 'X', 'SMK Negeri 2 Jakarta', 'Siswa', 'L', '2010-02-14', '081322220000', 'peserta.sekolah@isoc.id'],
+                ['Peserta Umum', '3171010101900001', '', 'Komunitas Digital', 'Relawan', 'P', '2000-05-02', '081322220001', 'peserta.umum@isoc.id'],
             ],
         );
     }
@@ -30,6 +30,21 @@ class ImportTemplateController
                 ['name', 'phone', 'email', 'institution', 'notes'],
                 ['Tutor ISOC Utama', '081311110000', 'tutor.utama@isoc.id', 'RTIK Jakarta', 'Fasilitator utama'],
                 ['Fasilitator Sekolah', '081311110001', 'fasilitator.sekolah@isoc.id', 'SMK Negeri 2 Jakarta', 'Pendamping kelas'],
+            ],
+        );
+    }
+
+    public function rab(): BinaryFileResponse
+    {
+        return $this->download(
+            'template-rab.xlsx',
+            'Template RAB',
+            [
+                ['category', 'description', 'quantity', 'unit', 'unit_price', 'amount', 'vendor', 'receipt_number', 'notes'],
+                ['konsumsi', 'Konsumsi peserta dan tutor', '110', 'paket', '25000', '2750000', 'Kantin Sekolah', 'INV-KON-001', 'Snack dan air mineral'],
+                ['banner_publikasi', 'Banner kegiatan', '2', 'pcs', '250000', '500000', 'Digital Print', 'INV-BNR-001', 'Banner ruang pelatihan'],
+                ['transportasi', 'Transport tutor/fasilitator', '3', 'orang', '150000', '450000', 'RTIK Local', 'TRP-001', 'Transport lokal'],
+                ['dokumentasi', 'Dokumentasi foto dan video', '1', 'paket', '750000', '750000', 'Tim Dokumentasi', 'DOC-001', 'Foto sesi dan video slogan'],
             ],
         );
     }
@@ -146,7 +161,7 @@ class ImportTemplateController
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
-            . '<Application>ISOC SI-DSC</Application><TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>' . $this->escape($sheetName) . '</vt:lpstr></vt:vector></TitlesOfParts>'
+            . '<Application>sena</Application><TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>' . $this->escape($sheetName) . '</vt:lpstr></vt:vector></TitlesOfParts>'
             . '</Properties>';
     }
 
@@ -156,7 +171,7 @@ class ImportTemplateController
 
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             . '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            . '<dc:creator>ISOC SI-DSC</dc:creator><cp:lastModifiedBy>ISOC SI-DSC</cp:lastModifiedBy>'
+            . '<dc:creator>sena</dc:creator><cp:lastModifiedBy>sena</cp:lastModifiedBy>'
             . '<dcterms:created xsi:type="dcterms:W3CDTF">' . $now . '</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">' . $now . '</dcterms:modified>'
             . '</cp:coreProperties>';
     }

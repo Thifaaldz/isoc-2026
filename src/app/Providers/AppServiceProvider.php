@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Http\Responses\Auth\RoleBasedLoginResponse;
 use Filament\Actions\MountableAction;
+use Filament\Http\Responses\Auth\Contracts\LoginResponse;
 use Filament\Notifications\Livewire\Notifications;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -18,7 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(LoginResponse::class, RoleBasedLoginResponse::class);
     }
 
     /**

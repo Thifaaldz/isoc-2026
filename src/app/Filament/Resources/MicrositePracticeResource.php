@@ -50,9 +50,15 @@ class MicrositePracticeResource extends Resource
             auth()->user()?->role === UserRole::Peserta
                 ? Forms\Components\Hidden::make('participant_id')->default(fn () => auth()->user()->participant?->id)
                 : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => static::scopedParticipantOptions())->searchable()->required(),
+            Forms\Components\Select::make('learning_event_id')
+                ->label('Event')
+                ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
             Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->url(),
             Forms\Components\Textarea::make('notes')->label('Catatan'),
-            Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default('submitted'),
+            Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default(fn () => auth()->user()?->role === UserRole::Peserta ? 'reviewed' : 'submitted'),
         ]);
     }
 
@@ -61,6 +67,7 @@ class MicrositePracticeResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('participant.user.name')->label('Peserta')->searchable(),
+                Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('sid_url')->label('Tautan')->url(fn ($record) => $record->sid_url, true),
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
             ])
@@ -68,9 +75,7 @@ class MicrositePracticeResource extends Resource
                 Tables\Filters\SelectFilter::make('learning_event_id')
                     ->label('Event')
                     ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
-                        ? $query->whereHas('participant.learningEvents', fn ($eventQuery) => $eventQuery->where('learning_events.id', $data['value']))
-                        : $query),
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null) ? $query->where('learning_event_id', $data['value']) : $query),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau']),

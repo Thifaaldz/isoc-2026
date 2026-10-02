@@ -18,7 +18,7 @@ class PublicPageController extends Controller
             'sections' => [
                 'hero' => $this->section(
                     'Internet is for Everyone',
-                    'ISOC Indonesia Jakarta Chapter',
+                    config('app.name', 'sena'),
                     'Bersama sekolah, komunitas, dan mitra strategis, kami memperkuat literasi digital, keamanan internet, dan akses yang inklusif untuk generasi muda Indonesia.',
                     'Daftar Peserta',
                     route('event.register', $this->event()),
@@ -61,7 +61,7 @@ class PublicPageController extends Controller
     {
         return view('pages.about', [
             'sections' => [
-                'hero' => $this->section('Tentang Kami', 'ISOC Indonesia Jakarta Chapter', 'Komunitas lokal Internet Society yang mendorong internet terbuka, aman, terpercaya, dan bermanfaat untuk semua.'),
+                'hero' => $this->section('Tentang Kami', config('app.name', 'sena'), 'Komunitas lokal Internet Society yang mendorong internet terbuka, aman, terpercaya, dan bermanfaat untuk semua.'),
                 'history' => $this->section('Gerakan Global, Aksi Lokal', 'Sejarah & Peran Kami', 'Internet Society hadir sebagai jaringan global yang memperjuangkan internet terbuka. Chapter Jakarta menerjemahkan semangat itu dalam edukasi, advokasi, kolaborasi, dan program literasi digital di Indonesia.'),
                 'community' => $this->section('Komunitas', 'Ruang Kolaborasi', 'Kami mempertemukan pelajar, pendidik, profesional, pembuat kebijakan, dan komunitas teknis.'),
                 'ecosystem' => $this->section('Ekosistem Internet', 'Membangun Kepercayaan Digital', 'Fokus kami adalah memperkuat kapasitas masyarakat agar mampu menggunakan internet secara aman, produktif, dan bertanggung jawab.'),

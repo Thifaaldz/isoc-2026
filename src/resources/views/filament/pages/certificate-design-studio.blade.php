@@ -4,6 +4,7 @@
         $width = $template?->width_mm ?? 297;
         $height = $template?->height_mm ?? 210;
         $background = $this->imageUrl($template?->background_image);
+        $partnerLogoUrls = $this->eventPartnerLogoUrls();
     @endphp
 
     <div class="space-y-6">
@@ -88,7 +89,17 @@
                                 class="group absolute cursor-move select-none overflow-hidden border border-primary-500/50 bg-white/65 p-1 text-center leading-tight ring-1 ring-white/60 transition hover:bg-primary-50 dark:bg-gray-900/70 dark:hover:bg-primary-950"
                                 title="Geser elemen. Tarik kotak kecil kanan bawah untuk ubah ukuran."
                             >
-                                @if (in_array($type, ['logo', 'partner_logo', 'signature_image'], true))
+                                @if ($type === 'event_partner_logos')
+                                    <div class="flex h-full w-full items-center gap-1 overflow-hidden">
+                                        @forelse ($partnerLogoUrls as $logoUrl)
+                                            <img src="{{ $logoUrl }}" alt="" class="h-full min-w-0 object-contain">
+                                        @empty
+                                            <span class="text-xs text-gray-500">Logo mitra event</span>
+                                        @endforelse
+                                    </div>
+                                @elseif ($type === 'white_box')
+                                    <div class="h-full w-full" style="background: {{ $element['color'] ?? '#ffffff' }}"></div>
+                                @elseif (in_array($type, $this->imageElementTypes(), true))
                                     @if ($image)
                                         <img src="{{ $image }}" alt="" class="h-full w-full object-contain">
                                     @else
@@ -108,6 +119,73 @@
                                 ></span>
                             </div>
                         @endforeach
+                    </div>
+
+                    <div class="mt-4 rounded-lg border border-dashed border-gray-300 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">Preview Halaman 2</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Lampiran materi dan nilai mengikuti data sertifikat.</div>
+                            </div>
+                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">A4 Landscape</span>
+                        </div>
+                        <div
+                            class="relative mx-auto overflow-hidden bg-white shadow ring-1 ring-gray-200 dark:ring-gray-800"
+                            style="width: min(100%, {{ $width * 3 }}px); aspect-ratio: {{ $width }} / {{ $height }};"
+                        >
+                            <div class="absolute inset-y-0 left-0 w-[2.7%] bg-[#19c6d3]"></div>
+                            <div class="absolute inset-y-0 right-0 w-[2.7%] bg-[#19c6d3]"></div>
+                            <div class="absolute left-[5.4%] top-[5%] h-[79%] w-[89.2%] bg-white p-[2.4%]">
+                                <div class="flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
+                                    <div class="flex h-12 max-w-[55%] items-center gap-3 overflow-hidden">
+                                        @forelse ($partnerLogoUrls as $logoUrl)
+                                            <img src="{{ $logoUrl }}" alt="" class="h-10 max-w-28 object-contain">
+                                        @empty
+                                            <span class="text-xs font-semibold text-gray-500">Logo mitra event</span>
+                                        @endforelse
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-2xl font-black tracking-tight text-sky-600">SENA</div>
+                                        <div class="text-[10px] font-bold uppercase text-slate-700">Lampiran Pembelajaran</div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-sm font-black text-gray-950">Nama Kegiatan / Seminar</div>
+                                <div class="mt-1 text-xs leading-5 text-gray-600">
+                                    Program pembelajaran digital<br>
+                                    No. Sertifikat: PREVIEW/0001<br>
+                                    Peserta: <strong>Nama Peserta</strong> - Nama Sekolah / Instansi
+                                </div>
+                                <div class="mt-4 overflow-hidden rounded border border-gray-400">
+                                    <table class="w-full border-collapse text-[10px]">
+                                        <thead>
+                                            <tr class="bg-gray-100 text-left">
+                                                <th class="border border-gray-400 px-2 py-1">No</th>
+                                                <th class="border border-gray-400 px-2 py-1">Materi</th>
+                                                <th class="border border-gray-400 px-2 py-1">Komponen</th>
+                                                <th class="border border-gray-400 px-2 py-1 text-center">Benar</th>
+                                                <th class="border border-gray-400 px-2 py-1 text-center">Nilai</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ([['Pre-Test', 'Pre-Test', '5/5', '90'], ['Pertemuan 1: Materi Utama', 'Kuis Modul', '5/5', '95'], ['Post-Test', 'Post-Test', '5/5', '96']] as $rowIndex => $row)
+                                                <tr>
+                                                    <td class="border border-gray-400 px-2 py-1">{{ $rowIndex + 1 }}</td>
+                                                    <td class="border border-gray-400 px-2 py-1">{{ $row[0] }}</td>
+                                                    <td class="border border-gray-400 px-2 py-1">{{ $row[1] }}</td>
+                                                    <td class="border border-gray-400 px-2 py-1 text-center font-bold">{{ $row[2] }}</td>
+                                                    <td class="border border-gray-400 px-2 py-1 text-center font-bold">{{ $row[3] }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="mt-3 text-right text-xs font-black text-gray-800">Rata-rata nilai: 93.67</div>
+                            </div>
+                            <div class="absolute bottom-[4%] left-[8.5%] right-[8.5%] text-xs text-gray-500">
+                                <strong>sena</strong>
+                                <span class="float-right">Diterbitkan pada tanggal preview</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -177,7 +255,48 @@
                                             <input type="number" step="0.1" wire:model.blur="elements.{{ $index }}.height" class="w-full rounded-lg border-gray-300 text-sm dark:border-gray-700 dark:bg-gray-900">
                                         </label>
 
-                                        @if (! in_array($element['type'] ?? 'custom_text', ['logo', 'partner_logo', 'signature_image', 'qr_code'], true))
+                                        @if (in_array($element['type'] ?? 'custom_text', $this->imageElementTypes(), true))
+                                            @php $sideImage = $this->imageUrl($element['image_path'] ?? null); @endphp
+
+                                            <div class="col-span-2 rounded-lg border border-dashed border-gray-300 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+                                                <span class="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300">Upload Gambar / Logo</span>
+                                                @if ($sideImage)
+                                                    <div class="mb-2 flex items-center gap-3">
+                                                        <div class="grid h-16 w-24 place-items-center rounded-md border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-950">
+                                                            <img src="{{ $sideImage }}" alt="" class="max-h-full max-w-full object-contain">
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            wire:click="removeElementImage({{ $index }})"
+                                                            class="rounded-md px-2 py-1 text-xs font-semibold text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-950"
+                                                        >
+                                                            Hapus gambar
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    wire:model="elementImageUploads.{{ $index }}"
+                                                    class="block w-full text-xs text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-primary-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-primary-700 dark:text-gray-300"
+                                                >
+                                                <div wire:loading wire:target="elementImageUploads.{{ $index }}" class="mt-2 text-xs text-primary-600">
+                                                    Mengunggah gambar...
+                                                </div>
+                                                <p class="mt-2 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+                                                    Setelah upload, geser gambar di kanvas lalu klik Simpan Desain.
+                                                </p>
+                                            </div>
+                                        @endif
+
+                                        @if (($element['type'] ?? 'custom_text') === 'white_box')
+                                            <label class="col-span-2 block">
+                                                <span class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Warna Kotak</span>
+                                                <input type="color" wire:model.blur="elements.{{ $index }}.color" class="h-9 w-full rounded-lg border-gray-300 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                            </label>
+                                        @endif
+
+                                        @if (! in_array($element['type'] ?? 'custom_text', array_merge($this->imageElementTypes(), ['event_partner_logos', 'white_box', 'qr_code']), true))
                                             <label class="block">
                                                 <span class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Font</span>
                                                 <input type="number" step="1" wire:model.blur="elements.{{ $index }}.font_size" class="w-full rounded-lg border-gray-300 text-sm dark:border-gray-700 dark:bg-gray-900">

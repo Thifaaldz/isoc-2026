@@ -65,6 +65,7 @@ class LearningMaterialResource extends Resource
             Forms\Components\TextInput::make('order')->label('Urutan')->numeric()->default(1)->required(),
             Forms\Components\TextInput::make('title')->label('Judul materi')->required(),
             Forms\Components\Select::make('type')->label('Jenis')->options(LearningMaterial::TYPES)->default('pdf')->required(),
+            Forms\Components\TextInput::make('duration_minutes')->label('Durasi materi (menit)')->numeric()->minValue(1),
             Forms\Components\FileUpload::make('file_path')->label('Upload file materi')->directory('learning-materials')->acceptedFileTypes([
                 'application/pdf',
                 'application/vnd.ms-powerpoint',
@@ -88,6 +89,7 @@ class LearningMaterialResource extends Resource
                 Tables\Columns\TextColumn::make('order')->label('Urutan')->sortable(),
                 Tables\Columns\TextColumn::make('title')->label('Materi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('type')->label('Jenis')->badge(),
+                Tables\Columns\TextColumn::make('duration_minutes')->label('Durasi')->suffix(' menit')->toggleable(),
                 Tables\Columns\IconColumn::make('is_published')->label('Publish')->boolean(),
             ])
             ->filters([
