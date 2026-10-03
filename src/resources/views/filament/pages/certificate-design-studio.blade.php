@@ -128,7 +128,7 @@
                         <div class="mb-3 flex items-center justify-between gap-3">
                             <div>
                                 <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">Preview Halaman 2</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">Lampiran materi dan nilai mengikuti data sertifikat.</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Lampiran modul dan JP (1 JP = 45 menit) mengikuti durasi modul event.</div>
                             </div>
                             <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">A4 Landscape</span>
                         </div>
@@ -139,18 +139,12 @@
                             <div class="absolute inset-y-0 left-0 w-[2.7%] bg-[#19c6d3]"></div>
                             <div class="absolute inset-y-0 right-0 w-[2.7%] bg-[#19c6d3]"></div>
                             <div class="absolute left-[5.4%] top-[5%] h-[79%] w-[89.2%] bg-white p-[2.4%]">
-                                <div class="flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
-                                    <div class="flex h-12 max-w-[62%] items-center gap-2 overflow-hidden">
-                                        @forelse ($partnerLogoUrls as $logoUrl)
-                                            <img src="{{ $logoUrl }}" alt="" class="h-9 max-w-24 object-contain">
-                                        @empty
-                                            <span class="text-xs font-semibold text-gray-500">Logo mitra event</span>
-                                        @endforelse
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-2xl font-black tracking-tight text-sky-600">SENA</div>
-                                        <div class="text-[10px] font-bold uppercase text-slate-700">Lampiran Pembelajaran</div>
-                                    </div>
+                                <div class="flex h-14 items-center justify-center gap-3 overflow-hidden pb-3">
+                                    @forelse ($partnerLogoUrls as $logoUrl)
+                                        <img src="{{ $logoUrl }}" alt="" class="h-11 max-w-28 object-contain">
+                                    @empty
+                                        <span class="text-xs font-semibold text-gray-500">Logo mitra event</span>
+                                    @endforelse
                                 </div>
                                 <div class="mt-4 text-sm font-black text-gray-950">Nama Kegiatan / Seminar</div>
                                 <div class="mt-1 text-xs leading-5 text-gray-600">
@@ -163,14 +157,14 @@
                                         <thead>
                                             <tr class="bg-gray-100 text-left">
                                                 <th class="border border-gray-400 px-2 py-1">No</th>
+                                                <th class="border border-gray-400 px-2 py-1">Modul</th>
                                                 <th class="border border-gray-400 px-2 py-1">Materi</th>
-                                                <th class="border border-gray-400 px-2 py-1">Komponen</th>
-                                                <th class="border border-gray-400 px-2 py-1 text-center">Benar</th>
-                                                <th class="border border-gray-400 px-2 py-1 text-center">Nilai</th>
+                                                <th class="border border-gray-400 px-2 py-1 text-center">Durasi (menit)</th>
+                                                <th class="border border-gray-400 px-2 py-1 text-center">JP</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @foreach ([['Pre-Test', 'Pre-Test', '5/5', '90'], ['Pertemuan 1: Materi Utama', 'Kuis Modul', '5/5', '95'], ['Post-Test', 'Post-Test', '5/5', '96']] as $rowIndex => $row)
+                                            @foreach ([['Modul 1: Materi Utama', 'PDF, VIDEO', '45', '1'], ['Modul 2: Materi Lanjutan', 'PDF, VIDEO', '90', '2'], ['Modul 3: Praktik', 'PPT', '45', '1']] as $rowIndex => $row)
                                                 <tr>
                                                     <td class="border border-gray-400 px-2 py-1">{{ $rowIndex + 1 }}</td>
                                                     <td class="border border-gray-400 px-2 py-1">{{ $row[0] }}</td>
@@ -182,10 +176,9 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <div class="mt-3 text-right text-xs font-black text-gray-800">Rata-rata nilai: 93.67</div>
+                                <div class="mt-3 text-right text-xs font-black text-gray-800">Total: 180 menit = 4 JP (1 JP = 45 menit)</div>
                             </div>
                             <div class="absolute bottom-[4%] left-[8.5%] right-[8.5%] text-xs text-gray-500">
-                                <strong>sena</strong>
                                 <span class="float-right">Diterbitkan pada tanggal preview</span>
                             </div>
                         </div>

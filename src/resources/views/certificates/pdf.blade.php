@@ -1,6 +1,4 @@
 @php
-    use App\Models\Assessment;
-    use App\Models\AssessmentAttempt;
     use App\Models\LearningMeeting;
 
     $participant = $certificate->participant;
@@ -43,78 +41,32 @@
         }
     }
 
-    $assessments = $event?->exists
-        ? Assessment::query()
-            ->with('meeting')
-            ->where('learning_event_id', $event->id)
-            ->orderByRaw("case type when 'pre' then 0 when 'quiz' then 1 when 'post' then 2 else 3 end")
-            ->orderBy('learning_meeting_id')
-            ->orderBy('id')
-            ->get()
-        : collect();
-
-    $attempts = AssessmentAttempt::query()
-        ->where('participant_id', $participant?->id)
-        ->whereIn('assessment_id', $assessments->pluck('id'))
-        ->get()
-        ->keyBy('assessment_id');
-
-    $scoreRows = collect();
-
-    foreach ($assessments->where('type', 'pre') as $assessment) {
-        $attempt = $attempts->get($assessment->id);
-        $scoreRows->push([
-            'component' => $assessment->title ?: 'Pre-Test',
-            'type' => 'Pre-Test',
-            'score' => $attempt?->score,
-            'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
-            'status' => $attempt ? 'Selesai' : 'Belum',
-        ]);
-    }
+    // Lampiran halaman 2: JP (jam pelajaran) dihitung dari lama waktu tiap modul, 1 JP = 45 menit.
+    $minutesPerJp = 45;
+    $formatJp = fn (float $jp): string => rtrim(rtrim(number_format($jp, 2, ',', '.'), '0'), ',');
 
     $meetings = $event?->exists
         ? LearningMeeting::query()
-            ->with([
-                'materials' => fn ($query) => $query->where('is_published', true)->orderBy('order'),
-                'assessments' => fn ($query) => $query->where('type', 'quiz')->orderBy('id'),
-            ])
+            ->with(['materials' => fn ($query) => $query->where('is_published', true)->orderBy('order')])
             ->where('learning_event_id', $event->id)
             ->where('is_published', true)
             ->orderBy('order')
             ->get()
         : collect();
 
-    foreach ($meetings as $meeting) {
-        $quiz = $meeting->assessments->first();
-        $attempt = $quiz ? $attempts->get($quiz->id) : null;
-        $materials = $meeting->materials
-            ->pluck('type')
-            ->filter()
-            ->map(fn ($type) => strtoupper((string) $type))
-            ->unique()
-            ->implode(', ');
+    $jpRows = $meetings->map(function (LearningMeeting $meeting) use ($minutesPerJp): array {
+        $minutes = (int) ($meeting->duration_minutes ?: $meeting->materials->sum('duration_minutes'));
 
-        $scoreRows->push([
-            'component' => trim(($meeting->title ?: 'Pertemuan ' . $meeting->order) . ($materials ? ' - Materi: ' . $materials : '')),
-            'type' => 'Kuis Modul',
-            'score' => $attempt?->score,
-            'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
-            'status' => $attempt ? 'Selesai' : 'Belum',
-        ]);
-    }
+        return [
+            'module' => $meeting->title ?: 'Pertemuan ' . $meeting->order,
+            'materials' => $meeting->materials->pluck('type')->filter()->map(fn ($type) => strtoupper((string) $type))->unique()->implode(', ') ?: '-',
+            'minutes' => $minutes,
+            'jp' => $minutes / $minutesPerJp,
+        ];
+    });
 
-    foreach ($assessments->where('type', 'post') as $assessment) {
-        $attempt = $attempts->get($assessment->id);
-        $scoreRows->push([
-            'component' => $assessment->title ?: 'Post-Test',
-            'type' => 'Post-Test',
-            'score' => $attempt?->score,
-            'correct' => $attempt ? ($attempt->correct_count . '/' . $attempt->total_questions) : '-',
-            'status' => $attempt ? 'Selesai' : 'Belum',
-        ]);
-    }
-
-    $averageScore = $scoreRows->whereNotNull('score')->avg('score');
+    $totalMinutes = $jpRows->sum('minutes');
+    $totalJp = $totalMinutes / $minutesPerJp;
 
     $certificateTemplate = $certificate->certificateTemplate ?? $event?->certificateTemplate;
     $uploadedPath = function (mixed $value) use (&$uploadedPath): ?string {
@@ -227,10 +179,7 @@
         return ['src' => $src, 'width' => round($width, 2), 'height' => round($width / $ratio, 2)];
     };
 
-    $pageTwoLogoSrcs = $eventPartnerLogoSrcs->isNotEmpty()
-        ? $eventPartnerLogoSrcs
-        : collect([$senaLogoSrc])->filter();
-    $hasStudioSenaLogo = $templateElements->contains(fn ($element) => ($element['type'] ?? null) === 'sena_logo');
+    $pageTwoLogoSrcs = $eventPartnerLogoSrcs;
     $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $school, $participant, $eventDate, $competencyTitle, $tutorName, $tutorInstitution, $organizerName): string {
         $type = $element['type'] ?? 'custom_text';
         $content = match ($type) {
@@ -314,14 +263,6 @@
             position: absolute;
             text-align: center;
             z-index: 3;
-        }
-        .sena-page-1 {
-            height: auto;
-            position: absolute;
-            right: 18mm;
-            top: 14mm;
-            width: 45mm;
-            z-index: 4;
         }
         .studio-image-element {
             object-fit: contain;
@@ -461,36 +402,6 @@
             padding-bottom: 3mm;
             position: relative;
         }
-        .transcript-logo-row {
-            display: table;
-            width: 100%;
-        }
-        .transcript-logo-cell {
-            display: table-cell;
-            vertical-align: top;
-            width: 50%;
-        }
-        .transcript-partner-logo {
-            display: inline-block;
-            margin-right: 3mm;
-            object-fit: contain;
-            vertical-align: middle;
-        }
-        .transcript-brand {
-            color: #058fce;
-            font-size: 26pt;
-            font-weight: 900;
-            letter-spacing: -.04em;
-            text-align: right;
-        }
-        .transcript-brand span {
-            color: #0b2a57;
-            display: block;
-            font-size: 8pt;
-            font-weight: 800;
-            letter-spacing: 0;
-            margin-top: -2mm;
-        }
         .eyebrow {
             color: #202427;
             font-size: 8pt;
@@ -576,9 +487,6 @@
         @if ($templateImageSrc)
             <img class="template-bg" src="{{ $templateImageSrc }}" alt="">
         @endif
-        @if ($senaLogoSrc && ! $hasStudioSenaLogo)
-            <img class="sena-page-1" src="{{ $senaLogoSrc }}" alt="">
-        @endif
         @foreach ($templateElements as $element)
             @php
                 $type = $element['type'] ?? 'custom_text';
@@ -655,28 +563,23 @@
         </div>
         <div class="transcript-card">
             <div class="transcript-head">
-                <div class="transcript-logo-row">
-                    <div class="transcript-logo-cell">
-                        @php
-                            $pageTwoLogoCount = max(1, $pageTwoLogoSrcs->count());
-                            $pageTwoLogoSlotMm = min(31, (130 / $pageTwoLogoCount) - 2.6);
-                        @endphp
-                        <table class="partner-logo-row">
-                            <tr>
-                                @foreach ($pageTwoLogoSrcs as $pageTwoLogoSrc)
-                                    @php $logo = $fitLogo($pageTwoLogoSrc, $pageTwoLogoSlotMm, 13); @endphp
-                                    <td style="width: {{ $pageTwoLogoSlotMm }}mm; height: 13mm;">
-                                        <img src="{{ $logo['src'] }}" alt="" style="width: {{ $logo['width'] }}mm; height: {{ $logo['height'] }}mm;">
-                                    </td>
-                                @endforeach
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="transcript-logo-cell transcript-brand">
-                        SENA
-                        <span>Lampiran Pembelajaran</span>
-                    </div>
-                </div>
+                @if ($pageTwoLogoSrcs->isNotEmpty())
+                    @php
+                        // Baris logo sama dengan halaman 1: slot maksimal 32mm, tinggi 24mm, di tengah.
+                        $pageTwoLogoCount = $pageTwoLogoSrcs->count();
+                        $pageTwoLogoSlotMm = min(32, (251 / $pageTwoLogoCount) - 2.6);
+                    @endphp
+                    <table class="partner-logo-row" style="margin: 0 auto;">
+                        <tr>
+                            @foreach ($pageTwoLogoSrcs as $pageTwoLogoSrc)
+                                @php $logo = $fitLogo($pageTwoLogoSrc, $pageTwoLogoSlotMm, 24); @endphp
+                                <td style="width: {{ $pageTwoLogoSlotMm }}mm; height: 24mm;">
+                                    <img src="{{ $logo['src'] }}" alt="" style="width: {{ $logo['width'] }}mm; height: {{ $logo['height'] }}mm;">
+                                </td>
+                            @endforeach
+                        </tr>
+                    </table>
+                @endif
                 <h1>{{ $eventTitle }}</h1>
                 <div class="meta">
                     Program literasi keamanan digital<br>
@@ -688,35 +591,34 @@
                 <thead>
                     <tr>
                         <th style="width: 10mm;">No</th>
-                        <th>Materi</th>
-                        <th style="width: 34mm;">Komponen</th>
-                        <th style="width: 28mm;">Benar</th>
-                        <th style="width: 26mm;">Nilai</th>
+                        <th>Modul</th>
+                        <th style="width: 34mm;">Materi</th>
+                        <th style="width: 28mm;">Durasi (menit)</th>
+                        <th style="width: 26mm;">JP</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($scoreRows as $index => $row)
+                    @forelse ($jpRows as $index => $row)
                         <tr>
                             <td>{{ $index + 1 }}</td>
-                            <td>{{ $row['component'] }}</td>
-                            <td>{{ $row['type'] }}</td>
-                            <td class="score">{{ $row['correct'] }}</td>
-                            <td class="score">{{ $row['score'] !== null ? number_format((float) $row['score'], 0) : '-' }}</td>
+                            <td>{{ $row['module'] }}</td>
+                            <td>{{ $row['materials'] }}</td>
+                            <td class="score">{{ $row['minutes'] ?: '-' }}</td>
+                            <td class="score">{{ $row['minutes'] ? $formatJp($row['jp']) : '-' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">Belum ada data materi dan nilai.</td>
+                            <td colspan="5">Belum ada data modul.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
 
             <div class="summary">
-                Rata-rata nilai: {{ $averageScore !== null ? number_format((float) $averageScore, 2) : '-' }}
+                Total: {{ $totalMinutes }} menit = {{ $formatJp($totalJp) }} JP (1 JP = {{ $minutesPerJp }} menit)
             </div>
         </div>
         <div class="page-footer">
-            <strong>sena</strong>
             <span class="right">Diterbitkan pada {{ $issuedDate }}</span>
         </div>
     </section>
