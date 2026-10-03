@@ -55,12 +55,12 @@ class LearningMeetingResource extends Resource
                 ->schema([
                     Forms\Components\Select::make('module_template_id')
                         ->label('Materi Event')
-                        ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('audience')->orderBy('name')->get()->mapWithKeys(fn (ModuleTemplate $template) => [$template->id => $template->name . ' (' . (ModuleTemplate::AUDIENCES[$template->audience] ?? $template->audience) . ')']))
+                        ->options(fn () => ModuleTemplate::query()->where('is_active', true)->whereNull('source_template_id')->orderBy('audience')->orderBy('name')->get()->mapWithKeys(fn (ModuleTemplate $template) => [$template->id => $template->name . ' (' . (ModuleTemplate::AUDIENCES[$template->audience] ?? $template->audience) . ')']))
                         ->default(fn () => request()->integer('module_template_id') ?: null)
                         ->searchable()
                         ->preload()
                         ->required()
-                        ->helperText('Pertemuan ini akan menjadi bagian dari Materi Event yang dipilih.'),
+                        ->helperText('Pertemuan ini akan menjadi bagian dari Materi Event yang dipilih. Materi tutor (Generated for Tutor) otomatis mengikuti.'),
                 ])
                 ->columns(1),
 

@@ -22,7 +22,11 @@
                         <div class="flex flex-wrap items-center gap-2">
                             @if ($joined)
                                 <x-filament::badge color="success" icon="heroicon-m-check-circle">Sudah terdaftar</x-filament::badge>
-                            @elseif ($event->registration_open && $this->isFull($event))
+                            @elseif ($this->isPast($event))
+                                <x-filament::badge color="gray">Event selesai</x-filament::badge>
+                            @elseif (! $event->registration_open)
+                                <x-filament::badge color="gray">Pendaftaran ditutup</x-filament::badge>
+                            @elseif ($this->isFull($event))
                                 <x-filament::badge color="warning">Kuota penuh</x-filament::badge>
                             @elseif ($event->registration_open)
                                 <x-filament::badge color="info">Pendaftaran dibuka</x-filament::badge>
@@ -59,7 +63,11 @@
                                 <x-filament::button tag="a" :href="url('/peserta?event=' . $event->id)" icon="heroicon-o-arrow-right-circle" color="success">
                                     Buka Dashboard Event
                                 </x-filament::button>
-                            @elseif ($event->registration_open && $this->isFull($event))
+                            @elseif ($this->isPast($event))
+                                <x-filament::button disabled color="gray">Event selesai</x-filament::button>
+                            @elseif (! $event->registration_open)
+                                <x-filament::button disabled color="gray">Pendaftaran ditutup</x-filament::button>
+                            @elseif ($this->isFull($event))
                                 <x-filament::button disabled color="gray">Kuota penuh</x-filament::button>
                             @elseif ($event->registration_open)
                                 {{ ($this->joinAction)(['event' => $event->id]) }}

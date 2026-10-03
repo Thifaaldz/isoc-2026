@@ -7,14 +7,16 @@ use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
 use App\Models\ModuleTemplate;
 use App\Models\User;
+use App\Services\TutorMaterialMirror;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * Materi "Online Trust & Safety" (6 modul: slide PPT/PDF + video) dari docs/modul ajar/modul terbaru,
- * beserta pre/post-test siswa dan tutor (Modul ToT PPT untuk tutor).
+ * beserta pre/post-test siswa dan tutor. Materi ToT berisi modul yang sama dengan materi siswa;
+ * yang membedakan hanya Pre-Test dan Post-Test ToT.
  *
- * File materi diharapkan ada di storage/app/public/learning-materials/dsc-ots/ dan .../modul-ajar/ (disk public).
+ * File materi diharapkan ada di storage/app/public/learning-materials/dsc-ots/ (disk public).
  * Jalankan: php artisan db:seed --class=MateriSeeder (aman diulang).
  */
 class MateriSeeder extends Seeder
@@ -36,17 +38,6 @@ class MateriSeeder extends Seeder
         6 => ['title' => 'Apa yang Harus Dilakukan Setelahnya', 'slug' => 'apa-yang-harus-dilakukan-setelahnya', 'video_note' => '', 'description' => 'Tanggap insiden keamanan: isolasi, rotasi kredensial, remediasi, serta melapor dan mendokumentasikan kejadian.'],
     ];
 
-    /** Modul ToT (file PPT asli dari docs/modul ajar/Modul Ajar ToT), sesuai soal Pre/Post-Test tutor. */
-    private const TOT_MODULES = [
-        1 => ['title' => 'Pengantar Keamanan Digital', 'file' => 'Modul-1_Pengantar Keamanan Digital.pptx', 'description' => 'Aset digital, ancaman phishing, dan jejak digital yang kekal serta dapat dilacak.'],
-        2 => ['title' => 'Pemahaman Data Pribadi', 'file' => 'Modul-2_Pemahaman Data Pribadi.pptx', 'description' => 'Data pribadi umum dan spesifik, hak privasi, serta sanksi pengungkapan data pribadi orang lain.'],
-        3 => ['title' => 'Perundungan Siber & Hoax', 'file' => 'Modul-3_Perundungan Siber & Hoax.pptx', 'description' => 'Ciri dan bentuk perundungan online, serta penyebab identitas netizen mudah dibajak.'],
-        4 => ['title' => 'Hoax & Bijak Berinternet', 'file' => 'Modul-4_Hoax & Bijak Berinternet.pptx', 'description' => 'Etika digital, aturan emas bijak berinternet, dan langkah verifikasi hoaks.'],
-        5 => ['title' => 'Microsite', 'file' => 'Modul-5_Microsite.pptx', 'description' => 'Fungsi microsite s.id, komponen microsite, dan fitur statistik pengunjung.'],
-    ];
-
-    private const TOT_DIR = 'learning-materials/modul-ajar/';
-
     public function run(): void
     {
         $this->warnMissingFiles();
@@ -54,19 +45,20 @@ class MateriSeeder extends Seeder
         $tests = json_decode(file_get_contents(database_path('seeders/data/dsc-ots-tests.json')), true);
         $superAdmin = User::query()->where('email', 'su@isoc.id')->firstOrFail();
 
-        $this->material(self::MATERI_SISWA, ModuleTemplate::AUDIENCE_PESERTA, $superAdmin, $tests['pre_peserta'], $tests['post_peserta'], 70,
+        $siswa = $this->material(self::MATERI_SISWA, ModuleTemplate::AUDIENCE_PESERTA, $superAdmin, $tests['pre_peserta'], $tests['post_peserta'], 70,
             'Materi siswa Digital Safety Champions: Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia. Setiap modul berisi slide presentasi dan video ajar.');
         $this->material(self::MATERI_TUTOR, ModuleTemplate::AUDIENCE_TUTOR, $superAdmin, $tests['pre_tutor'], $tests['post_tutor'], 100,
-            'Materi ToT tutor: 5 Modul ToT (PPT) sebagai bekal fasilitator, lalu 6 Materi Ajar Siswa (slide dan video) yang dibawakan di kelas. Tutor menyelesaikan Pre-Test dan Post-Test ToT.');
+            'Materi ToT tutor: 6 modul yang sama dengan materi siswa (slide dan video) yang dibawakan di kelas. Tutor menyelesaikan Pre-Test dan Post-Test ToT.', $siswa);
     }
 
-    private function material(string $name, string $audience, User $creator, array $pre, array $post, int $passingScore, string $description): ModuleTemplate
+    /** $source diisi untuk materi tutor: pertemuannya auto-generated dari materi siswa, hanya tes ToT yang berbeda. */
+    private function material(string $name, string $audience, User $creator, array $pre, array $post, int $passingScore, string $description, ?ModuleTemplate $source = null): ModuleTemplate
     {
         $existing = ModuleTemplate::query()->where('name', $name)->first();
 
         if ($existing) {
-            $existing->update(['description' => $description]);
-            $this->buildMeetings($existing);
+            $existing->update(['description' => $description, 'source_template_id' => $source?->id]);
+            $source ? app(TutorMaterialMirror::class)->ensureFor($source) : $this->buildMeetings($existing);
 
             return $existing;
         }
@@ -79,6 +71,7 @@ class MateriSeeder extends Seeder
             'purpose' => 'Peserta mampu mengenali online scam, melindungi perangkat dan akun, memverifikasi informasi, menjelajah internet dengan aman, dan menangani insiden keamanan digital.',
             'meeting_count' => count(self::MODULES),
             'is_active' => true,
+            'source_template_id' => $source?->id,
         ]);
 
         $label = $audience === ModuleTemplate::AUDIENCE_TUTOR ? 'ToT' : '';
@@ -94,19 +87,15 @@ class MateriSeeder extends Seeder
             ]);
         }
 
-        $this->buildMeetings($template);
+        $source ? app(TutorMaterialMirror::class)->ensureFor($source) : $this->buildMeetings($template);
 
         return $template;
     }
 
-    /**
-     * Pertemuan materi. Materi tutor: Modul ToT (PPT) lalu Materi Ajar Siswa (slide + video).
-     * Materi siswa: Materi Ajar Siswa saja. Pertemuan dibangun ulang bila strukturnya belum sesuai.
-     */
+    /** Pertemuan materi (sama untuk siswa dan tutor). Pertemuan dibangun ulang bila strukturnya belum sesuai. */
     private function buildMeetings(ModuleTemplate $template): void
     {
-        $isTutor = $template->audience === ModuleTemplate::AUDIENCE_TUTOR;
-        $expected = count(self::MODULES) + ($isTutor ? count(self::TOT_MODULES) : 0);
+        $expected = count(self::MODULES);
         $meetings = $template->learningMeetings()->whereNull('learning_event_id');
 
         if ($meetings->count() === $expected) {
@@ -121,23 +110,8 @@ class MateriSeeder extends Seeder
 
         $order = 1;
 
-        if ($isTutor) {
-            foreach (self::TOT_MODULES as $number => $module) {
-                $meeting = $this->meeting($template, $order++, "Modul ToT {$number}: {$module['title']}", $module['description'], 30);
-                LearningMaterial::query()->create([
-                    'learning_meeting_id' => $meeting->id,
-                    'order' => 1,
-                    'title' => "PPT Modul ToT {$number} - {$module['title']}",
-                    'type' => 'ppt',
-                    'file_path' => self::TOT_DIR . $module['file'],
-                    'duration_minutes' => 30,
-                    'is_published' => true,
-                ]);
-            }
-        }
-
         foreach (self::MODULES as $number => $module) {
-            $title = ($isTutor ? 'Materi Ajar Siswa ' : '') . "Modul {$number}: {$module['title']}";
+            $title = "Modul {$number}: {$module['title']}";
             $meeting = $this->meeting($template, $order++, $title, $module['description'], 30);
             $materialOrder = 1;
 
@@ -191,14 +165,6 @@ class MateriSeeder extends Seeder
 
     private function warnMissingFiles(): void
     {
-        foreach (self::TOT_MODULES as $module) {
-            foreach ([$module['file'], preg_replace('/\.pptx$/', '.pdf', $module['file'])] as $file) {
-                if (! Storage::disk('public')->exists(self::TOT_DIR . $file)) {
-                    $this->command?->warn('File materi ToT belum ada di storage/app/public/' . self::TOT_DIR . $file . ($file !== $module['file'] ? ' (versi PDF untuk preview, buat dengan: soffice --headless --convert-to pdf)' : ''));
-                }
-            }
-        }
-
         foreach (self::MODULES as $number => $module) {
             foreach (["modul-{$number}-{$module['slug']}.pdf", "video-{$number}-{$module['slug']}.mp4"] as $file) {
                 if (! Storage::disk('public')->exists(self::DIR . $file)) {

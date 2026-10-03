@@ -78,6 +78,12 @@
             </div>
 
             <div>
+                <label for="nik" class="block text-sm font-medium text-gray-700 mb-1">NIK</label>
+                <input id="nik" name="nik" value="{{ old('nik') }}" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                @error('nik') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
                 <label for="grade" class="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
                 <select id="grade" name="grade" required class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Pilih kelas</option>

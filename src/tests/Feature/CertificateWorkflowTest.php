@@ -84,7 +84,13 @@ function completeLearning(LearningEvent $event, Participant $participant): void
 
 function approveRequiredEvidence(LearningEvent $event): void
 {
-    foreach (array_keys(CertificateEligibilityService::REQUIRED_EVENT_EVIDENCE) as $type) {
+    $types = ['absensi_basah', 'video_slogan'];
+
+    foreach (Evidence::REQUIRED_PHOTOS as $type => $photo) {
+        array_push($types, ...array_fill(0, $photo['min'], $type));
+    }
+
+    foreach ($types as $type) {
         Evidence::query()->create([
             'learning_event_id' => $event->id,
             'school_id' => $event->school_id,
@@ -114,55 +120,64 @@ test('tamu yang membuka link sertifikat diarahkan ke login, bukan error 500', fu
     $this->get(route('reports.events.activity.preview', $event))->assertRedirect('/login');
 });
 
-test('sertifikat terkunci sampai bukti dukung wajib event disetujui', function () {
+test('sertifikat otomatis terbit setelah pre-test, post-test, dan link s.id terisi tanpa cek admin', function () {
     $event = makeEvent();
     $participant = enrol($event);
-    completeLearning($event, $participant);
     $certificate = makeCertificate($event, $participant);
 
     $certificate = app(CertificateEligibilityService::class)->updateCertificate($certificate);
 
     expect($certificate->eligibility_status)->toBe('blocked')
-        ->and($certificate->eligibility_notes)->toContain('Bukti dukung kegiatan belum disetujui');
+        ->and($certificate->status)->toBe('pending')
+        ->and($certificate->eligibility_notes)->toContain('Pre-test belum selesai')
+        ->and($certificate->eligibility_notes)->toContain('Link s.id');
 
-    approveRequiredEvidence($event);
+    // Bukti dukung event tidak lagi menjadi syarat sertifikat.
+    completeLearning($event, $participant);
+    $certificate = app(CertificateEligibilityService::class)->updateCertificate($certificate);
 
-    expect(app(CertificateEligibilityService::class)->updateCertificate($certificate)->eligibility_status)->toBe('eligible');
+    expect($certificate->eligibility_status)->toBe('eligible')
+        ->and($certificate->status)->toBe('issued')
+        ->and($certificate->issued_at)->not->toBeNull();
 });
 
-test('peserta baru bisa mengunduh sertifikat setelah diterbitkan admin', function () {
+test('peserta langsung bisa mengunduh sertifikat setelah syarat terpenuhi', function () {
     $event = makeEvent();
     $participant = enrol($event);
-    completeLearning($event, $participant);
-    approveRequiredEvidence($event);
     $certificate = makeCertificate($event, $participant);
 
     $this->actingAs($participant->user)
         ->get(route('certificates.download-pdf', $certificate))
         ->assertForbidden();
 
-    expect($certificate->refresh()->status)->toBe('pending');
-
-    $certificate->update(['status' => 'issued', 'issued_at' => now()]);
+    completeLearning($event, $participant);
 
     $this->actingAs($participant->user)
         ->get(route('certificates.download-pdf', $certificate))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+
+    expect($certificate->refresh()->status)->toBe('issued');
 });
 
-test('preview sertifikat oleh admin pusat tidak menerbitkan sertifikat otomatis', function () {
+test('e-sertifikat satu event dapat diunduh sebagai ZIP untuk bukti dukung', function () {
     $event = makeEvent();
-    $participant = enrol($event);
-    completeLearning($event, $participant);
-    approveRequiredEvidence($event);
-    $certificate = makeCertificate($event, $participant);
+    $done = enrol($event, 'peserta.selesai@isoc.id');
+    completeLearning($event, $done);
+    enrol($event, 'peserta.belum@isoc.id');
 
-    $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat@isoc.id'))
-        ->get(route('certificates.preview-pdf', $certificate))
-        ->assertOk();
+    $response = $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.zip@isoc.id'))
+        ->get(route('certificates.event-download', $event))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/zip');
 
-    expect($certificate->refresh()->status)->toBe('pending');
+    $zip = new ZipArchive();
+    $zip->open($response->baseResponse->getFile()->getPathname());
+    expect($zip->numFiles)->toBe(1);
+    $zip->close();
+
+    $this->flushSession();
+    $this->actingAs($done->user)->get(route('certificates.event-download', $event))->assertForbidden();
 });
 
 test('halaman verifikasi menampilkan pesan untuk nomor yang tidak valid', function () {
@@ -425,6 +440,140 @@ test('peserta tidak bisa mengikuti event yang kuotanya penuh', function () {
         ->assertSessionHasErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
 });
 
+test('event yang tanggalnya sudah lewat atau kuotanya penuh tidak bisa didaftari dari website', function () {
+    $past = makeEvent(['title' => 'Event Lewat', 'slug' => 'event-lewat', 'starts_at' => now()->subDays(2), 'ends_at' => now()->subDays(2)->addHours(3)]);
+    $full = LearningEvent::query()->create(['title' => 'Event Penuh', 'slug' => 'event-penuh', 'school_id' => $past->school_id, 'starts_at' => now()->addDays(3), 'status' => 'active', 'is_published' => true, 'registration_open' => true, 'target_participants' => 1]);
+    enrol($full, 'pengisi.kuota@isoc.id');
+    $open = LearningEvent::query()->create(['title' => 'Event Buka', 'slug' => 'event-buka', 'school_id' => $past->school_id, 'starts_at' => now()->addDays(5), 'status' => 'active', 'is_published' => true, 'registration_open' => true, 'target_participants' => 50]);
+
+    $this->get(route('events'))
+        ->assertOk()
+        ->assertSee('Event Selesai')
+        ->assertSee('Kuota Penuh')
+        ->assertSee(route('event.register', 'event-buka'))
+        ->assertDontSee(route('event.register', 'event-lewat'))
+        ->assertDontSee(route('event.register', 'event-penuh'));
+
+    // Tombol daftar di Home mengarah ke event yang masih dibuka.
+    expect(app(\App\Http\Controllers\PublicPageController::class)->event()->slug)->toBe('event-buka');
+
+    $this->get(route('event.register', 'event-lewat'))->assertOk()->assertSee('tanggal event sudah lewat')->assertDontSee('name="password_confirmation"', false);
+
+    $payload = ['participant_category' => 'umum', 'name' => 'A', 'email' => 'baru@x.id', 'phone' => '0812', 'gender' => 'L', 'password' => 'password123', 'password_confirmation' => 'password123', 'consent' => '1'];
+    $this->post(route('event.register.store', 'event-lewat'), $payload)
+        ->assertSessionHasErrors(['event' => 'Pendaftaran ditutup karena tanggal event sudah lewat.']);
+    $this->post(route('event.register.store', 'event-penuh'), $payload)
+        ->assertSessionHasErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
+    expect(\App\Models\User::query()->where('email', 'baru@x.id')->exists())->toBeFalse();
+});
+
+test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang masuk sertifikat', function () {
+    $partners = collect(\App\Support\TorEventTemplate::PARTNERS)
+        ->map(fn (string $name) => \App\Models\Partner::query()->create(['name' => $name, 'status' => 'active']));
+    \App\Models\Partner::query()->create(['name' => 'Mitra Lain', 'status' => 'active']);
+    $school = School::query()->create(['name' => 'SMAN 1 Uji', 'city' => 'Kota Uji', 'status' => 'active']);
+    $admin = makeUser(UserRole::SuperAdmin, 'pusat.mitra@isoc.id');
+
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
+    $this->actingAs($admin);
+
+    $page = \Livewire\Livewire::test(\App\Filament\Resources\LearningEventResource\Pages\CreateLearningEvent::class);
+    $defaultPartners = $partners->pluck('id')->map(fn ($id) => (string) $id)->all();
+    expect($page->get('data.partners'))->toEqualCanonicalizing($defaultPartners)
+        ->and($page->get('data.certificate_partner_ids'))->toEqualCanonicalizing($defaultPartners);
+
+    $hidden = (string) $partners->last()->id;
+    $page->set('data.school_id', $school->id)
+        ->set('data.starts_at', now()->addDays(10)->format('Y-m-d 00:00:00'))
+        ->assertSet('data.starts_at', now()->addDays(10)->format('Y-m-d 09:00:00'))
+        ->assertSet('data.ends_at', now()->addDays(10)->format('Y-m-d 12:00:00'))
+        ->set('data.certificate_partner_ids', array_values(array_diff($defaultPartners, [$hidden])))
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $event = LearningEvent::query()->where('school_id', $school->id)->firstOrFail();
+    expect($event->title)->toBe('Digital Safety Champions - Kota Uji')
+        ->and($event->partners()->count())->toBe(5)
+        ->and($event->certificatePartners()->pluck('partners.id')->map(fn ($id) => (string) $id)->all())->not->toContain($hidden)
+        ->and($event->certificatePartners()->count())->toBe(4)
+        ->and(count($event->rundown_items))->toBe(13)
+        ->and($event->rundown_items[0]['start_time'])->toBe('09:00')
+        ->and(collect($event->rundown_items)->last()['end_time'])->toBe('12:00')
+        ->and($event->starts_at->format('H:i'))->toBe('09:00')
+        ->and($event->ends_at->format('H:i'))->toBe('12:00')
+        ->and(collect($event->budget_items)->pluck('key')->all())->toBe(['banner', 'snack', 'kebersihan', 'honor_tutor', 'administrasi']);
+});
+
+test('admin pusat dapat membuka preview event dalam bentuk wizard baca saja', function () {
+    $owner = makeUser(UserRole::Admin, 'daerah.preview.event@isoc.id');
+    $event = makeEvent(['title' => 'Digital Safety Champions - Preview', 'created_by' => $owner->id, 'rundown_items' => \App\Support\TorEventTemplate::rundown(), 'budget_items' => \App\Support\TorEventTemplate::budgetItems()]);
+
+    $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.preview.event@isoc.id'))
+        ->get(\App\Filament\Resources\LearningEventResource::getUrl('view', ['record' => $event], panel: 'superadmin'))
+        ->assertOk()
+        ->assertSee('Preview: Digital Safety Champions - Preview')
+        ->assertSee('Rundown Acara')
+        ->assertSee('RAB &amp; Submit', false);
+
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
+    \Livewire\Livewire::test(\App\Filament\Resources\LearningEventResource\Pages\ViewLearningEvent::class, ['record' => $event->getRouteKey()])
+        ->assertFormFieldIsDisabled('title')
+        ->assertFormFieldIsDisabled('starts_at')
+        ->assertFormSet(['title' => 'Digital Safety Champions - Preview']);
+
+    // Admin daerah lain tidak bisa membuka preview event yang bukan miliknya.
+    $this->flushSession();
+    $this->actingAs(makeUser(UserRole::Admin, 'daerah.lain.preview@isoc.id'))
+        ->get(\App\Filament\Resources\LearningEventResource::getUrl('view', ['record' => $event], panel: 'admin'))
+        ->assertNotFound();
+});
+
+test('dashboard pusat menampilkan reminder event H-2 yang belum di-approve', function () {
+    $due = makeEvent(['title' => 'Event Mendesak', 'slug' => 'event-mendesak', 'starts_at' => now()->addDay()->setTime(9, 0), 'workflow_status' => 'submitted']);
+    makeEvent(['title' => 'Event Jauh', 'slug' => 'event-jauh', 'starts_at' => now()->addDays(10), 'workflow_status' => 'submitted']);
+    makeEvent(['title' => 'Event Sudah Approve', 'slug' => 'event-approve', 'starts_at' => now()->addDay(), 'workflow_status' => 'verified_term_1', 'publish_approval_status' => 'published']);
+    makeEvent(['title' => 'Event Publish Pending', 'slug' => 'event-publish', 'starts_at' => now()->addDays(2)->setTime(9, 0), 'workflow_status' => 'verified_term_1', 'publish_approval_status' => 'pending']);
+
+    expect(\App\Filament\Widgets\EventApprovalReminders::dueEvents()->pluck('title')->all())->toBe(['Event Mendesak', 'Event Publish Pending']);
+
+    $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.reminder@isoc.id'));
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
+
+    \Livewire\Livewire::test(\App\Filament\Widgets\EventApprovalReminders::class)
+        ->assertSee('Reminder Approval Event')
+        ->assertSee('Event Mendesak')
+        ->assertSee('H-1')
+        ->assertSee('H-2')
+        ->assertDontSee('Event Jauh')
+        ->assertDontSee('Event Sudah Approve');
+});
+
+test('halaman preview event punya tombol approve dan revisi untuk admin pusat', function () {
+    $approve = makeEvent(['slug' => 'event-approve-preview', 'workflow_status' => 'submitted']);
+    $revise = makeEvent(['slug' => 'event-revisi-preview', 'workflow_status' => 'submitted']);
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
+    $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.preview.aksi@isoc.id'));
+    $page = \App\Filament\Resources\LearningEventResource\Pages\ViewLearningEvent::class;
+
+    \Livewire\Livewire::test($page, ['record' => $approve->getRouteKey()])
+        ->assertActionVisible('verifyTerm1')
+        ->assertActionVisible('requestRevision')
+        ->assertActionHidden('approvePublish')
+        ->callAction('verifyTerm1', ['central_admin_notes' => 'Oke'])
+        ->assertHasNoActionErrors()
+        ->assertFormSet(['workflow_status' => 'verified_term_1'])
+        ->assertActionVisible('approvePublish');
+
+    expect($approve->refresh()->workflow_status)->toBe('verified_term_1');
+
+    \Livewire\Livewire::test($page, ['record' => $revise->getRouteKey()])
+        ->callAction('requestRevision', ['central_admin_notes' => 'Lengkapi RAB'])
+        ->assertHasNoActionErrors();
+
+    expect($revise->refresh()->workflow_status)->toBe('needs_revision')
+        ->and($revise->central_admin_notes)->toBe('Lengkapi RAB');
+});
+
 function tutorTemplateWithTests(): \App\Models\ModuleTemplate
 {
     $template = \App\Models\ModuleTemplate::query()->create(['name' => 'ToT Uji', 'audience' => 'tutor', 'meeting_count' => 1, 'is_active' => true]);
@@ -464,27 +613,28 @@ test('tutor mengerjakan pre-test dan post-test ToT dari materi tipe tutor dan lu
 });
 
 test('halaman preview materi dapat diakses pusat, admin daerah, dan tutor tetapi tidak oleh peserta', function () {
-    $event = makeEvent();
+    $event = makeEvent(['title' => 'Event Tidak Ikut Preview']);
     $template = \App\Models\ModuleTemplate::query()->create(['name' => 'Materi Preview', 'audience' => 'peserta', 'meeting_count' => 1, 'is_active' => true]);
-    $meeting = \App\Models\LearningMeeting::query()->create(['learning_event_id' => $event->id, 'order' => 1, 'title' => 'Modul Preview', 'is_published' => true]);
-    \App\Models\LearningMaterial::query()->create(['learning_meeting_id' => $meeting->id, 'order' => 1, 'title' => 'Video Preview', 'type' => 'video', 'file_path' => 'learning-materials/video.mp4', 'is_published' => true]);
+    $tutorTemplate = \App\Models\ModuleTemplate::query()->create(['name' => 'Materi Tutor Preview', 'audience' => 'tutor', 'meeting_count' => 1, 'is_active' => true]);
 
+    // Preview hanya menampilkan Materi Event, bukan daftar event.
     $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.preview@isoc.id'))
-        ->get('/superadmin/preview-materi?materi=event-' . $event->id)
-        ->assertOk()->assertSee('Modul Preview')->assertSee('Video Preview')->assertSee('learning-materials/video.mp4');
+        ->get('/superadmin/preview-materi?materi=template-' . $template->id)
+        ->assertOk()->assertSee('Materi Preview')->assertDontSee('Event Tidak Ikut Preview');
 
     $admin = makeUser(UserRole::Admin, 'daerah.preview@isoc.id');
     $event->update(['created_by' => $admin->id]);
     // Ganti user dalam satu test: reset sesi agar AuthenticateSession Filament tidak me-logout.
     $this->flushSession();
-    $this->actingAs($admin)->get('/admin/preview-materi?materi=event-' . $event->id)->assertOk()->assertSee('Video Preview');
-    $this->actingAs($admin)->get('/admin/preview-materi?materi=template-' . $template->id)->assertOk()->assertSee('Materi Preview');
+    $this->actingAs($admin)->get('/admin/preview-materi?materi=template-' . $template->id)
+        ->assertOk()->assertSee('Materi Preview')->assertDontSee('Event Tidak Ikut Preview');
 
     $tutorUser = makeUser(UserRole::Tutor, 'tutor.preview@isoc.id');
     $tutor = \App\Models\Tutor::query()->create(['user_id' => $tutorUser->id, 'school_id' => $event->school_id]);
     $event->tutors()->attach($tutor->id, ['status' => 'assigned']);
     $this->flushSession();
-    $this->actingAs($tutorUser)->get('/tutor/preview-materi?materi=event-' . $event->id)->assertOk()->assertSee('Video Preview');
+    $this->actingAs($tutorUser)->get('/tutor/preview-materi?materi=template-' . $tutorTemplate->id)
+        ->assertOk()->assertSee('Materi Tutor Preview')->assertDontSee('Event Tidak Ikut Preview');
 
     expect(\App\Filament\Pages\MaterialPreview::canAccess())->toBeTrue();
     $this->actingAs(enrol($event, 'peserta.preview@isoc.id')->user);

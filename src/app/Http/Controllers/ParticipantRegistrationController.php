@@ -131,26 +131,16 @@ class ParticipantRegistrationController
         $participantCategory = $request->input('participant_category', (($learningEvent?->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar'));
         $isStudent = $participantCategory === 'pelajar';
         $identityLabel = $this->identityLabel($participantCategory);
-        $identityRules = match ($participantCategory) {
-            'pelajar' => ['required', 'digits:10'],
-            'umum', 'karyawan' => ['required', 'digits:16'],
-            'mahasiswa' => ['required', 'string', 'min:3', 'max:50'],
-            default => ['required', 'string', 'max:50'],
-        };
+        // NISN (pelajar) / NIM (mahasiswa) disimpan di kolom nis; NIK selalu di kolom nik tersendiri.
+        $identityRules = in_array($participantCategory, ['pelajar', 'mahasiswa'], true)
+            ? ['nullable', 'string', 'max:30']
+            : ['exclude'];
         $programLocationId = $learningEvent?->school_id
             ?: $request->input('school_id')
             ?: School::query()->where('status', 'active')->orderBy('id')->value('id');
-        $identityUniqueRule = Rule::unique('participants', 'nis')
-            ->where(fn ($query) => $query
-                ->where('school_id', $programLocationId)
-                ->where('participant_category', $participantCategory));
 
-        if ($learningEvent && ! $learningEvent->registration_open) {
-            return back()->withInput()->withErrors(['event' => 'Pendaftaran event ini sudah ditutup.']);
-        }
-
-        if ($learningEvent && app(EventEnrollmentService::class)->isFull($learningEvent)) {
-            return back()->withInput()->withErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
+        if ($learningEvent && ($reason = app(EventEnrollmentService::class)->registrationClosedReason($learningEvent))) {
+            return back()->withInput()->withErrors(['event' => $reason]);
         }
 
         $validated = $request->validate([
@@ -159,10 +149,8 @@ class ParticipantRegistrationController
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'phone' => ['required', 'string', 'max:30'],
             'school_id' => ['nullable', 'integer', Rule::exists('schools', 'id')->where('status', 'active')],
-            'nis' => [
-                ...$identityRules,
-                $identityUniqueRule,
-            ],
+            'nis' => $identityRules,
+            'nik' => ['nullable', 'string', 'max:50'],
             'grade' => [$isStudent ? 'required' : 'nullable', Rule::in(array_keys(self::GRADE_OPTIONS))],
             'organization' => [$isStudent ? 'required' : 'nullable', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
@@ -174,6 +162,7 @@ class ParticipantRegistrationController
             'email.unique' => 'Email ini sudah terdaftar. Silakan login dengan akun tersebut, lalu buka kembali halaman event ini dan klik "Ikuti Event".',
         ], [
             'nis' => $identityLabel,
+            'nik' => 'NIK',
             'participant_category' => 'kategori peserta',
         ]);
 
@@ -193,6 +182,7 @@ class ParticipantRegistrationController
                 'school_id' => $programLocationId,
                 'participant_category' => $validated['participant_category'],
                 'nis' => $validated['nis'] ?? null,
+                'nik' => $validated['nik'] ?? null,
                 'grade' => $validated['grade'] ?? null,
                 'organization' => $validated['organization'] ?? null,
                 'position' => $validated['position'] ?? null,
@@ -235,12 +225,8 @@ class ParticipantRegistrationController
             return redirect('/peserta?event=' . $learningEvent->id);
         }
 
-        if (! $learningEvent->registration_open) {
-            return back()->withErrors(['event' => 'Pendaftaran event ini sudah ditutup.']);
-        }
-
-        if (app(EventEnrollmentService::class)->isFull($learningEvent)) {
-            return back()->withErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
+        if ($reason = app(EventEnrollmentService::class)->registrationClosedReason($learningEvent)) {
+            return back()->withErrors(['event' => $reason]);
         }
 
         $request->validate([
@@ -286,6 +272,7 @@ class ParticipantRegistrationController
             confirmed_count: (int) ($event->participants_count ?? 0),
             capacity_info: ($event->participants_count ?? 0) . '/' . ($event->target_participants ?: 0) . ' peserta',
             audience_type: $event->audience_type ?? 'school',
+            ends_at: $event->ends_at,
         );
     }
 
@@ -294,7 +281,6 @@ class ParticipantRegistrationController
         return match ($category) {
             'pelajar' => 'NISN',
             'mahasiswa' => 'NIM',
-            'karyawan', 'umum' => 'NIK',
             default => 'Nomor Identitas',
         };
     }

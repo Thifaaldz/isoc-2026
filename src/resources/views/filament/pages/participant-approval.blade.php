@@ -42,13 +42,13 @@
         }
 
         .approval-select {
-            background: #fff;
+            background-color: #fff;
             border: 1px solid #d1d5db;
             border-radius: 10px;
             color: #111827;
             min-height: 42px;
             min-width: 320px;
-            padding: 0 12px;
+            padding: 0 40px 0 12px;
         }
 
         .approval-table-wrap {

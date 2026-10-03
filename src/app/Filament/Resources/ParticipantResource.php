@@ -54,8 +54,12 @@ class ParticipantResource extends Resource
                 'mahasiswa' => 'Mahasiswa',
                 'umum' => 'Umum',
                 'karyawan' => 'Karyawan',
-            ])->default('pelajar')->required(),
-            Forms\Components\TextInput::make('nis')->label('NISN / NIM / NIK'),
+            ])->default('pelajar')->required()->live(),
+            Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
+            Forms\Components\TextInput::make('nis')
+                ->label(fn (Forms\Get $get) => $get('participant_category') === 'mahasiswa' ? 'NIM' : 'NISN')
+                ->visible(fn (Forms\Get $get) => in_array($get('participant_category'), ['pelajar', 'mahasiswa'], true))
+                ->maxLength(50),
             Forms\Components\Select::make('grade')->label('Kelas')->options(['X' => 'X', 'XI' => 'XI', 'XII' => 'XII']),
             Forms\Components\TextInput::make('organization')->label('Organisasi / Instansi'),
             Forms\Components\TextInput::make('position')->label('Jabatan / Peran'),
@@ -76,7 +80,8 @@ class ParticipantResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')->label('Nama')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('participant_category')->label('Kategori')->badge()->toggleable(),
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('nis')->label('NISN / NIM / NIK')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nik')->label('NIK')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nis')->label('NISN / NIM')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('grade')->label('Kelas')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('organization')->label('Organisasi')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('position')->label('Jabatan')->searchable()->toggleable(),

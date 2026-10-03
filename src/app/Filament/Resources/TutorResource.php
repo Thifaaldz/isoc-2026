@@ -49,6 +49,10 @@ class TutorResource extends Resource
             Forms\Components\Select::make('user_id')->label('Akun Pengguna')->options(fn () => static::scopedUserOptions(UserRole::Tutor))->searchable()->preload()->required(),
             Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required(),
             Forms\Components\TextInput::make('institution')->label('Institusi'),
+            Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
+            Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30),
+            Forms\Components\TextInput::make('bank_name')->label('Bank')->maxLength(100),
+            Forms\Components\TextInput::make('bank_account_number')->label('Nomor Rekening')->maxLength(50),
             Forms\Components\Toggle::make('tot_completed')->label('ToT selesai'),
             Forms\Components\Toggle::make('is_cadre')->label('Kader pelatih mandiri'),
         ]);
@@ -61,6 +65,10 @@ class TutorResource extends Resource
                 Tables\Columns\TextColumn::make('user.name')->label('Nama')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('institution')->label('Institusi')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nik')->label('NIK')->searchable()->toggleable(),
+                Tables\Columns\TextColumn::make('npwp')->label('NPWP')->searchable()->toggleable(),
+                Tables\Columns\TextColumn::make('bank_name')->label('Bank')->toggleable(),
+                Tables\Columns\TextColumn::make('bank_account_number')->label('No. Rekening')->toggleable(),
                 Tables\Columns\IconColumn::make('tot_completed')->label('ToT')->boolean(),
                 Tables\Columns\IconColumn::make('is_cadre')->label('Kader')->boolean(),
             ])

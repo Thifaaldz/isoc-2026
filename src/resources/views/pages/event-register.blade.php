@@ -45,7 +45,24 @@
                 @endif
             </div>
 
-@if($viewerMode === 'guest')
+@php
+    $closedMessage = match ($event->registrationStatus()) {
+        'past' => __('Pendaftaran ditutup karena tanggal event sudah lewat.'),
+        'full' => __('Kuota peserta event ini sudah penuh.'),
+        default => __('Pendaftaran event ini belum dibuka atau sudah ditutup.'),
+    };
+@endphp
+@if($viewerMode === 'guest' && ! $event->canRegister())
+            <div class="p-8">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 flex items-start gap-3">
+                    <span class="material-symbols-outlined text-xl">{{ $event->registrationStatusIcon() }}</span>
+                    <div>
+                        <p class="font-semibold">{{ __($event->registrationStatusLabel()) }}</p>
+                        <p class="mt-1">{{ $closedMessage }}</p>
+                    </div>
+                </div>
+            </div>
+@elseif($viewerMode === 'guest')
             <form
                 action="{{ route('event.register.store', $event) }}"
                 method="POST"
@@ -54,10 +71,13 @@
                 x-data="{
                     category: @js($defaultParticipantCategory),
                     identityLabel() {
-                        return { pelajar: 'NISN', mahasiswa: 'NIM', umum: 'NIK', karyawan: 'NIK' }[this.category] || 'Nomor Identitas';
+                        return { pelajar: 'NISN', mahasiswa: 'NIM' }[this.category] || 'Nomor Identitas';
                     },
                     identityPlaceholder() {
-                        return { pelajar: '10 digit NISN', mahasiswa: 'Nomor Induk Mahasiswa', umum: '16 digit NIK', karyawan: '16 digit NIK' }[this.category] || 'Nomor Identitas';
+                        return { pelajar: 'Nomor Induk Siswa Nasional', mahasiswa: 'Nomor Induk Mahasiswa' }[this.category] || 'Nomor Identitas';
+                    },
+                    needsIdentity() {
+                        return ['pelajar', 'mahasiswa'].includes(this.category);
                     },
                     requiresSchool() {
                         return this.category === 'pelajar';
@@ -121,15 +141,29 @@
                         <option value="umum">{{ __('Umum') }}</option>
                         <option value="karyawan">{{ __('Karyawan') }}</option>
                     </select>
-                    <p class="text-grey-500 text-xs mt-2">{{ __('Kategori ini menentukan nomor identitas: Pelajar=NISN, Mahasiswa=NIM, Umum/Karyawan=NIK.') }}</p>
+                    <p class="text-grey-500 text-xs mt-2">{{ __('Semua kategori dapat mengisi NIK. Pelajar juga dapat mengisi NISN, Mahasiswa juga dapat mengisi NIM.') }}</p>
                     @error('participant_category')
                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                     @enderror
                 </div>
 
-                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="grid md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-semibold text-navy mb-2" for="nis"><span x-text="identityLabel()"></span> <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="nik">{{ __('NIK') }}</label>
+                        <input
+                            class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm"
+                            id="nik"
+                            name="nik"
+                            type="text"
+                            value="{{ old('nik') }}"
+                            placeholder="{{ __('Nomor Induk Kependudukan') }}"
+                        />
+                        @error('nik')
+                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div x-show="needsIdentity()" x-cloak>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="nis"><span x-text="identityLabel()"></span></label>
                         <input
                             class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm"
                             id="nis"
@@ -137,13 +171,15 @@
                             type="text"
                             value="{{ old('nis') }}"
                             :placeholder="identityPlaceholder()"
-                            required
+                            :disabled="! needsIdentity()"
                         />
-                        <p class="text-grey-500 text-xs mt-1">{{ __('Mengikuti kategori peserta yang dipilih.') }}</p>
                         @error('nis')
                             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                         @enderror
                     </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div x-show="requiresSchool()" x-cloak>
                         <label class="block text-sm font-semibold text-navy mb-2" for="grade">{{ __('Kelas') }} <span class="text-red-500">*</span></label>
                         <select class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="grade" name="grade" :required="requiresSchool()">
@@ -227,9 +263,9 @@
                             {{ __('Buka Dashboard Peserta') }}
                         </a>
                     </div>
-                @elseif(! $learningEvent || ! $event->registration_open)
+                @elseif(! $learningEvent || ! $event->canRegister())
                     <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-                        <p class="font-semibold">{{ __('Pendaftaran event ini belum dibuka atau sudah ditutup.') }}</p>
+                        <p class="font-semibold">{{ $closedMessage }}</p>
                     </div>
                 @else
                     <form action="{{ route('event.join', $event) }}" method="POST" enctype="multipart/form-data" class="space-y-6">

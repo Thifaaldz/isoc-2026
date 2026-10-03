@@ -11,6 +11,9 @@ class LearningEvent extends Model
 {
     protected $guarded = [];
 
+    /** Jumlah modul (pertemuan) dari Materi Event yang dibawakan dalam satu event. */
+    public const MODULES_PER_EVENT = 2;
+
     protected function casts(): array
     {
         return [
@@ -25,6 +28,7 @@ class LearningEvent extends Model
             'participant_rows' => 'array',
             'tutor_rows' => 'array',
             'selected_tutor_ids' => 'array',
+            'selected_meeting_ids' => 'array',
             'budget_items' => 'array',
             'rundown_items' => 'array',
             'evidence_checklist' => 'array',
@@ -80,7 +84,7 @@ class LearningEvent extends Model
         // Relasi polos untuk form/sync. Jangan beri order kolom pivot di sini: Select Filament memakai
         // LEFT JOIN ke pivot sehingga opsi mitra menjadi duplikat.
         return $this->belongsToMany(Partner::class)
-            ->withPivot('sort_order')
+            ->withPivot(['sort_order', 'show_on_certificate'])
             ->withTimestamps();
     }
 
@@ -90,6 +94,12 @@ class LearningEvent extends Model
         return $this->partners()
             ->orderByPivot('sort_order')
             ->orderBy('learning_event_partner.id');
+    }
+
+    /** Mitra yang logonya dicentang untuk tampil di sertifikat. */
+    public function certificatePartners(): BelongsToMany
+    {
+        return $this->orderedPartners()->wherePivot('show_on_certificate', true);
     }
 
     public function meetings(): HasMany

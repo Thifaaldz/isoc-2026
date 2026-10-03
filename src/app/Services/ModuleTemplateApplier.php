@@ -6,10 +6,12 @@ use App\Models\Assessment;
 use App\Models\LearningEvent;
 use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
+use App\Support\TorEventTemplate;
 
 class ModuleTemplateApplier
 {
-    public function applyToEvent(LearningEvent $event, bool $replaceExisting = true): void
+    /** $regenerateRundown false = rundown yang sudah disusun di wizard dipertahankan. */
+    public function applyToEvent(LearningEvent $event, bool $replaceExisting = true, bool $regenerateRundown = true): void
     {
         $template = $event->moduleTemplate;
 
@@ -26,36 +28,14 @@ class ModuleTemplateApplier
             $event->meetings()->delete();
         }
 
-        $generatedRundown = [];
-        $current = $event->starts_at?->copy();
-
-        if ($current) {
-            $openingEnd = $current->copy()->addMinutes(15);
-            $generatedRundown[] = [
-                'start_time' => $current->format('H:i'),
-                'end_time' => $openingEnd->format('H:i'),
-                'activity' => 'Registrasi, pembukaan, dan ice breaking',
-                'pic' => 'Admin RTIK Local / Tutor',
-                'notes' => 'Cek daftar hadir registrasi dan kesiapan peserta.',
-            ];
-            $current = $openingEnd;
-
-            $preEnd = $current->copy()->addMinutes(15);
-            $generatedRundown[] = [
-                'start_time' => $current->format('H:i'),
-                'end_time' => $preEnd->format('H:i'),
-                'activity' => 'Pre-Test peserta',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Peserta wajib menyelesaikan pre-test sebelum modul.',
-            ];
-            $current = $preEnd;
-        }
-
         $templateMeetings = $template->learningMeetings()
             ->with([
                 'materials' => fn ($query) => $query->orderBy('order'),
                 'assessments' => fn ($query) => $query->where('type', 'quiz')->orderBy('id'),
             ])
+            ->whereNull('learning_event_id')
+            // Hanya modul yang dipilih untuk dibawakan di event ini; kosong = semua (event lama).
+            ->when(filled($event->selected_meeting_ids), fn ($query) => $query->whereIn('id', array_map('intval', (array) $event->selected_meeting_ids)))
             ->orderBy('order')
             ->get();
 
@@ -77,11 +57,17 @@ class ModuleTemplateApplier
                 ]);
             });
 
-        foreach ($templateMeetings as $templateMeeting) {
-            $order = (int) $templateMeeting->order;
+        // Rundown mengikuti susunan acara TOR; slot Materi 1/2 diisi modul yang dibawakan.
+        $rundown = TorEventTemplate::rundown($event->starts_at?->format('H:i'), $templateMeetings->pluck('title')->all());
+        $materiSlots = array_values(array_filter($rundown, fn (array $row) => str_starts_with($row['activity'], 'Materi ')));
+
+        foreach ($templateMeetings->values() as $index => $templateMeeting) {
+            $order = $index + 1;
             $duration = max(5, (int) ($templateMeeting->duration_minutes ?: 25));
-            $start = $current?->copy() ?? $event->starts_at?->copy()->addMinutes(max(0, $order - 1) * $duration);
-            $end = $start?->copy()->addMinutes($duration);
+            $slotTime = $materiSlots[$index]['start_time'] ?? null;
+            $start = $event->starts_at && $slotTime
+                ? $event->starts_at->copy()->setTimeFromTimeString($slotTime)
+                : $event->starts_at?->copy()->addMinutes(max(0, $order - 1) * $duration);
 
             $meeting = LearningMeeting::query()->create([
                 'learning_event_id' => $event->id,
@@ -95,15 +81,6 @@ class ModuleTemplateApplier
                 'starts_at' => $start,
                 'is_published' => $templateMeeting->is_published,
             ]);
-
-            $generatedRundown[] = [
-                'start_time' => $start?->format('H:i') ?? null,
-                'end_time' => $end?->format('H:i') ?? null,
-                'activity' => $meeting->title,
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => trim((string) $meeting->description) ?: ($duration . ' menit'),
-            ];
-            $current = $end;
 
             foreach ($templateMeeting->materials as $material) {
                 LearningMaterial::query()->create([
@@ -132,29 +109,8 @@ class ModuleTemplateApplier
             }
         }
 
-        if ($current) {
-            $postEnd = $current->copy()->addMinutes(15);
-            $generatedRundown[] = [
-                'start_time' => $current->format('H:i'),
-                'end_time' => $postEnd->format('H:i'),
-                'activity' => 'Post-Test, refleksi, dan penutup',
-                'pic' => 'Tutor / Admin RTIK Local',
-                'notes' => 'Post-test dibuka setelah pre-test dan kuis modul aktif selesai.',
-            ];
-            $current = $postEnd;
-
-            $docEnd = $current->copy()->addMinutes(5);
-            $generatedRundown[] = [
-                'start_time' => $current->format('H:i'),
-                'end_time' => $docEnd->format('H:i'),
-                'activity' => 'Dokumentasi akhir dan video slogan',
-                'pic' => 'Tutor / Admin RTIK Local',
-                'notes' => 'Foto kegiatan, video slogan, daftar hadir, dan bukti microsite.',
-            ];
-        }
-
-        if ($generatedRundown !== []) {
-            $event->update(['rundown_items' => $generatedRundown]);
+        if ($regenerateRundown) {
+            $event->update(['rundown_items' => $rundown]);
         }
     }
 }

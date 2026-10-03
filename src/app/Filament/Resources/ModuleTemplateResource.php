@@ -42,7 +42,28 @@ class ModuleTemplateResource extends Resource
 
     public static function form(Form $form): Form
     {
+        $generated = fn (?ModuleTemplate $record) => (bool) $record?->isGeneratedForTutor();
+
         return $form->schema([
+            Forms\Components\Section::make('Generated for Tutor')
+                ->description('Auto-generated')
+                ->icon('heroicon-o-sparkles')
+                ->schema([
+                    Forms\Components\Placeholder::make('generated_info')
+                        ->hiddenLabel()
+                        ->content(fn (ModuleTemplate $record) => 'Materi ini dibuat otomatis dari Materi Event "' . ($record->sourceTemplate?->name ?? '-') . '". Pertemuan dan materinya selalu sama dengan materi peserta tersebut, jadi cukup isi Pre-Test dan Post-Test milik tutor.'),
+                    Forms\Components\Actions::make([
+                        Forms\Components\Actions\Action::make('pre_test_tutor')
+                            ->label(fn (ModuleTemplate $record) => static::hasTest($record, 'pre') ? 'Ubah Pre-Test Tutor' : 'Isi Pre-Test Tutor')
+                            ->icon('heroicon-o-clipboard-document-list')
+                            ->url(fn (ModuleTemplate $record) => static::testUrl($record, 'pre')),
+                        Forms\Components\Actions\Action::make('post_test_tutor')
+                            ->label(fn (ModuleTemplate $record) => static::hasTest($record, 'post') ? 'Ubah Post-Test Tutor' : 'Isi Post-Test Tutor')
+                            ->icon('heroicon-o-clipboard-document-check')
+                            ->url(fn (ModuleTemplate $record) => static::testUrl($record, 'post')),
+                    ]),
+                ])
+                ->visible($generated),
             Forms\Components\Section::make('Informasi Materi Event')
                 ->schema([
                     Forms\Components\Hidden::make('created_by')->default(fn () => auth()->id()),
@@ -56,9 +77,11 @@ class ModuleTemplateResource extends Resource
                         ->default(ModuleTemplate::AUDIENCE_PESERTA)
                         ->required()
                         ->native(false)
-                        ->helperText('Peserta: dipilih admin daerah di wizard event dan menjadi modul/tes peserta. Tutor: tampil di halaman ToT Awal tutor.'),
+                        ->disabled($generated)
+                        ->helperText('Peserta: dipilih admin daerah di wizard event dan menjadi modul/tes peserta, sekaligus otomatis dibuatkan materi tutor (Generated for Tutor) dengan isi yang sama. Tutor: tampil di halaman ToT Awal tutor.'),
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif / bisa dipilih admin')
+                        ->disabled($generated)
                         ->default(true),
                     Forms\Components\Textarea::make('description')
                         ->label('Deskripsi')
@@ -76,7 +99,10 @@ class ModuleTemplateResource extends Resource
                         ->maxValue(30)
                         ->default(1)
                         ->live(onBlur: true)
-                        ->helperText('Sistem akan membuat daftar pertemuan. Lengkapi isi pertemuan dan materi dari menu Pertemuan & Materi.'),
+                        ->disabled($generated)
+                        ->helperText(fn (?ModuleTemplate $record) => $record?->isGeneratedForTutor()
+                            ? 'Mengikuti jumlah pertemuan materi peserta.'
+                            : 'Sistem akan membuat daftar pertemuan. Lengkapi isi pertemuan dan materi dari menu Pertemuan & Materi.'),
                 ])
                 ->columns(2),
         ]);
@@ -85,8 +111,22 @@ class ModuleTemplateResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with('sourceTemplate'))
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Materi Event')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Materi Event')
+                    ->searchable()
+                    ->sortable()
+                    ->description(fn (ModuleTemplate $record) => $record->isGeneratedForTutor()
+                        ? 'Auto-generated dari: ' . ($record->sourceTemplate?->name ?? '-')
+                        : null),
+                Tables\Columns\TextColumn::make('generated_label')
+                    ->label('Sumber')
+                    ->state(fn (ModuleTemplate $record) => $record->isGeneratedForTutor() ? 'Generated for Tutor' : null)
+                    ->placeholder('Manual')
+                    ->badge()
+                    ->color('warning')
+                    ->icon('heroicon-o-sparkles'),
                 Tables\Columns\TextColumn::make('audience')
                     ->label('Tipe')
                     ->badge()
@@ -117,6 +157,23 @@ class ModuleTemplateResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()]),
             ]);
+    }
+
+    private static function hasTest(ModuleTemplate $record, string $type): bool
+    {
+        return $record->assessments()->where('type', $type)->exists();
+    }
+
+    /** Buka Pre/Post-Test tutor yang sudah ada, atau form baru yang langsung terhubung ke materi tutor ini. */
+    private static function testUrl(ModuleTemplate $record, string $type): string
+    {
+        $assessment = $record->assessments()->where('type', $type)->first();
+
+        if ($assessment) {
+            return AssessmentResource::getUrl('edit', ['record' => $assessment]);
+        }
+
+        return AssessmentResource::getUrl('create', ['module_template_id' => $record->id, 'type' => $type]);
     }
 
     public static function getPages(): array

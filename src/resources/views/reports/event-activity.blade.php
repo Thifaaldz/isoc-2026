@@ -1,12 +1,39 @@
 @php
-    $logo = public_path('images/sena-logo.png');
-    $logoSrc = file_exists($logo) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logo)) : null;
-    $formatScore = fn ($score) => $score === null ? '-' : number_format((float) $score, 2);
+    use App\Filament\Resources\LearningEventResource;
+    use App\Support\TorEventTemplate;
+    use Illuminate\Support\Facades\Storage;
+
+    $formatScore = fn ($score) => $score === null ? '-' : number_format((float) $score, 2, ',', '.');
+    $check = fn (bool $ok, string $yes = 'Lengkap', string $no = 'Belum lengkap') => '<span class="badge ' . ($ok ? 'badge-ok' : 'badge-wait') . '">' . ($ok ? $yes : $no) . '</span>';
+    $reached = fn (?float $value, float $target) => $value !== null && $value >= $target;
     $rundownItems = collect($event->rundown_items ?? []);
-    $approvedEvidence = $evidences->where('status', 'approved')->count();
     $budgetItems = collect($event->budget_items ?? []);
     $budgetTotal = $budgetItems->sum(fn ($item) => (float) ($item['amount'] ?? 0));
-    $completionPercent = fn ($count) => $participants->count() > 0 ? round(($count / $participants->count()) * 100) . '%' : '0%';
+    $budgetByTerm = fn (int $term) => $budgetItems->filter(fn ($item) => (int) ($item['term'] ?? 0) === $term);
+    $budgetCategories = LearningEventResource::budgetCategoryOptions();
+    $categoryLabel = fn (array $item) => $budgetCategories[$item['category'] ?? ''] ?? \Illuminate\Support\Str::headline((string) ($item['category'] ?? '-'));
+    $evidenceStatuses = ['approved' => 'Disetujui', 'pending' => 'Menunggu', 'needs_revision' => 'Perlu revisi', 'rejected' => 'Ditolak'];
+    $participantCount = $participants->count();
+    $durationMinutes = $event->starts_at && $event->ends_at ? (int) $event->starts_at->diffInMinutes($event->ends_at) : null;
+    $partnerNames = $event->orderedPartners->pluck('name');
+    $evidenceComplete = collect($torEvidence)->every(fn ($row) => $row[3]);
+    $kpis = [
+        ['Siswa terlatih', $targetParticipants . ' siswa', $participantCount . ' siswa', $participantCount >= $targetParticipants],
+        ['Tutor terlibat', $targetTutors . ' tutor', $tutors->count() . ' tutor', $tutors->count() >= $targetTutors],
+        ['Skor rata-rata Post-Test', '≥ 85', $formatScore($postAverage), $reached($postAverage, 85)],
+        ['Identifikasi ancaman digital', '≥ 82%', $threatAverage === null ? '-' : $formatScore($threatAverage) . '%', $reached($threatAverage, 82)],
+        ['Self-efficacy setelah pelatihan', '≥ 70', $formatScore($selfEfficacyPost), $reached($selfEfficacyPost, 70)],
+        ['Anggota WAG Mentoring', '70 per lokasi', $joinedWag . ' peserta', $joinedWag >= 70],
+        ['Microsite s.id peserta', $participantCount . ' peserta', $microsites->count() . ' microsite', $participantCount > 0 && $microsites->count() >= $participantCount],
+    ];
+    $evidenceThumb = function ($evidence): ?string {
+        $path = $evidence->file_path;
+        if (! $path || ! preg_match('/\.(jpe?g|png|webp|gif)$/i', $path) || ! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return 'data:' . (Storage::disk('public')->mimeType($path) ?: 'image/png') . ';base64,' . base64_encode(Storage::disk('public')->get($path));
+    };
 @endphp
 <!DOCTYPE html>
 <html>
@@ -15,257 +42,301 @@
     <style>
         @page { margin: 16mm 14mm; }
         * { box-sizing: border-box; }
-        body { color: #1f2937; font-family: DejaVu Sans, sans-serif; font-size: 10pt; line-height: 1.45; margin: 0; }
+        body { color: #1f2937; font-family: DejaVu Sans, sans-serif; font-size: 9.5pt; line-height: 1.45; margin: 0; }
         h1, h2, h3 { color: #0f172a; margin: 0; }
-        h1 { font-size: 18pt; line-height: 1.2; text-transform: uppercase; }
-        h2 { border-bottom: 1px solid #d1d5db; font-size: 12pt; margin-top: 8mm; padding-bottom: 1.5mm; }
-        h3 { font-size: 10.5pt; margin-top: 4mm; }
-        .header { display: table; width: 100%; }
-        .header-left, .header-right { display: table-cell; vertical-align: top; }
-        .header-right { text-align: right; width: 42mm; }
-        .logo { max-height: 20mm; max-width: 42mm; object-fit: contain; }
-        .subtitle { color: #475569; font-size: 10pt; margin-top: 2mm; }
-        .meta-grid { border: 1px solid #cbd5e1; border-collapse: collapse; margin-top: 6mm; width: 100%; }
-        .meta-grid td { border: 1px solid #cbd5e1; padding: 2mm 2.4mm; vertical-align: top; }
-        .meta-grid td:first-child { background: #f8fafc; color: #334155; font-weight: 700; width: 39mm; }
+        h1 { font-size: 17pt; line-height: 1.2; text-align: center; text-transform: uppercase; }
+        h2 { border-bottom: 1px solid #d1d5db; font-size: 11.5pt; margin-top: 7mm; padding-bottom: 1.5mm; }
+        h3 { font-size: 10pt; margin-top: 4mm; }
+        p { margin: 2mm 0; }
+        ul { margin: 2mm 0; padding-left: 5mm; }
+        .subtitle { color: #334155; font-size: 10.5pt; margin-top: 1.5mm; text-align: center; }
+        .meta-grid { border-collapse: collapse; margin-top: 6mm; width: 100%; }
+        .meta-grid td { border: 1px solid #cbd5e1; padding: 1.8mm 2.4mm; vertical-align: top; }
+        .meta-grid td:first-child { background: #f8fafc; color: #334155; font-weight: 700; width: 38mm; }
         table { border-collapse: collapse; margin-top: 3mm; width: 100%; }
-        th, td { border: 1px solid #cbd5e1; padding: 1.8mm 2mm; text-align: left; vertical-align: top; }
+        /* Lebar kolom tetap (dalam persen) agar tabel tidak melebar keluar halaman. */
+        table.fixed { table-layout: fixed; }
+        th, td { border: 1px solid #cbd5e1; padding: 1.6mm 2mm; text-align: left; vertical-align: top; word-wrap: break-word; }
         th { background: #f8fafc; color: #0f172a; font-weight: 800; }
-        .small { color: #64748b; font-size: 8.5pt; }
-        .badge { border-radius: 999px; display: inline-block; font-size: 8pt; font-weight: 800; padding: 1mm 2.2mm; }
+        .break { word-break: break-all; }
+        .compact th, .compact td { font-size: 8pt; padding: 1.3mm 1.4mm; }
+        .num { text-align: right; }
+        .center { text-align: center; }
+        .small { color: #64748b; font-size: 8pt; }
+        .badge { border-radius: 999px; display: inline-block; font-size: 7.5pt; font-weight: 800; padding: 0.8mm 2mm; white-space: nowrap; }
         .badge-ok { background: #dcfce7; color: #166534; }
         .badge-wait { background: #fef3c7; color: #92400e; }
-        .badge-info { background: #dbeafe; color: #1d4ed8; }
-        .kpi-grid { display: table; margin-top: 4mm; table-layout: fixed; width: 100%; }
-        .kpi { border: 1px solid #cbd5e1; display: table-cell; padding: 3mm; vertical-align: top; width: 25%; }
-        .kpi strong { color: #0f172a; display: block; font-size: 15pt; line-height: 1.1; }
-        .kpi span { color: #64748b; display: block; font-size: 8.5pt; margin-top: 1mm; }
-        .evidence-thumb { border: 1px solid #cbd5e1; border-radius: 2mm; height: 20mm; max-width: 30mm; object-fit: contain; padding: 1.5mm; width: 30mm; }
-        .two-col { display: table; gap: 4mm; margin-top: 3mm; width: 100%; }
-        .two-col > div { display: table-cell; vertical-align: top; width: 50%; }
+        .evidence-thumb { border: 1px solid #cbd5e1; height: 20mm; object-fit: contain; padding: 1mm; width: 28mm; }
         .page-break { page-break-before: always; }
-        .summary { background: #f8fafc; border: 1px solid #cbd5e1; margin-top: 4mm; padding: 3mm; }
-        .footer { bottom: -9mm; color: #64748b; font-size: 8pt; left: 0; position: fixed; right: 0; text-align: right; }
+        .summary { background: #f8fafc; border: 1px solid #cbd5e1; margin-top: 3mm; padding: 3mm; }
+        .signature td { border: 0; padding-top: 4mm; text-align: center; width: 50%; }
+        .footer { bottom: -9mm; color: #64748b; font-size: 7.5pt; left: 0; position: fixed; right: 0; text-align: right; }
     </style>
 </head>
 <body>
-    <div class="footer">Dicetak otomatis oleh sena - {{ now()->translatedFormat('d F Y H:i') }}</div>
+    <div class="footer">Laporan Kegiatan {{ $event->title }} · dicetak {{ now()->locale('id')->translatedFormat('d F Y H:i') }}</div>
 
-    <section class="header">
-        <div class="header-left">
-            <h1>Laporan Kegiatan Digital Safety Champions</h1>
-            <div class="subtitle">Dokumen verifikasi pelaksanaan, bukti dukung, evaluasi pembelajaran, dan kelengkapan termin kegiatan.</div>
-        </div>
-        <div class="header-right">
-            @if($logoSrc)
-                <img class="logo" src="{{ $logoSrc }}" alt="">
-            @endif
-        </div>
-    </section>
+    <h1>Laporan Kegiatan</h1>
+    <div class="subtitle">Program Literasi Digital "Digital Safety Champions: Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia"</div>
+    <div class="subtitle"><strong>Lokasi: {{ $school?->name ?? 'Event umum' }}</strong></div>
 
     <table class="meta-grid">
         <tr><td>Nama Kegiatan</td><td>{{ $event->title }}</td></tr>
-        <tr><td>Nama Program</td><td>Digital Safety Champions - Literasi Keamanan Digital</td></tr>
-        <tr><td>Tanggal</td><td>{{ $event->starts_at?->translatedFormat('d F Y') ?? '-' }}</td></tr>
-        <tr><td>Waktu</td><td>{{ $event->starts_at?->format('H.i') ?? '-' }}-{{ $event->ends_at?->format('H.i') ?? '-' }} WIB</td></tr>
-        <tr><td>Tipe</td><td>{{ strtoupper((string) $event->event_type) }}</td></tr>
+        <tr><td>Tanggal</td><td>{{ $event->starts_at?->locale('id')->translatedFormat('l, d F Y') ?? '-' }}</td></tr>
+        <tr><td>Waktu</td><td>{{ $event->starts_at?->format('H.i') ?? '-' }}–{{ $event->ends_at?->format('H.i') ?? '-' }} WIB{{ $durationMinutes ? ' (' . $durationMinutes . ' menit)' : '' }}</td></tr>
+        <tr><td>Tipe Kegiatan</td><td>{{ LearningEventResource::eventTypeOptions()[$event->event_type ?: 'offline'] ?? $event->event_type }}{{ $event->zoom_url ? ' · ' . $event->zoom_url : '' }}</td></tr>
         <tr><td>Lokasi</td><td>{{ $school?->name ?? 'Event umum' }}{{ $school?->address ? ', ' . $school->address : '' }}</td></tr>
-        <tr><td>Link Zoom</td><td>{{ $event->zoom_url ?: '-' }}</td></tr>
-        <tr><td>Penyelenggara</td><td>ISOC Indonesia Chapter Jakarta / RTIK Daerah</td></tr>
-        <tr><td>Jumlah Peserta</td><td>{{ $participants->count() }} peserta terdaftar + {{ $tutors->count() }} tutor/fasilitator</td></tr>
+        <tr><td>Penyelenggara</td><td>ISOC Indonesia – Chapter Jakarta bersama Relawan TIK (RTIK) Daerah</td></tr>
+        <tr><td>Mitra</td><td>{{ $partnerNames->isNotEmpty() ? $partnerNames->implode(', ') : '-' }}</td></tr>
+        <tr><td>Jumlah Peserta</td><td>{{ $participantCount }} siswa + {{ $tutors->count() }} tutor (target {{ $targetParticipants }} siswa + {{ $targetTutors }} tutor)</td></tr>
+        <tr><td>Periode Program</td><td>1 Oktober – 30 November 2026</td></tr>
     </table>
 
     <h2>1. Latar Belakang</h2>
     <p>
-        Program Digital Safety Champions diselenggarakan untuk meningkatkan literasi keamanan digital,
-        kemampuan mengenali ancaman online, dan praktik aman berinternet. Kegiatan ini mencakup
-        pembelajaran modul, pre-test, post-test, praktik microsite s.id, dokumentasi kegiatan, dan
-        pendampingan komunitas.
+        Pesatnya pemanfaatan internet oleh generasi muda membawa tantangan serius terkait keamanan siber, seperti penipuan
+        daring (scam), perundungan siber (cyberbullying), hoaks, hingga pencurian dan penyalahgunaan data pribadi. Pelajar SMA/SMK
+        sangat aktif di ruang digital, namun sebagian besar belum memiliki literasi yang memadai untuk melindungi diri.
     </p>
+    <ul>
+        <li><strong>BSSN:</strong> 3,64 miliar anomali serangan siber Januari–Juli 2025, 83,68% berbasis malware via aplikasi palsu dan tautan phishing.</li>
+        <li><strong>IASC:</strong> pemulihan dana korban kejahatan digital Rp161 miliar dari 1.070 korban (22 November 2024 – 12 Januari 2026).</li>
+        <li><strong>Komdigi (data UNICEF):</strong> sekitar 45% anak di Indonesia pernah mengalami perundungan melalui media pesan digital.</li>
+    </ul>
     <p>
-        Fokus Digital Safety Champions pada kegiatan ini adalah membangun kebiasaan aman bagi peserta melalui
-        pembelajaran terstruktur, latihan mengenali modus ancaman, praktik kampanye microsite, dan penguatan
-        komunitas melalui WhatsApp Group mentoring. Laporan ini disusun sebagai bukti pelaksanaan kegiatan
-        sekaligus dasar pemeriksaan termin pembayaran oleh Admin RTIK Pusat.
+        ISOC Indonesia – Chapter Jakarta menginisiasi program edukasi terstruktur berbasis multipihak untuk membangun budaya
+        Online Trust and Safety (OTS) bagi pelajar secara berkelanjutan di 20 komunitas sekolah di Indonesia.
     </p>
-
-    <div class="kpi-grid">
-        <div class="kpi"><strong>{{ $participants->count() }}</strong><span>Peserta terdaftar</span></div>
-        <div class="kpi"><strong>{{ $meetings->count() }}</strong><span>Pertemuan/modul</span></div>
-        <div class="kpi"><strong>{{ $formatScore($postAverage) }}</strong><span>Rata-rata post-test</span></div>
-        <div class="kpi"><strong>{{ $approvedEvidence }}/{{ $evidences->count() }}</strong><span>Bukti approved</span></div>
-    </div>
 
     <h2>2. Tujuan Kegiatan</h2>
-    <table>
-        <tr><th>Kode</th><th>Tujuan</th><th>Target</th></tr>
-        <tr><td>BO-01</td><td>Meningkatkan kapasitas peserta</td><td>{{ $event->target_participants ?: 100 }} peserta terlatih</td></tr>
-        <tr><td>BO-02</td><td>Menstandardisasi mutu pembelajaran</td><td>{{ $meetings->count() }} modul/pertemuan tersampaikan</td></tr>
-        <tr><td>BO-03</td><td>Efektivitas pembelajaran</td><td>Post-test rata-rata >= 85</td></tr>
-        <tr><td>BO-04</td><td>Keberlanjutan komunitas</td><td>WAG mentoring dan bukti dukung lengkap</td></tr>
+    <table class="fixed">
+        <tr><th style="width: 12%;">Kode</th><th style="width: 50%;">Tujuan</th><th style="width: 38%;">Target</th></tr>
+        <tr><td>BO-01</td><td>Meningkatkan kapasitas & keterampilan pelajar</td><td>{{ $targetParticipants }} siswa terlatih</td></tr>
+        <tr><td>BO-02</td><td>Menstandardisasi mutu pembelajaran</td><td>Modul OTS + kuis terstandar + e-Certificate</td></tr>
+        <tr><td>BO-03</td><td>Memberdayakan komunitas lokal berkelanjutan</td><td>Kader ToT + kelompok belajar sebaya</td></tr>
+        <tr><td>BO-04</td><td>Efektivitas pembelajaran</td><td>Skor kuis rata-rata ≥ 85 (baseline 70)</td></tr>
+        <tr><td>BO-05</td><td>Identifikasi ancaman digital</td><td>≥ 82% peserta</td></tr>
+        <tr><td>BO-06</td><td>Kepercayaan diri digital (self-efficacy)</td><td>55 → 70 (pelatihan) → 85 (pendampingan)</td></tr>
+        <tr><td>BO-07</td><td>Keberlanjutan komunitas</td><td>WhatsApp Group Mentoring aktif</td></tr>
     </table>
 
-    <h2>3. Sasaran dan Pelaksana</h2>
-    <p>
-        Sasaran kegiatan adalah peserta pada lokus {{ $school?->name ?? 'umum' }} dengan komposisi
-        {{ $participants->count() }} peserta, {{ $tutors->count() }} tutor/fasilitator, serta dukungan Admin RTIK Local.
-        Seluruh peserta diarahkan untuk mengikuti pre-test, membaca materi, menyelesaikan kuis modul,
-        mengikuti post-test, bergabung WAG mentoring, dan mengisi praktik microsite s.id.
-    </p>
-    <div class="two-col">
-        <div>
-            <h3>Tutor/Fasilitator</h3>
-            <table>
-                <tr><th>Nama</th><th>Instansi</th><th>Status</th></tr>
-                @forelse($tutors as $tutor)
-                    <tr>
-                        <td>{{ $tutor->user?->name ?? '-' }}</td>
-                        <td>{{ $tutor->institution ?: '-' }}</td>
-                        <td>{{ $tutor->pivot?->status ?: '-' }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="3">Tutor belum tersedia.</td></tr>
-                @endforelse
-            </table>
-        </div>
-        <div>
-            <h3>Indikator Kelengkapan</h3>
-            <table>
-                <tr><th>Item</th><th>Hasil</th></tr>
-                <tr><td>Pre-test selesai</td><td>{{ $preCompleted }}/{{ $participants->count() }} peserta ({{ $completionPercent($preCompleted) }})</td></tr>
-                <tr><td>Kuis modul selesai</td><td>{{ $quizCompleted }}/{{ $participants->count() }} peserta ({{ $completionPercent($quizCompleted) }})</td></tr>
-                <tr><td>Post-test selesai</td><td>{{ $postCompleted }}/{{ $participants->count() }} peserta ({{ $completionPercent($postCompleted) }})</td></tr>
-                <tr><td>Rata-rata kuis</td><td>{{ $formatScore($quizAverage) }}</td></tr>
-            </table>
-        </div>
-    </div>
+    <h2>3. Sasaran Peserta</h2>
+    <ul>
+        <li>{{ $targetParticipants }} siswa SMA/SMK di lokasi {{ $school?->name ?? 'kegiatan' }} (terdaftar: {{ $participantCount }} siswa).</li>
+        <li>{{ $targetTutors }} tutor/fasilitator lokal (terlibat: {{ $tutors->count() }} tutor).</li>
+        <li>Total program nasional: 2.000 siswa di 20 lokasi.</li>
+    </ul>
 
-    <h2>4. Rundown Kegiatan</h2>
-    <table>
-        <tr><th>Waktu</th><th>Durasi</th><th>Aktivitas</th><th>PIC</th></tr>
+    <h2>4. Stakeholder yang Terlibat</h2>
+    <table class="fixed">
+        <tr><th style="width: 38%;">Stakeholder</th><th style="width: 62%;">Peran dalam Kegiatan</th></tr>
+        @foreach($event->orderedPartners as $partner)
+            <tr><td>{{ $partner->name }}</td><td>{{ TorEventTemplate::PARTNER_ROLES[$partner->name] ?? 'Mitra pendukung kegiatan' }}</td></tr>
+        @endforeach
+        @if($school)
+            <tr><td>{{ $school->name }}</td><td>Lokasi kegiatan, peserta, dan dukungan manajemen sekolah</td></tr>
+        @endif
+        <tr><td>Pelajar / Peserta</td><td>Penerima manfaat program</td></tr>
+    </table>
+
+    <h2>5. Rundown Kegiatan</h2>
+    <table class="fixed">
+        <tr><th style="width: 16%;">Waktu</th><th style="width: 10%;">Durasi</th><th style="width: 34%;">Sesi</th><th style="width: 18%;">PIC</th><th style="width: 22%;">Format & Deskripsi</th></tr>
         @forelse($rundownItems as $item)
             @php
                 $start = $item['start_time'] ?? null;
                 $end = $item['end_time'] ?? null;
-                $duration = '-';
-                if ($start && $end) {
-                    try { $duration = \Illuminate\Support\Carbon::parse($start)->diffInMinutes(\Illuminate\Support\Carbon::parse($end)) . "'"; } catch (\Throwable) {}
-                }
+                $minutes = $start && $end ? (int) \Illuminate\Support\Carbon::parse($start)->diffInMinutes(\Illuminate\Support\Carbon::parse($end)) : null;
             @endphp
             <tr>
-                <td>{{ $start ?: '-' }}-{{ $end ?: '-' }}</td>
-                <td>{{ $duration }}</td>
-                <td>{{ $item['activity'] ?? '-' }}<div class="small">{{ $item['notes'] ?? '' }}</div></td>
+                <td>{{ $start ?? '-' }}–{{ $end ?? '-' }}</td>
+                <td>{{ $minutes !== null ? $minutes . "'" : '-' }}</td>
+                <td>{{ $item['activity'] ?? '-' }}</td>
                 <td>{{ $item['pic'] ?? '-' }}</td>
+                <td class="small">{{ $item['notes'] ?? '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="4">Rundown belum tersedia.</td></tr>
+            <tr><td colspan="5">Rundown belum tersedia.</td></tr>
         @endforelse
     </table>
 
-    <h2>5. Materi yang Disampaikan</h2>
-    <table>
-        <tr><th>No</th><th>Materi</th><th>Durasi</th><th>Bahan</th><th>Kuis</th></tr>
+    <h2>6. Materi yang Disampaikan</h2>
+    <table class="fixed">
+        <tr><th style="width: 6%;">No</th><th style="width: 74%;">Modul</th><th style="width: 20%;">Bahan</th></tr>
         @forelse($meetings as $meeting)
             <tr>
-                <td>{{ $meeting->order }}</td>
-                <td><strong>{{ $meeting->title }}</strong><br><span class="small">{{ $meeting->description }}</span></td>
-                <td>{{ $meeting->duration_minutes ?: 0 }} menit</td>
-                <td>{{ $meeting->materials->pluck('type')->map(fn ($type) => strtoupper((string) $type))->unique()->implode(', ') ?: '-' }}</td>
-                <td>{{ $meeting->assessments()->where('type', 'quiz')->where('is_open', true)->exists() ? 'Aktif' : 'Nonaktif' }}</td>
+                <td>{{ $loop->iteration }}</td>
+                <td><strong>{{ $meeting->title }}</strong>@if($meeting->description)<br><span class="small">{{ $meeting->description }}</span>@endif</td>
+                <td>{{ $meeting->materials->pluck('type')->map(fn ($type) => strtoupper($type))->unique()->implode(', ') ?: '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="5">Materi belum tersedia.</td></tr>
+            <tr><td colspan="3">Materi belum tersedia.</td></tr>
         @endforelse
     </table>
+    <p class="small">Praktik: microsite s.id (PANDI), simulasi kasus, role-play, dan open mic.</p>
 
-    <div class="page-break"></div>
+    <h2>7. Metode</h2>
+    <ul>
+        <li>Video ajar keamanan siber dan ceramah interaktif modul ajar kepada siswa.</li>
+        <li>Pre-Test dan Post-Test melalui formulir daring.</li>
+        <li>Praktik pembuatan microsite s.id.</li>
+        <li>Simulasi kasus, role-play, diskusi, dan tanya jawab (open mic).</li>
+        <li>Pembentukan WhatsApp Group Mentoring (Digital Safety Champions).</li>
+    </ul>
 
-    <h2>6. Hasil Evaluasi</h2>
-    <table>
-        <tr><th>Instrumen</th><th>Target</th><th>Hasil</th><th>Keterangan</th></tr>
-        <tr><td>Pre-Test rata-rata</td><td>Baseline</td><td>{{ $formatScore($preAverage) }}</td><td>Mengukur pemahaman awal peserta.</td></tr>
-        <tr><td>Kuis Modul rata-rata</td><td>>= 85</td><td>{{ $formatScore($quizAverage) }}</td><td>Evaluasi pemahaman per materi/pertemuan.</td></tr>
-        <tr><td>Post-Test rata-rata</td><td>>= 85</td><td>{{ $formatScore($postAverage) }}</td><td>Mengukur peningkatan setelah pelatihan.</td></tr>
-        <tr><td>Peserta terdaftar</td><td>{{ $event->target_participants ?: '-' }}</td><td>{{ $participants->count() }}</td><td>Data peserta pada sistem sena.</td></tr>
+    <h2>8. Hasil Evaluasi</h2>
+    <table class="fixed">
+        <tr><th style="width: 40%;">Instrumen</th><th style="width: 18%;">Target</th><th style="width: 18%;">Hasil</th><th style="width: 24%;">Status</th></tr>
+        <tr><td>Pre-Test (rata-rata)</td><td>Baseline 70</td><td>{{ $formatScore($preAverage) }}</td><td>{!! $check($preAverage !== null, 'Terukur', 'Belum ada data') !!}</td></tr>
+        <tr><td>Post-Test (rata-rata)</td><td>≥ 85</td><td>{{ $formatScore($postAverage) }}</td><td>{!! $check($reached($postAverage, 85), 'Tercapai', 'Belum tercapai') !!}</td></tr>
+        <tr><td>Identifikasi ancaman digital</td><td>≥ 82%</td><td>{{ $threatAverage === null ? '-' : $formatScore($threatAverage) . '%' }}</td><td>{!! $check($reached($threatAverage, 82), 'Tercapai', 'Belum tercapai') !!}</td></tr>
+        <tr><td>Self-efficacy (sebelum)</td><td>Baseline 55</td><td>{{ $formatScore($selfEfficacyPre) }}</td><td>{!! $check($selfEfficacyPre !== null, 'Terukur', 'Belum ada data') !!}</td></tr>
+        <tr><td>Self-efficacy (setelah pelatihan)</td><td>≥ 70</td><td>{{ $formatScore($selfEfficacyPost) }}</td><td>{!! $check($reached($selfEfficacyPost, 70), 'Tercapai', 'Belum tercapai') !!}</td></tr>
+        <tr><td>Peserta mengerjakan Pre / Post-Test</td><td>{{ $participantCount }} peserta</td><td>{{ $preCompleted }} / {{ $postCompleted }}</td><td>{!! $check($participantCount > 0 && $postCompleted >= $participantCount, 'Lengkap', 'Belum lengkap') !!}</td></tr>
+        <tr><td>Kehadiran tutor</td><td>{{ $targetTutors }} tutor</td><td>{{ $tutors->count() }}</td><td>{!! $check($tutors->count() >= $targetTutors, 'Tercapai', 'Belum tercapai') !!}</td></tr>
     </table>
 
-    <h2>7. Daftar Peserta dan Nilai</h2>
-    <table>
-        <tr><th>No</th><th>Nama</th><th>Email</th><th>NISN/NIK/NIM</th><th>Kelas</th><th>Pre</th><th>Kuis</th><th>Post</th><th>Bukti Awal</th></tr>
+    <h2>9. Dokumentasi & Bukti Dukung (sesuai TOR)</h2>
+    <table class="fixed">
+        <tr><th style="width: 6%;">No</th><th style="width: 44%;">Bukti Dukung</th><th style="width: 16%;">Target</th><th style="width: 18%;">Capaian</th><th style="width: 16%;">Status</th></tr>
+        @foreach($torEvidence as [$label, $target, $achieved, $complete])
+            <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>{{ $label }}</td>
+                <td>{{ $target }}</td>
+                <td>{{ $achieved }}</td>
+                <td>{!! $check($complete) !!}</td>
+            </tr>
+        @endforeach
+    </table>
+    <p class="small">Rincian berkas bukti dukung tercantum pada Lampiran 3.</p>
+
+    <h2>10. KPI Kegiatan</h2>
+    <table class="fixed">
+        <tr><th style="width: 40%;">KPI</th><th style="width: 20%;">Target</th><th style="width: 20%;">Capaian</th><th style="width: 20%;">Status</th></tr>
+        @foreach($kpis as [$label, $target, $achieved, $ok])
+            <tr><td>{{ $label }}</td><td>{{ $target }}</td><td>{{ $achieved }}</td><td>{!! $check($ok, 'Tercapai', 'Belum tercapai') !!}</td></tr>
+        @endforeach
+    </table>
+
+    <h2>11. Anggaran (RAB)</h2>
+    @foreach([1 => 'Termin-1 (diberikan sebelum kegiatan)', 2 => 'Termin-2 (setelah semua bukti dukung lokasi lengkap)', 0 => 'Item tanpa termin'] as $term => $termLabel)
+        @php $items = $term === 0 ? $budgetItems->filter(fn ($item) => blank($item['term'] ?? null)) : $budgetByTerm($term); @endphp
+        @if($items->isNotEmpty())
+            <h3>{{ $termLabel }}</h3>
+            <table class="fixed">
+                <tr><th style="width: 24%;">Kategori</th><th style="width: 28%;">Uraian</th><th style="width: 12%;">Qty</th><th style="width: 18%;">Harga Satuan</th><th style="width: 18%;">Jumlah</th></tr>
+                @foreach($items as $item)
+                    <tr>
+                        <td>{{ $categoryLabel($item) }}</td>
+                        <td>{{ $item['description'] ?? '-' }}</td>
+                        <td>{{ $item['quantity'] ?? '-' }} {{ $item['unit'] ?? '' }}</td>
+                        <td class="num">Rp {{ number_format((float) ($item['unit_price'] ?? 0), 0, ',', '.') }}</td>
+                        <td class="num">Rp {{ number_format((float) ($item['amount'] ?? 0), 0, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+                <tr><th colspan="4">Subtotal</th><th class="num">Rp {{ number_format($items->sum(fn ($item) => (float) ($item['amount'] ?? 0)), 0, ',', '.') }}</th></tr>
+            </table>
+        @endif
+    @endforeach
+    @if($budgetItems->isEmpty())
+        <p>RAB belum tersedia.</p>
+    @endif
+    <div class="summary"><strong>Total RAB:</strong> Rp {{ number_format($budgetTotal, 0, ',', '.') }}</div>
+
+    <h2>12. Kesimpulan & Rekomendasi</h2>
+    <h3>Kesimpulan</h3>
+    <ul>
+        <li>Kegiatan dilaksanakan {{ $durationMinutes ? 'selama ' . $durationMinutes . ' menit ' : '' }}mengikuti susunan acara TOR dengan {{ $meetings->count() }} modul ajar.</li>
+        <li>{{ $participantCount }} dari target {{ $targetParticipants }} siswa terdaftar; {{ $postCompleted }} siswa menyelesaikan Post-Test.</li>
+        <li>Rata-rata Post-Test {{ $formatScore($postAverage) }} ({{ $reached($postAverage, 85) ? 'mencapai' : 'belum mencapai' }} target ≥ 85).</li>
+        <li>Bukti dukung lokasi {{ $evidenceComplete ? 'lengkap dan siap diverifikasi untuk Termin-2' : 'belum lengkap; lihat bagian 9 untuk item yang perlu dilengkapi' }}.</li>
+    </ul>
+    <h3>Rekomendasi</h3>
+    <ul>
+        <li>Lanjutkan pendampingan melalui WhatsApp Group Mentoring.</li>
+        <li>Bentuk kelompok belajar sebaya (peer-to-peer) di sekolah.</li>
+        <li>Perluas praktik microsite s.id ke seluruh peserta.</li>
+        <li>Pantau self-efficacy pasca-pendampingan (target 85).</li>
+    </ul>
+
+    <div class="page-break"></div>
+    <h1>Lampiran</h1>
+
+    <h2>Lampiran 1 — Daftar Peserta & Rekap Pre-Test / Post-Test</h2>
+    <table class="fixed compact">
+        <tr><th style="width: 5%;">No</th><th style="width: 20%;">Nama</th><th style="width: 9%;">Kelas</th><th style="width: 14%;">NISN/NIM</th><th style="width: 17%;">NIK</th><th style="width: 9%;">Pre</th><th style="width: 9%;">Post</th><th style="width: 8%;">Selisih</th><th style="width: 9%;">IG / WAG</th></tr>
         @forelse($participantScores as $index => $participant)
+            @php $delta = $participant['pre'] !== null && $participant['post'] !== null ? $participant['post'] - $participant['pre'] : null; @endphp
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $participant['name'] }}</td>
-                <td>{{ $participant['email'] }}</td>
-                <td>{{ $participant['identity'] }}</td>
                 <td>{{ $participant['grade'] }}</td>
-                <td>{{ $formatScore($participant['pre']) }}</td>
-                <td>{{ $formatScore($participant['quiz']) }}</td>
-                <td>{{ $formatScore($participant['post']) }}</td>
-                <td>
-                    IG: {{ $participant['followed_instagram'] ? 'Ya' : 'Tidak' }}<br>
-                    WAG: {{ $participant['joined_wag'] ? 'Ya' : 'Tidak' }}
-                </td>
+                <td class="break">{{ $participant['identity'] }}</td>
+                <td class="break">{{ $participant['nik'] }}</td>
+                <td class="num">{{ $formatScore($participant['pre']) }}</td>
+                <td class="num">{{ $formatScore($participant['post']) }}</td>
+                <td class="num">{{ $delta === null ? '-' : ($delta >= 0 ? '+' : '') . number_format($delta, 1, ',', '.') }}</td>
+                <td class="center">{{ $participant['followed_instagram'] ? '✓' : '–' }} / {{ $participant['joined_wag'] ? '✓' : '–' }}</td>
             </tr>
         @empty
             <tr><td colspan="9">Peserta belum tersedia.</td></tr>
         @endforelse
+        <tr><th colspan="5">Rata-rata</th><th class="num">{{ $formatScore($preAverage) }}</th><th class="num">{{ $formatScore($postAverage) }}</th><th class="num">{{ $preAverage !== null && $postAverage !== null ? ($postAverage >= $preAverage ? '+' : '') . number_format($postAverage - $preAverage, 1, ',', '.') : '-' }}</th><th></th></tr>
     </table>
 
-    <h2>8. RAB dan Kebutuhan Kegiatan</h2>
-    <table>
-        <tr><th>Kategori</th><th>Uraian</th><th>Qty</th><th>Harga Satuan</th><th>Jumlah</th><th>Vendor/Catatan</th></tr>
-        @forelse($budgetItems as $item)
-            <tr>
-                <td>{{ $item['category'] ?? '-' }}</td>
-                <td>{{ $item['description'] ?? '-' }}</td>
-                <td>{{ $item['quantity'] ?? '-' }} {{ $item['unit'] ?? '' }}</td>
-                <td>Rp {{ number_format((float) ($item['unit_price'] ?? 0), 0, ',', '.') }}</td>
-                <td>Rp {{ number_format((float) ($item['amount'] ?? 0), 0, ',', '.') }}</td>
-                <td>{{ $item['vendor'] ?? '-' }}<br><span class="small">{{ $item['notes'] ?? '' }}</span></td>
-            </tr>
+    <h2>Lampiran 2 — Daftar Tutor</h2>
+    <table class="fixed">
+        <tr><th style="width: 6%;">No</th><th style="width: 34%;">Nama</th><th style="width: 40%;">Instansi</th><th style="width: 20%;">Tanda Tangan</th></tr>
+        @forelse($tutors as $tutor)
+            <tr><td>{{ $loop->iteration }}</td><td>{{ $tutor->user?->name ?? '-' }}</td><td>{{ $tutor->institution ?: '-' }}</td><td></td></tr>
         @empty
-            <tr><td colspan="6">RAB belum tersedia.</td></tr>
+            <tr><td colspan="4">Tutor belum tersedia.</td></tr>
         @endforelse
-        <tr><th colspan="4">Total</th><th colspan="2">Rp {{ number_format($budgetTotal, 0, ',', '.') }}</th></tr>
     </table>
 
-    <div class="page-break"></div>
-
-    <h2>9. Bukti Dukung</h2>
-    <table>
-        <tr><th>Preview</th><th>Jenis Bukti</th><th>Status</th><th>File / Link</th><th>Catatan</th></tr>
+    <h2>Lampiran 3 — Rincian Berkas Bukti Dukung</h2>
+    <table class="fixed">
+        <tr><th style="width: 19%;">Preview</th><th style="width: 27%;">Jenis Bukti</th><th style="width: 14%;">Status</th><th style="width: 22%;">Berkas / Tautan</th><th style="width: 18%;">Catatan</th></tr>
         @forelse($evidences as $evidence)
             <tr>
                 <td>
-                    @if($evidencePreviewSrc)
-                        <img class="evidence-thumb" src="{{ $evidencePreviewSrc }}" alt="">
+                    @if($thumb = $evidenceThumb($evidence))
+                        <img class="evidence-thumb" src="{{ $thumb }}" alt="">
                     @else
-                        -
+                        <span class="small">-</span>
                     @endif
                 </td>
                 <td>{{ $evidenceTypes[$evidence->type] ?? $evidence->type }}</td>
-                <td>
-                    <span class="badge {{ $evidence->status === 'approved' ? 'badge-ok' : 'badge-wait' }}">
-                        {{ $evidence->status }}
-                    </span>
-                </td>
-                <td>{{ $evidence->file_path ?: ($evidence->link ?: '-') }}</td>
-                <td>{{ $evidence->review_notes ?: '-' }}</td>
+                <td><span class="badge {{ $evidence->status === 'approved' ? 'badge-ok' : 'badge-wait' }}">{{ $evidenceStatuses[$evidence->status] ?? $evidence->status }}</span></td>
+                <td class="break small">{{ $evidence->file_path ? basename($evidence->file_path) : ($evidence->link ?: '-') }}</td>
+                <td class="small">{{ $evidence->review_notes ?: '-' }}</td>
             </tr>
         @empty
             <tr><td colspan="5">Bukti dukung belum tersedia.</td></tr>
         @endforelse
     </table>
 
-    <h2>10. Ringkasan Kelengkapan Termin-2</h2>
-    <div class="summary">
-        <strong>Status laporan:</strong> {{ $event->final_report_status ?? 'draft' }}<br>
-        <strong>Bukti approved:</strong> {{ $approvedEvidence }} dari {{ $evidences->count() }} bukti<br>
-        <strong>Jumlah peserta:</strong> {{ $participants->count() }} dari target {{ $event->target_participants ?: '-' }} peserta<br>
-        <strong>Total RAB:</strong> Rp {{ number_format($budgetTotal, 0, ',', '.') }}<br>
-        <strong>Catatan pusat:</strong> {{ $event->final_report_notes ?: ($event->central_admin_notes ?: '-') }}
-    </div>
+    <h2>Lampiran 4 — Microsite s.id Karya Peserta</h2>
+    <table class="fixed">
+        <tr><th style="width: 6%;">No</th><th style="width: 34%;">Nama</th><th style="width: 60%;">URL Microsite</th></tr>
+        @forelse($microsites as $microsite)
+            <tr><td>{{ $loop->iteration }}</td><td>{{ $microsite->participant?->user?->name ?? '-' }}</td><td class="break">{{ $microsite->sid_url }}</td></tr>
+        @empty
+            <tr><td colspan="3">Microsite belum tersedia.</td></tr>
+        @endforelse
+        <tr><th colspan="2">Total</th><th>{{ $microsites->count() }} microsite</th></tr>
+    </table>
+
+    <h2>Lampiran 5 — Berita Acara Serah Terima Bukti Dukung</h2>
+    <p>
+        Pada hari ini, ........................ tanggal ........................, telah dilakukan serah terima bukti dukung kegiatan
+        <strong>{{ $event->title }}</strong> dari Admin RTIK Daerah kepada Admin RTIK Pusat / ISOC, dengan rincian sesuai bagian 9 laporan ini.
+    </p>
+    <p><strong>Status:</strong> {{ $evidenceComplete ? 'LENGKAP dan siap diverifikasi untuk Termin-2.' : 'BELUM LENGKAP, perlu dilengkapi sebelum verifikasi Termin-2.' }}</p>
+    <table class="signature">
+        <tr><td>Pihak yang Menyerahkan<br>Admin RTIK Daerah</td><td>Pihak yang Menerima<br>Admin RTIK Pusat / ISOC</td></tr>
+        <tr><td style="padding-top: 18mm;">( {{ $event->creator?->name ?? '..............................' }} )</td><td style="padding-top: 18mm;">( .............................. )</td></tr>
+    </table>
 </body>
 </html>

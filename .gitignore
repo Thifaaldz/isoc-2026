@@ -1,5 +1,6 @@
 # Docker data
 db/data/
+db/redis/
 # Dependencies
 src/vendor/
 src/node_modules/

@@ -22,7 +22,7 @@ class ManageLearningMeeting extends ManageRecords
             return;
         }
 
-        if ($templateId = ModuleTemplate::query()->where('is_active', true)->orderBy('name')->value('id')) {
+        if ($templateId = ModuleTemplate::query()->where('is_active', true)->whereNull('source_template_id')->orderBy('name')->value('id')) {
             $this->redirect(static::getResource()::getUrl('index', ['materi_event' => $templateId]), navigate: false);
         }
     }
@@ -33,6 +33,7 @@ class ManageLearningMeeting extends ManageRecords
         return ModuleTemplate::query()
             ->withCount('learningMeetings')
             ->where('is_active', true)
+            ->whereNull('source_template_id')
             ->orderBy('name')
             ->get();
     }

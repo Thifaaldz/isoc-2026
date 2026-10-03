@@ -6,6 +6,7 @@ use App\Filament\Pages\MaterialPreview;
 use App\Filament\Pages\CertificateDesignStudio;
 use App\Filament\Pages\CreateSeminarShortcut;
 use App\Filament\Pages\Profile;
+use App\Filament\Widgets\EventApprovalReminders;
 use App\Filament\Widgets\EventApprovalUpdates;
 use App\Filament\Widgets\KpiOverview;
 use Filament\Http\Middleware\Authenticate;
@@ -16,7 +17,6 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -48,7 +48,8 @@ class SuperAdminPanelProvider extends PanelProvider
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
-            ->widgets([Widgets\AccountWidget::class, EventApprovalUpdates::class, KpiOverview::class])
+            // KPI di atas, lalu Update (kiri) & Reminder (kanan). Sign out tersedia di menu profil.
+            ->widgets([KpiOverview::class, EventApprovalUpdates::class, EventApprovalReminders::class])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

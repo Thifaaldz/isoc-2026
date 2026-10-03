@@ -85,13 +85,18 @@ class EvidenceResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Jenis bukti')
-                            ->options(Evidence::TYPES)
+                            ->options(fn (?Evidence $record) => $record && in_array($record->type, Evidence::LEGACY_TYPES, true)
+                                ? Evidence::TYPES
+                                : Evidence::uploadTypes())
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->helperText(fn (Forms\Get $get) => isset(Evidence::REQUIRED_PHOTOS[$get('type')])
+                                ? Evidence::REQUIRED_PHOTOS[$get('type')]['instruction'] . ' Minimal ' . Evidence::REQUIRED_PHOTOS[$get('type')]['min'] . ' foto. Untuk upload banyak foto sekaligus, gunakan tombol "Upload Foto Wajib".'
+                                : null),
                         Forms\Components\TextInput::make('session_index')
                             ->label('Sesi ke')
                             ->numeric()
-                            ->visible(fn (Forms\Get $get) => in_array($get('type'), ['foto_sesi', 'absensi_basah'], true))
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'absensi_basah')
                             ->helperText('Isi jika bukti dikumpulkan per sesi/pertemuan.'),
                         Forms\Components\FileUpload::make('file_path')
                             ->acceptedFileTypes(UploadTypes::evidence())
@@ -131,6 +136,12 @@ class EvidenceResource extends Resource
                 ->persistStepInQueryString()
                 ->columnSpanFull(),
         ]);
+    }
+
+    /** @return \Illuminate\Support\Collection<int, string> */
+    public static function eventOptions(): \Illuminate\Support\Collection
+    {
+        return static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id');
     }
 
     public static function table(Table $table): Table

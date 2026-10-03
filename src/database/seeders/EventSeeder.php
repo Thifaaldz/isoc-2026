@@ -11,7 +11,6 @@ use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Models\MicrositePractice;
 use App\Models\ModuleTemplate;
-use App\Models\Partner;
 use App\Models\School;
 use App\Models\TotAssessment;
 use App\Models\Tutor;
@@ -19,6 +18,7 @@ use App\Models\User;
 use App\Services\CertificateEligibilityService;
 use App\Services\LearningEventProvisioner;
 use App\Services\ModuleTemplateApplier;
+use App\Support\TorEventTemplate;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -72,8 +72,6 @@ class EventSeeder extends Seeder
     ];
 
     /** Urutan mitra mengikuti banner kegiatan. */
-    private const MITRA = ['ISOC Indonesia Jakarta Chapter', 'Kementerian Komunikasi dan Digital', '.id Academy', 'Relawan TIK Indonesia', 'APJII', 'Universitas Esa Unggul'];
-
     public function run(): void
     {
         // Event bawaan migration awal (2026_09_01_000006) tidak dipakai lagi.
@@ -82,11 +80,10 @@ class EventSeeder extends Seeder
         $admin = User::query()->where('email', 'adm@isoc.id')->firstOrFail();
         $superAdmin = User::query()->where('email', 'su@isoc.id')->firstOrFail();
         $materi = ModuleTemplate::query()->where('name', MateriSeeder::MATERI_SISWA)->firstOrFail();
+        $materiModuleIds = $materi->learningMeetings()->whereNull('learning_event_id')->orderBy('order')
+            ->limit(LearningEvent::MODULES_PER_EVENT)->pluck('id')->map(fn ($id) => (string) $id)->all();
         $certificateTemplateId = CertificateTemplate::query()->where('name', self::CERTIFICATE_TEMPLATE)->value('id');
-        $partnerIds = collect(self::MITRA)
-            ->map(fn (string $name) => Partner::query()->where('name', $name)->value('id'))
-            ->filter()
-            ->values();
+        $partnerIds = collect(TorEventTemplate::partnerIds());
         $tutor = null;
 
         foreach (self::LOKUS as $index => [$kota, $cityCode, $city, $provinceCode, $province]) {
@@ -119,13 +116,15 @@ class EventSeeder extends Seeder
                 'created_by' => $admin->id,
                 'title' => "Digital Safety Champions - {$kota}",
                 'slug' => $slug,
-                'description' => "Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia. Pelatihan 6 modul untuk pelajar di {$kota}, {$provinsi}.",
+                'description' => TorEventTemplate::DESCRIPTION . " Lokus {$kota}, {$provinsi}.",
                 'event_type' => 'offline',
                 'audience_type' => 'school',
                 'school_id' => $school->id,
                 'module_template_id' => $materi->id,
+                // TOR: 2 modul ajar dibawakan per lokasi.
+                'selected_meeting_ids' => $materiModuleIds,
                 'certificate_template_id' => $certificateTemplateId,
-                'starts_at' => "{$date} 08:00:00",
+                'starts_at' => "{$date} 09:00:00",
                 'ends_at' => "{$date} 12:00:00",
                 'target_participants' => 100,
                 'target_tutors' => 3,
@@ -137,11 +136,8 @@ class EventSeeder extends Seeder
                 'participant_rows' => $selesai ? $this->participantRows($school) : [],
                 'tutor_rows' => [],
                 'selected_tutor_ids' => [$tutor->id],
-                'rundown_items' => LearningEventResource::defaultRundownItems(),
-                'budget_items' => [
-                    ['category' => 'konsumsi', 'description' => 'Snack dan makan siang peserta', 'quantity' => 100, 'unit' => 'paket', 'unit_price' => 35000, 'amount' => 3500000, 'vendor' => null, 'receipt_number' => null, 'notes' => null],
-                    ['category' => 'banner_publikasi', 'description' => 'Banner kegiatan', 'quantity' => 1, 'unit' => 'pcs', 'unit_price' => 300000, 'amount' => 300000, 'vendor' => null, 'receipt_number' => null, 'notes' => null],
-                ],
+                'rundown_items' => TorEventTemplate::rundown(),
+                'budget_items' => TorEventTemplate::budgetItems(),
                 'local_admin_notes' => "Pengajuan pelatihan Digital Safety Champions di {$kota}, {$provinsi}.",
             ]));
 
@@ -265,10 +261,15 @@ class EventSeeder extends Seeder
         $tutorUserId = $event->tutors->first()?->user_id ?? $admin->id;
         $evidence = [
             ['type' => 'absensi_basah', 'session_index' => 1, 'label' => 'ABSENSI BASAH SESI 1', 'by' => $admin->id],
-            ['type' => 'foto_sesi', 'session_index' => 1, 'label' => 'FOTO KEGIATAN SESI 1', 'by' => $tutorUserId],
             ['type' => 'video_slogan', 'link' => 'https://youtu.be/pLxS9dVhGGU', 'by' => $tutorUserId],
             ['type' => 'praktik_microsite', 'label' => 'PRAKTIK MICROSITE s.id', 'link' => 'https://s.id/dsc-pangkalpinang', 'by' => $admin->id],
         ];
+
+        foreach (Evidence::REQUIRED_PHOTOS as $type => $photo) {
+            foreach (range(1, $photo['min']) as $number) {
+                $evidence[] = ['type' => $type, 'label' => strtoupper("FOTO {$photo['step']} - {$photo['title']} {$number}"), 'by' => $tutorUserId, 'key' => "{$type}-{$number}"];
+            }
+        }
 
         foreach ($evidence as $item) {
             Evidence::query()->create([
@@ -276,7 +277,7 @@ class EventSeeder extends Seeder
                 'school_id' => $school->id,
                 'type' => $item['type'],
                 'session_index' => $item['session_index'] ?? null,
-                'file_path' => isset($item['label']) ? $this->placeholderImage($item['type'] . '-' . $event->id, $item['label']) : null,
+                'file_path' => isset($item['label']) ? $this->placeholderImage(($item['key'] ?? $item['type']) . '-' . $event->id, $item['label']) : null,
                 'link' => $item['link'] ?? null,
                 'status' => 'approved',
                 'uploaded_by' => $item['by'],

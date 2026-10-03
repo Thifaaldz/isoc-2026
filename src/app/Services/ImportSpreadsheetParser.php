@@ -13,7 +13,8 @@ class ImportSpreadsheetParser
     {
         return $this->normalizeRows($this->rows($file), [
             'name' => ['name', 'nama', 'nama_lengkap', 'full_name'],
-            'nis' => ['nis', 'nisn', 'nik', 'nisn_or_nik', 'nomor_induk', 'nomor_identitas'],
+            'nis' => ['nis', 'nisn', 'nim', 'nisn_or_nim', 'nisn_or_nik', 'nomor_induk'],
+            'nik' => ['nik', 'nomor_identitas', 'nomor_ktp'],
             'grade' => ['grade', 'kelas'],
             'organization' => ['organization', 'organisasi', 'instansi', 'lembaga'],
             'position' => ['position', 'jabatan', 'peran'],
@@ -31,6 +32,10 @@ class ImportSpreadsheetParser
             'phone' => ['phone', 'telepon', 'kontak', 'no_hp', 'nomor_hp', 'whatsapp'],
             'email' => ['email', 'alamat_email'],
             'institution' => ['institution', 'institusi', 'lembaga', 'asal_lembaga', 'sekolah'],
+            'nik' => ['nik', 'nomor_identitas', 'nomor_ktp'],
+            'npwp' => ['npwp'],
+            'bank_name' => ['bank_name', 'bank', 'nama_bank'],
+            'bank_account_number' => ['bank_account_number', 'nomor_rekening', 'no_rekening', 'rekening'],
             'notes' => ['notes', 'catatan', 'keterangan'],
         ]);
     }

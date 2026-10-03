@@ -32,7 +32,10 @@ class CreateLearningEvent extends CreateRecord
 
     protected function afterCreate(): void
     {
-        app(ModuleTemplateApplier::class)->applyToEvent($this->record);
+        LearningEventResource::syncCertificatePartners($this->record, (array) ($this->data['certificate_partner_ids'] ?? []));
+
+        // Rundown TOR sudah disusun (dan mungkin disesuaikan) di wizard, jadi tidak ditimpa.
+        app(ModuleTemplateApplier::class)->applyToEvent($this->record, regenerateRundown: blank($this->record->rundown_items));
         app(LearningEventProvisioner::class)->provisionPaymentTerms($this->record);
     }
 }

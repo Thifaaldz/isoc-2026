@@ -53,6 +53,7 @@ class Profile extends Page implements HasForms
                 'school_id' => $user?->participant?->school_id ?? $user?->school_id,
                 'participant_category' => $user?->participant?->participant_category ?? 'pelajar',
                 'nis' => $user?->participant?->nis,
+                'nik' => $user?->participant?->nik,
                 'grade' => $user?->participant?->grade,
                 'gender' => $user?->participant?->gender,
                 'birth_date' => $user?->participant?->birth_date,
@@ -61,6 +62,10 @@ class Profile extends Page implements HasForms
             'tutor' => [
                 'school_id' => $user?->tutor?->school_id ?? $user?->school_id,
                 'institution' => $user?->tutor?->institution,
+                'nik' => $user?->tutor?->nik,
+                'npwp' => $user?->tutor?->npwp,
+                'bank_name' => $user?->tutor?->bank_name,
+                'bank_account_number' => $user?->tutor?->bank_account_number,
                 'tot_completed' => $user?->tutor?->tot_completed ?? false,
                 'is_cadre' => $user?->tutor?->is_cadre ?? false,
             ],
@@ -154,9 +159,14 @@ class Profile extends Page implements HasForms
                                 'karyawan' => 'Karyawan',
                             ])
                             ->native(false)
-                            ->required(),
+                            ->required()
+                            ->live(),
+                        Forms\Components\TextInput::make('participant.nik')
+                            ->label('NIK')
+                            ->maxLength(50),
                         Forms\Components\TextInput::make('participant.nis')
-                            ->label('NISN / NIM / NIK')
+                            ->label(fn (Forms\Get $get) => $get('participant.participant_category') === 'mahasiswa' ? 'NIM' : 'NISN')
+                            ->visible(fn (Forms\Get $get) => in_array($get('participant.participant_category'), ['pelajar', 'mahasiswa'], true))
                             ->maxLength(50),
                         Forms\Components\Select::make('participant.grade')
                             ->label('Kelas')
@@ -197,6 +207,19 @@ class Profile extends Page implements HasForms
                         Forms\Components\TextInput::make('tutor.institution')
                             ->label('Institusi')
                             ->maxLength(255),
+                        Forms\Components\TextInput::make('tutor.nik')
+                            ->label('NIK')
+                            ->maxLength(50),
+                        Forms\Components\TextInput::make('tutor.npwp')
+                            ->label('NPWP')
+                            ->maxLength(30),
+                        Forms\Components\TextInput::make('tutor.bank_name')
+                            ->label('Bank')
+                            ->placeholder('Contoh: BRI, BNI, Mandiri, BCA')
+                            ->maxLength(100),
+                        Forms\Components\TextInput::make('tutor.bank_account_number')
+                            ->label('Nomor Rekening')
+                            ->maxLength(50),
                         Forms\Components\Toggle::make('tutor.tot_completed')
                             ->label('ToT Selesai')
                             ->disabled()
@@ -312,7 +335,10 @@ class Profile extends Page implements HasForms
                 [
                     'school_id' => $schoolId,
                     'participant_category' => $participantData['participant_category'] ?? 'pelajar',
-                    'nis' => $participantData['nis'] ?? null,
+                    'nis' => in_array($participantData['participant_category'] ?? 'pelajar', ['pelajar', 'mahasiswa'], true)
+                        ? ($participantData['nis'] ?? null)
+                        : null,
+                    'nik' => $participantData['nik'] ?? null,
                     'grade' => $participantData['grade'] ?? null,
                     'gender' => $participantData['gender'] ?? null,
                     'birth_date' => $participantData['birth_date'] ?? null,
@@ -330,6 +356,10 @@ class Profile extends Page implements HasForms
                 [
                     'school_id' => $user->tutor?->school_id ?? $user->school_id,
                     'institution' => $tutorData['institution'] ?? null,
+                    'nik' => $tutorData['nik'] ?? null,
+                    'npwp' => $tutorData['npwp'] ?? null,
+                    'bank_name' => $tutorData['bank_name'] ?? null,
+                    'bank_account_number' => $tutorData['bank_account_number'] ?? null,
                 ],
             );
         }

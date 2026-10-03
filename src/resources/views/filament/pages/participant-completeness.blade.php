@@ -23,13 +23,13 @@
         .pc-title { color: #111827; font-size: 22px; font-weight: 850; margin: 0; }
         .pc-text { color: #64748b; font-size: 13px; line-height: 1.6; margin: 6px 0 0; }
         .pc-select {
-            background: #fff;
+            background-color: #fff;
             border: 1px solid #d1d5db;
             border-radius: 10px;
             color: #111827;
             min-height: 42px;
             min-width: 320px;
-            padding: 0 12px;
+            padding: 0 40px 0 12px;
         }
         .pc-grid {
             display: grid;

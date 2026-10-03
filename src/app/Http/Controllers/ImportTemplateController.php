@@ -14,9 +14,9 @@ class ImportTemplateController
             'template-import-peserta.xlsx',
             'Template Peserta',
             [
-                ['name', 'nisn_or_nik', 'grade', 'organization', 'position', 'gender', 'birth_date', 'phone', 'email'],
-                ['Peserta Sekolah', '0012345678', 'X', 'SMK Negeri 2 Jakarta', 'Siswa', 'L', '2010-02-14', '081322220000', 'peserta.sekolah@isoc.id'],
-                ['Peserta Umum', '3171010101900001', '', 'Komunitas Digital', 'Relawan', 'P', '2000-05-02', '081322220001', 'peserta.umum@isoc.id'],
+                ['name', 'nisn', 'nik', 'grade', 'organization', 'position', 'gender', 'birth_date', 'phone', 'email'],
+                ['Peserta Sekolah', '0012345678', '3171011402100001', 'X', 'SMK Negeri 2 Jakarta', 'Siswa', 'L', '2010-02-14', '081322220000', 'peserta.sekolah@isoc.id'],
+                ['Peserta Umum', '', '3171010101900001', '', 'Komunitas Digital', 'Relawan', 'P', '2000-05-02', '081322220001', 'peserta.umum@isoc.id'],
             ],
         );
     }
@@ -27,9 +27,9 @@ class ImportTemplateController
             'template-import-tutor.xlsx',
             'Template Tutor',
             [
-                ['name', 'phone', 'email', 'institution', 'notes'],
-                ['Tutor ISOC Utama', '081311110000', 'tutor.utama@isoc.id', 'RTIK Jakarta', 'Fasilitator utama'],
-                ['Fasilitator Sekolah', '081311110001', 'fasilitator.sekolah@isoc.id', 'SMK Negeri 2 Jakarta', 'Pendamping kelas'],
+                ['name', 'phone', 'email', 'institution', 'nik', 'npwp', 'bank_name', 'bank_account_number', 'notes'],
+                ['Tutor ISOC Utama', '081311110000', 'tutor.utama@isoc.id', 'RTIK Jakarta', '3171010101850001', '12.345.678.9-012.000', 'BRI', '0123456789', 'Fasilitator utama'],
+                ['Fasilitator Sekolah', '081311110001', 'fasilitator.sekolah@isoc.id', 'SMK Negeri 2 Jakarta', '3171010101900002', '', 'BNI', '9876543210', 'Pendamping kelas'],
             ],
         );
     }

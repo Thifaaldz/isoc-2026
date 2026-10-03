@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\UserRole;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
+use App\Models\Certificate;
+use App\Models\MicrositePractice;
+use App\Support\TorEventTemplate;
 use App\Models\Evidence;
 use App\Models\LearningEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -53,6 +56,8 @@ class EventActivityReportController extends Controller
             'meetings.materials',
             'assessments',
             'evidences',
+            'orderedPartners',
+            'creator',
         ]);
 
         $assessmentIds = $event->assessments->pluck('id');
@@ -83,6 +88,13 @@ class EventActivityReportController extends Controller
             return $scores->isEmpty() ? null : round((float) $scores->avg(), 2);
         };
 
+        // Rata-rata kolom asesmen lain (identifikasi ancaman, self-efficacy) per jenis tes.
+        $averageColumn = function (string $type, string $column) use ($attempts, $assessmentIdsByType): ?float {
+            $values = $attempts->whereIn('assessment_id', $assessmentIdsByType($type))->pluck($column)->filter(fn ($value) => $value !== null);
+
+            return $values->isEmpty() ? null : round((float) $values->avg(), 2);
+        };
+
         $completionFor = function (string $type) use ($attempts, $assessmentIdsByType): int {
             return $attempts
                 ->whereIn('assessment_id', $assessmentIdsByType($type))
@@ -98,6 +110,7 @@ class EventActivityReportController extends Controller
                 'name' => $participant->user?->name ?? '-',
                 'email' => $participant->user?->email ?? '-',
                 'identity' => $participant->nis ?: '-',
+                'nik' => $participant->nik ?: '-',
                 'grade' => $participant->grade ?: '-',
                 'pre' => $scoreFor($participant->id, 'pre'),
                 'post' => $scoreFor($participant->id, 'post'),
@@ -106,9 +119,58 @@ class EventActivityReportController extends Controller
                 'followed_instagram' => (bool) $participant->followed_instagram,
             ]);
 
-        $senaLogo = public_path('images/sena-logo.png');
+        $participants = $event->participants;
+        $participantCount = $participants->count();
+        $evidences = $event->evidences;
+        $approvedTypeCount = fn (string $type) => $evidences->where('type', $type)->where('status', 'approved')->count();
+        $microsites = MicrositePractice::query()
+            ->with('participant.user')
+            ->where('learning_event_id', $event->id)
+            ->whereNotNull('sid_url')
+            ->latest()
+            ->get()
+            ->unique('participant_id');
+        $issuedCertificates = Certificate::query()->where('learning_event_id', $event->id)->where('status', 'issued')->count();
+        $followedInstagram = $participants->where('followed_instagram', true)->count();
+        $joinedWag = $participants->where('joined_wag', true)->count();
+        $preCompleted = $completionFor('pre');
+        $postCompleted = $completionFor('post');
+        $photoCounts = Evidence::photoCounts($event->id, approvedOnly: true);
+        $legacyPhotos = $approvedTypeCount('foto_sesi');
+        $targetParticipants = (int) ($event->target_participants ?: TorEventTemplate::DEFAULT_PARTICIPANTS);
+        $targetTutors = (int) ($event->target_tutors ?: TorEventTemplate::DEFAULT_TUTORS);
+
+        // Bukti dukung sesuai TOR ("Bukti Dukung" poin 1-7) beserta capaiannya di lokasi ini.
+        $torEvidence = [
+            ['Absensi nama & tanda tangan basah', "{$targetTutors} tutor + {$targetParticipants} peserta", $approvedTypeCount('absensi_basah') . ' berkas disetujui', $approvedTypeCount('absensi_basah') > 0],
+            ['Follow Instagram ISOC @isoc.id.jkt', "{$participantCount} peserta", "{$followedInstagram} peserta", $participantCount > 0 && $followedInstagram >= $participantCount],
+            ['Join WAG ISOC Champion', "{$participantCount} peserta", "{$joinedWag} peserta", $participantCount > 0 && $joinedWag >= $participantCount],
+            ['Registrasi laman ISOC untuk e-Sertifikat', "{$participantCount} peserta", "{$participantCount} terdaftar, {$issuedCertificates} e-Sertifikat terbit", $participantCount > 0],
+        ];
+
+        foreach (Evidence::REQUIRED_PHOTOS as $type => $photo) {
+            // Status laporan dihitung dari jumlah foto per jenis yang benar-benar disetujui.
+            $torEvidence[] = ["Foto {$photo['step']}. {$photo['instruction']}", "{$photo['min']} foto", "{$photoCounts[$type]} foto disetujui", $photoCounts[$type] >= $photo['min']];
+        }
+
+        if ($legacyPhotos > 0) {
+            $torEvidence[] = ['Foto kegiatan per sesi (format lama, sebelum checklist foto wajib a-g)', '-', "{$legacyPhotos} foto disetujui", true];
+        }
+
+        $torEvidence[] = ['Video Tutor & Peserta dengan slogan "ISOC - The Internet is for Everyone"', '1 video', $approvedTypeCount('video_slogan') . ' video disetujui', $approvedTypeCount('video_slogan') > 0];
+        $torEvidence[] = ['Pre-Test di awal dan Post-Test di akhir sesi', "{$participantCount} peserta", "Pre {$preCompleted}, Post {$postCompleted} peserta", $participantCount > 0 && $preCompleted >= $participantCount && $postCompleted >= $participantCount];
 
         return Pdf::loadView('reports.event-activity', [
+            'torEvidence' => $torEvidence,
+            'microsites' => $microsites,
+            'issuedCertificates' => $issuedCertificates,
+            'followedInstagram' => $followedInstagram,
+            'joinedWag' => $joinedWag,
+            'targetParticipants' => $targetParticipants,
+            'targetTutors' => $targetTutors,
+            'threatAverage' => $averageColumn('post', 'threat_identification'),
+            'selfEfficacyPre' => $averageColumn('pre', 'self_efficacy'),
+            'selfEfficacyPost' => $averageColumn('post', 'self_efficacy'),
             'event' => $event,
             'school' => $event->school,
             'participants' => $event->participants,
@@ -123,7 +185,6 @@ class EventActivityReportController extends Controller
             'postCompleted' => $completionFor('post'),
             'quizCompleted' => $completionFor('quiz'),
             'participantScores' => $participantScores,
-            'evidencePreviewSrc' => file_exists($senaLogo) ? 'data:image/png;base64,' . base64_encode(file_get_contents($senaLogo)) : null,
             'attempts' => $attempts,
             'preTotal' => Assessment::query()->where('learning_event_id', $event->id)->where('type', 'pre')->count(),
             'postTotal' => Assessment::query()->where('learning_event_id', $event->id)->where('type', 'post')->count(),

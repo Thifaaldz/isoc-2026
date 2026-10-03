@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ModuleTemplate extends Model
 {
@@ -37,6 +38,23 @@ class ModuleTemplate extends Model
     public function scopeForTutors(Builder $query): Builder
     {
         return $query->where('audience', self::AUDIENCE_TUTOR);
+    }
+
+    /** Materi peserta asal untuk materi tutor auto-generated. */
+    public function sourceTemplate(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'source_template_id');
+    }
+
+    /** Materi tutor auto-generated dari materi peserta ini. */
+    public function tutorMirror(): HasOne
+    {
+        return $this->hasOne(self::class, 'source_template_id');
+    }
+
+    public function isGeneratedForTutor(): bool
+    {
+        return $this->source_template_id !== null;
     }
 
     public function creator(): BelongsTo

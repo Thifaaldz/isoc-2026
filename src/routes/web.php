@@ -66,6 +66,8 @@ Route::middleware('auth')->get('/certificates/{certificate}/preview-pdf', [Certi
     ->name('certificates.preview-pdf');
 Route::middleware('auth')->get('/certificates/{certificate}/download-pdf', [CertificatePdfController::class, 'download'])
     ->name('certificates.download-pdf');
+Route::middleware('auth')->get('/events/{event}/certificates/download', [CertificatePdfController::class, 'downloadEvent'])
+    ->name('certificates.event-download');
 Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
     ->name('certificate-templates.preview-pdf');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])

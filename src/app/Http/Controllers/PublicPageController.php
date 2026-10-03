@@ -148,9 +148,13 @@ class PublicPageController extends Controller
             ->where('status', 'active')
             ->orderBy('starts_at')
             ->get()
-            ->map(fn (LearningEvent $event) => $this->publicEventFromModel($event));
+            ->map(fn (LearningEvent $event) => $this->publicEventFromModel($event))
+            // Event yang masih bisa didaftari tampil lebih dulu, event yang sudah lewat di akhir.
+            ->sortBy(fn (PublicEvent $event) => [$event->isPast() ? 1 : 0, $event->canRegister() ? 0 : 1, $event->date?->timestamp ?? PHP_INT_MAX])
+            ->values();
 
         $event = $publishedEvents->first() ?? $this->event();
+        $upcomingEvents = $publishedEvents->reject(fn (PublicEvent $event) => $event->isPast())->values();
 
         return view('pages.events', [
             'sections' => [
@@ -161,7 +165,7 @@ class PublicPageController extends Controller
             'items' => [],
             'featuredEvent' => $event,
             'events' => $publishedEvents->slice(1)->values(),
-            'upcomingEvents' => $publishedEvents->isNotEmpty() ? $publishedEvents : collect([$event]),
+            'upcomingEvents' => $upcomingEvents,
             'settings' => $this->settings(),
         ]);
     }
@@ -187,18 +191,24 @@ class PublicPageController extends Controller
         ]);
     }
 
+    /** Event utama untuk tombol daftar di Home/Program: utamakan event yang masih bisa didaftari. */
     public function event(): PublicEvent
     {
-        $event = LearningEvent::query()
+        $events = LearningEvent::query()
             ->withCount('participants')
             ->with('school')
             ->where('is_published', true)
             ->where('status', 'active')
             ->orderBy('starts_at')
-            ->first();
+            ->get()
+            ->map(fn (LearningEvent $event) => $this->publicEventFromModel($event));
+
+        $event = $events->first(fn (PublicEvent $event) => $event->canRegister())
+            ?? $events->first(fn (PublicEvent $event) => ! $event->isPast())
+            ?? $events->last();
 
         if ($event) {
-            return $this->publicEventFromModel($event);
+            return $event;
         }
 
         return new PublicEvent(
@@ -241,6 +251,7 @@ class PublicPageController extends Controller
             confirmed_count: (int) ($event->participants_count ?? 0),
             capacity_info: ($event->participants_count ?? 0) . '/' . ($event->target_participants ?: 0) . ' peserta',
             audience_type: $event->audience_type ?? 'school',
+            ends_at: $event->ends_at,
         );
     }
 

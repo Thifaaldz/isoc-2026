@@ -134,7 +134,7 @@
                     @if($certificate?->isEligible() && ! $certificate->isIssued() && $certificate->status !== 'revoked')
                         <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--success-400), 0.12); color: rgb(var(--success-700));">
                             <div class="font-semibold">Syarat sertifikat sudah lengkap.</div>
-                            <div class="mt-1">Sertifikat nomor {{ $certificate->number }} sedang menunggu penerbitan oleh admin. Tombol unduh akan muncul setelah sertifikat diterbitkan.</div>
+                            <div class="mt-1">Sertifikat nomor {{ $certificate->number }} sedang disiapkan. Muat ulang halaman untuk mengunduh.</div>
                         </div>
                     @elseif($certificate?->isIssued())
                         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -158,7 +158,7 @@
                                 @forelse($this->certificateNotes as $note)
                                     <li>{{ $note }}</li>
                                 @empty
-                                    <li>Selesaikan pre-test, kuis modul, dan post-test terlebih dahulu.</li>
+                                    <li>Selesaikan pre-test, post-test, dan isi link s.id terlebih dahulu.</li>
                                 @endforelse
                             </ul>
                         </div>

@@ -42,7 +42,9 @@ class EditLearningEvent extends EditRecord
 
     protected function afterSave(): void
     {
-        if ($this->record->wasChanged('module_template_id')) {
+        LearningEventResource::syncCertificatePartners($this->record, (array) ($this->data['certificate_partner_ids'] ?? []));
+
+        if ($this->record->wasChanged(['module_template_id', 'selected_meeting_ids'])) {
             app(ModuleTemplateApplier::class)->applyToEvent($this->record);
         }
 

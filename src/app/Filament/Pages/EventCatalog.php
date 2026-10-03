@@ -88,14 +88,8 @@ class EventCatalog extends Page
                     return;
                 }
 
-                if (! $event->registration_open) {
-                    Notification::make()->title('Pendaftaran event ini sudah ditutup.')->warning()->send();
-
-                    return;
-                }
-
-                if ($service->isFull($event)) {
-                    Notification::make()->title('Kuota peserta event ini sudah penuh.')->warning()->send();
+                if ($reason = $service->registrationClosedReason($event)) {
+                    Notification::make()->title($reason)->warning()->send();
 
                     return;
                 }
@@ -115,6 +109,11 @@ class EventCatalog extends Page
     public function isFull(LearningEvent $event): bool
     {
         return app(EventEnrollmentService::class)->isFull($event);
+    }
+
+    public function isPast(LearningEvent $event): bool
+    {
+        return app(EventEnrollmentService::class)->isPast($event);
     }
 
     private function findEvent(array $arguments): ?LearningEvent

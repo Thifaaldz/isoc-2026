@@ -26,9 +26,20 @@ class AttendanceTemplateController
             ? $session->school->participants()->with('user')->orderBy('nis')->get()
             : collect();
 
+        // TOR: absensi nama & tanda tangan basah untuk 3 tutor + 100 peserta per lokasi.
+        $tutors = $session->school_id
+            ? \App\Models\Tutor::query()
+                ->with('user')
+                ->whereHas('learningEvents', fn ($query) => $query->where('school_id', $session->school_id))
+                ->get()
+            : collect();
+
         return view('attendance.template', [
             'session' => $session,
             'participants' => $participants,
+            'tutors' => $tutors,
+            'tutorRows' => max(\App\Support\TorEventTemplate::DEFAULT_TUTORS, $tutors->count()),
+            'participantRows' => max(\App\Support\TorEventTemplate::DEFAULT_PARTICIPANTS, $participants->count()),
         ]);
     }
 }

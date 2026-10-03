@@ -10,6 +10,8 @@ use App\Filament\Support\SchoolLocationFields;
 use App\Models\Evidence;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
+use App\Models\LearningMeeting;
+use App\Support\TorEventTemplate;
 use App\Models\ModuleTemplate;
 use App\Models\Partner;
 use App\Models\School;
@@ -60,6 +62,12 @@ class LearningEventResource extends Resource
         return 'learning_event';
     }
 
+    /** Preview mengikuti hak lihat daftar event; cakupan record dibatasi lewat query per role. */
+    public static function canView(Model $record): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function canDelete(Model $record): bool
     {
         return auth()->user()?->role === UserRole::SuperAdmin;
@@ -81,6 +89,7 @@ class LearningEventResource extends Resource
                         Forms\Components\Hidden::make('created_by')->default(fn () => auth()->id()),
                         Forms\Components\TextInput::make('title')
                             ->label('Nama Event / Lokus')
+                            ->helperText('Otomatis "' . TorEventTemplate::TITLE_PREFIX . '{kota lokasi}" setelah lokasi dipilih, tetap bisa diubah.')
                             ->required()
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn ($state, Forms\Set $set) => $set('slug', Str::slug((string) $state))),
@@ -103,6 +112,18 @@ class LearningEventResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required(fn (Get $get) => $get('audience_type') !== 'general')
+                            ->live()
+                            ->afterStateUpdated(function ($state, Get $get, Set $set): void {
+                                $title = (string) $get('title');
+
+                                // Nama event mengikuti format TOR selama belum diganti manual.
+                                if ($state && ($title === '' || str_starts_with($title, TorEventTemplate::TITLE_PREFIX))) {
+                                    $school = School::query()->find($state);
+                                    $title = TorEventTemplate::title($school?->city ?: $school?->name);
+                                    $set('title', $title);
+                                    $set('slug', Str::slug($title));
+                                }
+                            })
                             ->helperText(fn (Get $get) => $get('audience_type') === 'general'
                                 ? 'Opsional untuk event umum.'
                                 : 'Wajib untuk event khusus lokasi.')
@@ -124,7 +145,7 @@ class LearningEventResource extends Resource
 
                                 return $schoolId;
                             }),
-                        Forms\Components\Textarea::make('description')->label('Deskripsi')->columnSpanFull(),
+                        Forms\Components\Textarea::make('description')->label('Deskripsi Acara')->default(TorEventTemplate::DESCRIPTION)->columnSpanFull(),
                         Forms\Components\TextInput::make('zoom_url')
                             ->label('Link Zoom / Webinar')
                             ->url()
@@ -135,15 +156,47 @@ class LearningEventResource extends Resource
                             ->columnSpanFull(),
                         Forms\Components\Select::make('module_template_id')
                             ->label('Materi Event')
-                            ->helperText('Pilih materi event tipe Peserta dari Admin RTIK Pusat. Sistem akan generate pertemuan, materi, tugas, dan kuis ke seminar ini.')
+                            ->helperText('Pilih materi event tipe Peserta dari Admin RTIK Pusat, lalu centang modul yang akan dibawakan. Sistem akan generate pertemuan, materi, tugas, dan kuis ke seminar ini.')
                             ->options(fn () => ModuleTemplate::query()->forParticipants()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
+                            ->default(fn () => ModuleTemplate::query()->forParticipants()->where('is_active', true)->orderBy('id')->value('id'))
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                $set('selected_meeting_ids', []);
+                                static::refreshTorRundown($get, $set);
+                            })
                             ->nullable(),
+                        Forms\Components\CheckboxList::make('selected_meeting_ids')
+                            ->label('Modul yang dibawakan')
+                            ->helperText(fn (Get $get) => 'Pilih ' . static::requiredModuleCount($get('module_template_id')) . ' modul. Hanya modul ini yang tampil untuk peserta dan tutor serta masuk ke rundown event.')
+                            ->options(fn (Get $get) => static::templateModuleOptions($get('module_template_id')))
+                            ->live()
+                            ->afterStateUpdated(fn (Get $get, Set $set) => static::refreshTorRundown($get, $set))
+                            ->visible(fn (Get $get) => filled($get('module_template_id')))
+                            ->required(fn (Get $get) => filled($get('module_template_id')))
+                            ->rule(fn (Get $get) => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                $required = static::requiredModuleCount($get('module_template_id'));
+
+                                if (count((array) $value) !== $required) {
+                                    $fail("Pilih tepat {$required} modul yang akan dibawakan.");
+                                }
+                            })
+                            ->columns(2)
+                            ->columnSpanFull(),
                         Forms\Components\Select::make('partners')
                             ->label('Mitra Event')
-                            ->helperText('Logo mitra yang dipilih akan otomatis tersusun di sertifikat pada elemen Logo Mitra Event.')
+                            ->helperText('Otomatis mitra kolaborasi sesuai TOR. Centang di bawah untuk menentukan logo mitra yang masuk ke sertifikat.')
                             ->relationship('partners', 'name', fn ($query) => $query->where('status', 'active')->orderBy('name'))
+                            ->default(fn () => TorEventTemplate::partnerIds())
+                            ->live()
+                            ->afterStateUpdated(function ($state, $old, Get $get, Set $set): void {
+                                // Mitra baru otomatis dicentang; mitra yang dihapus ikut keluar dari checklist sertifikat.
+                                $selected = array_map('strval', (array) $state);
+                                $checked = array_map('strval', (array) ($get('certificate_partner_ids') ?? []));
+                                $added = array_diff($selected, array_map('strval', (array) $old));
+                                $set('certificate_partner_ids', array_values(array_intersect($selected, array_unique([...$checked, ...$added]))));
+                            })
                             ->multiple()
                             ->searchable()
                             ->preload()
@@ -174,6 +227,26 @@ class LearningEventResource extends Resource
                             ])
                             ->createOptionUsing(fn (array $data) => Partner::query()->create($data)->id)
                             ->columnSpanFull(),
+                        Forms\Components\CheckboxList::make('certificate_partner_ids')
+                            ->label('Logo mitra di sertifikat')
+                            ->helperText('Hanya logo mitra yang dicentang yang tampil di sertifikat peserta.')
+                            ->options(fn (Get $get) => Partner::query()
+                                ->whereIn('id', (array) ($get('partners') ?? []))
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->mapWithKeys(fn ($name, $id) => [(string) $id => $name])
+                                ->all())
+                            ->default(fn () => TorEventTemplate::partnerIds())
+                            ->afterStateHydrated(function (Forms\Components\CheckboxList $component, ?LearningEvent $record): void {
+                                if ($record?->exists) {
+                                    $component->state($record->certificatePartners()->pluck('partners.id')->map(fn ($id) => (string) $id)->all());
+                                }
+                            })
+                            ->visible(fn (Get $get) => filled($get('partners')))
+                            ->dehydrated(false)
+                            ->bulkToggleable()
+                            ->columns(3)
+                            ->columnSpanFull(),
                         Forms\Components\Select::make('certificate_template_id')
                             ->label('Template Sertifikat')
                             ->helperText('Template ini dipakai otomatis untuk sertifikat peserta event ini.')
@@ -190,7 +263,25 @@ class LearningEventResource extends Resource
                             ->seconds(false)
                             ->native(false)
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, Set $set) => $set('training_start_time', static::timeFromDateTime($state, '09:00')))
+                            ->afterStateUpdated(function ($state, $old, Get $get, Set $set): void {
+                                // Saat tanggal pertama kali dipilih, jam mulai otomatis 09:00 sesuai TOR.
+                                if (filled($state) && blank($old)) {
+                                    $state = Carbon::parse($state)->setTimeFromTimeString(TorEventTemplate::DEFAULT_START)->format('Y-m-d H:i:s');
+                                    $set('starts_at', $state);
+                                }
+
+                                $set('training_start_time', static::timeFromDateTime($state, TorEventTemplate::DEFAULT_START));
+
+                                // Durasi kegiatan TOR 180 menit: jam selesai otomatis, tetap bisa diubah.
+                                if (filled($state)) {
+                                    $endsAt = Carbon::parse($state)->addMinutes(TorEventTemplate::DURATION_MINUTES);
+                                    $set('ends_at', $endsAt->format('Y-m-d H:i:s'));
+                                    $set('training_end_time', $endsAt->format('H:i'));
+                                }
+
+                                static::refreshTorRundown($get, $set);
+                            })
+                            ->helperText('Pilih tanggal; jam mulai otomatis 09:00, jam selesai 12:00, dan rundown mengikuti TOR (180 menit). Jam tetap bisa diubah.')
                             ->required(),
                         Forms\Components\DateTimePicker::make('ends_at')
                             ->label('Tanggal & Jam Selesai')
@@ -201,8 +292,12 @@ class LearningEventResource extends Resource
                             ->required(),
                         Forms\Components\Hidden::make('training_start_time')->default('09:00'),
                         Forms\Components\Hidden::make('training_end_time')->default('12:00'),
-                        Forms\Components\TextInput::make('target_participants')->label('Target Peserta')->numeric()->default(100)->required(),
-                        Forms\Components\TextInput::make('target_tutors')->label('Target Tutor')->numeric()->default(3)->required(),
+                        Forms\Components\TextInput::make('target_participants')->label('Target Peserta')->numeric()->default(TorEventTemplate::DEFAULT_PARTICIPANTS)->required()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Get $get, Set $set) => static::refreshTorBudgetQuantities($get, $set)),
+                        Forms\Components\TextInput::make('target_tutors')->label('Target Tutor')->numeric()->default(TorEventTemplate::DEFAULT_TUTORS)->required()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Get $get, Set $set) => static::refreshTorBudgetQuantities($get, $set)),
                         Forms\Components\FileUpload::make('preparation_document')
                             ->acceptedFileTypes(UploadTypes::documents())
                             ->label('Surat/MoU/Berita Acara Persiapan')
@@ -286,9 +381,13 @@ class LearningEventResource extends Resource
                             ->label('Data Peserta')
                             ->schema([
                                 Forms\Components\TextInput::make('name')->label('Nama lengkap')->required(),
+                                Forms\Components\TextInput::make('nik')
+                                    ->label('NIK')
+                                    ->maxLength(50),
                                 Forms\Components\TextInput::make('nis')
-                                    ->label(fn (Get $get) => ($get('../../audience_type') === 'general') ? 'NIK' : 'NISN')
-                                    ->helperText('Berdasarkan Kategori Peserta: Khusus Lokasi memakai NISN 10 digit, Umum memakai NIK 16 digit.'),
+                                    ->label('NISN')
+                                    ->helperText('Khusus Lokasi (pelajar) dapat mengisi NISN selain NIK.')
+                                    ->visible(fn (Get $get) => $get('../../audience_type') !== 'general'),
                                 Forms\Components\TextInput::make('grade')->label('Kelas'),
                                 Forms\Components\TextInput::make('organization')->label('Organisasi / Instansi'),
                                 Forms\Components\TextInput::make('position')->label('Jabatan / Peran'),
@@ -369,6 +468,10 @@ class LearningEventResource extends Resource
                                 Forms\Components\TextInput::make('phone')->label('Kontak'),
                                 Forms\Components\TextInput::make('email')->label('Email')->email(),
                                 Forms\Components\TextInput::make('institution')->label('Institusi / Lembaga'),
+                                Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
+                                Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30),
+                                Forms\Components\TextInput::make('bank_name')->label('Bank')->maxLength(100),
+                                Forms\Components\TextInput::make('bank_account_number')->label('Nomor Rekening')->maxLength(50),
                                 Forms\Components\Textarea::make('notes')->label('Catatan')->columnSpanFull(),
                             ])
                             ->columns(2)
@@ -384,13 +487,13 @@ class LearningEventResource extends Resource
                     ->icon('heroicon-o-clock')
                     ->schema([
                         Forms\Components\Section::make('Rundown Acara')
-                            ->description('Default mengikuti format pelatihan 180 menit. Admin daerah tetap bisa mengubah jam, agenda, PIC, dan catatan.')
+                            ->description('Otomatis mengikuti susunan acara TOR (180 menit) dari jam mulai dan 2 modul yang dipilih. Admin daerah tetap bisa mengubah jam, agenda, PIC, dan catatan.')
                             ->schema([
                                 Forms\Components\Repeater::make('rundown_items')
                                     ->hiddenLabel()
                                     ->schema(static::rundownItemSchema())
                                     ->columns(12)
-                                    ->default(static::defaultRundownItems())
+                                    ->default(fn () => static::keyedItems(TorEventTemplate::rundown()))
                                     ->addActionLabel('Tambah agenda')
                                     ->reorderableWithButtons()
                                     ->collapsible()
@@ -427,13 +530,13 @@ class LearningEventResource extends Resource
                             ])
                             ->columns(2),
                         Forms\Components\Section::make('Input Manual RAB')
-                            ->description('Isi item biaya langsung di sistem. Total item dipakai untuk estimasi termin pembayaran.')
+                            ->description('Komponen biaya otomatis sesuai TOR (Termin-1: banner, snack, kebersihan sekolah; Termin-2: honor tutor, administrasi & operasional RTIK Pusat). Lengkapi harga satuan; total per termin dipakai untuk termin pembayaran.')
                             ->schema([
                                 Forms\Components\Repeater::make('budget_items')
                                     ->hiddenLabel()
                                     ->schema(static::budgetItemSchema())
                                     ->columns(12)
-                                    ->defaultItems(1)
+                                    ->default(fn () => static::keyedItems(TorEventTemplate::budgetItems()))
                                     ->addActionLabel('Tambah item biaya')
                                     ->reorderableWithButtons()
                                     ->collapsible()
@@ -451,6 +554,8 @@ class LearningEventResource extends Resource
                     ->columns(1),
             ])
                 ->persistStepInQueryString()
+                // Mode preview: semua langkah bisa dibuka langsung tanpa validasi.
+                ->skippable(fn (string $operation) => $operation === 'view')
                 ->columnSpanFull(),
         ]);
     }
@@ -586,204 +691,10 @@ class LearningEventResource extends Resource
                     ->label('Publish'),
             ])
             ->actions([
-                Tables\Actions\Action::make('submitApplication')
-                    ->label('Submit Pengajuan')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin && in_array($record->workflow_status, ['draft', 'needs_revision'], true))
-                    ->action(function (LearningEvent $record): void {
-                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
-
-                        $record->update([
-                            'workflow_status' => 'submitted',
-                            'central_admin_notes' => null,
-                            'local_updated_at' => now(),
-                            'local_update_summary' => 'Pengajuan event dikirim ke Admin RTIK Pusat.',
-                        ]);
-                    }),
-                Tables\Actions\Action::make('verifyTerm1')
-                    ->label('Approve Event')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->workflow_status === 'submitted')
-                    ->form([
-                        Forms\Components\Textarea::make('central_admin_notes')
-                            ->label('Catatan approval')
-                            ->placeholder('Opsional: catatan untuk Admin RTIK daerah.')
-                            ->rows(3),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        app(LearningEventProvisioner::class)->provisionAccounts($record);
-                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
-
-                        $note = $data['central_admin_notes'] ?? null;
-
-                        $record->update([
-                            'workflow_status' => 'verified_term_1',
-                            'status' => 'active',
-                            'publish_approval_status' => 'pending',
-                            'is_published' => false,
-                            'registration_open' => false,
-                            'central_admin_notes' => $note,
-                        ]);
-
-                        Notification::make()
-                            ->title('Pengajuan disetujui')
-                            ->body('Akun peserta dan tutor sudah dibuat. Event menunggu approval publish sebelum tampil di landing page dan Termin-1 aktif.')
-                            ->success()
-                            ->send();
-                    }),
-                Tables\Actions\Action::make('requestPublishApproval')
-                    ->label('Ajukan Publish')
-                    ->icon('heroicon-o-megaphone')
-                    ->color('warning')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
-                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
-                        && in_array($record->publish_approval_status, ['draft', 'revision'], true))
-                    ->action(function (LearningEvent $record): void {
-                        $record->update([
-                            'publish_approval_status' => 'pending',
-                            'publish_revision_notes' => null,
-                            'local_updated_at' => now(),
-                            'local_update_summary' => 'Admin RTIK Daerah mengajukan publish event.',
-                        ]);
-
-                        Notification::make()
-                            ->title('Pengajuan publish dikirim')
-                            ->body('Admin RTIK Pusat akan mengecek event sebelum tampil di landing page.')
-                            ->success()
-                            ->send();
-                    }),
-                Tables\Actions\Action::make('approvePublish')
-                    ->label('Publish + T1')
-                    ->icon('heroicon-o-rocket-launch')
-                    ->color('success')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
-                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
-                        && in_array($record->publish_approval_status, ['pending', 'revision', 'draft'], true))
-                    ->form([
-                        Forms\Components\Textarea::make('central_admin_notes')
-                            ->label('Catatan publish / Termin-1')
-                            ->placeholder('Opsional: catatan publish dan Termin-1.')
-                            ->rows(3),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
-
-                        $note = $data['central_admin_notes'] ?? null;
-
-                        $record->update([
-                            'publish_approval_status' => 'published',
-                            'publish_revision_notes' => null,
-                            'is_published' => true,
-                            'registration_open' => true,
-                            'status' => 'active',
-                            'central_admin_notes' => $note ?: $record->central_admin_notes,
-                            'publish_approved_by' => auth()->id(),
-                            'publish_approved_at' => now(),
-                        ]);
-
-                        $record->payments()->where('term', 1)->update([
-                            'status' => 'eligible',
-                            'notes' => $note,
-                            'approved_by' => auth()->id(),
-                            'approved_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Event dipublish')
-                            ->body('Event tampil di landing page/peserta dan Termin-1 sudah eligible.')
-                            ->success()
-                            ->send();
-                    }),
-                Tables\Actions\Action::make('requestPublishRevision')
-                    ->label('Revisi Publish')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
-                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
-                        && $record->publish_approval_status === 'pending')
-                    ->form([
-                        Forms\Components\Textarea::make('publish_revision_notes')
-                            ->label('Catatan revisi publish')
-                            ->required()
-                            ->rows(4),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        $record->update([
-                            'publish_approval_status' => 'revision',
-                            'is_published' => false,
-                            'registration_open' => false,
-                            'publish_revision_notes' => $data['publish_revision_notes'],
-                        ]);
-
-                        Notification::make()
-                            ->title('Publish dikembalikan untuk revisi')
-                            ->body('Event tetap approved, tetapi belum tampil di landing page sampai publish disetujui.')
-                            ->warning()
-                            ->send();
-                    }),
-                Tables\Actions\Action::make('requestRevision')
-                    ->label('Revisi Event')
-                    ->icon('heroicon-o-pencil-square')
-                    ->color('warning')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->workflow_status === 'submitted')
-                    ->form([
-                        Forms\Components\Textarea::make('central_admin_notes')
-                            ->label('Catatan perbaikan')
-                            ->required()
-                            ->rows(4),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        $record->update([
-                            'workflow_status' => 'needs_revision',
-                            'publish_approval_status' => 'draft',
-                            'is_published' => false,
-                            'registration_open' => false,
-                            'central_admin_notes' => $data['central_admin_notes'],
-                        ]);
-
-                        $record->payments()->where('term', 1)->update([
-                            'status' => 'revision',
-                            'notes' => $data['central_admin_notes'],
-                        ]);
-
-                        Notification::make()
-                            ->title('Pengajuan dikembalikan untuk perbaikan')
-                            ->warning()
-                            ->send();
-                    }),
-                Tables\Actions\Action::make('cancelApplication')
-                    ->label('Cancel')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && in_array($record->workflow_status, ['submitted', 'needs_revision'], true))
-                    ->form([
-                        Forms\Components\Textarea::make('central_admin_notes')
-                            ->label('Alasan cancel')
-                            ->required()
-                            ->rows(4),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        $record->update([
-                            'workflow_status' => 'cancelled',
-                            'publish_approval_status' => 'draft',
-                            'status' => 'closed',
-                            'registration_open' => false,
-                            'is_published' => false,
-                            'central_admin_notes' => $data['central_admin_notes'],
-                        ]);
-
-                        $record->payments()->update([
-                            'status' => 'revision',
-                            'notes' => $data['central_admin_notes'],
-                        ]);
-
-                        Notification::make()
-                            ->title('Pengajuan dibatalkan')
-                            ->danger()
-                            ->send();
-                    }),
+                Tables\Actions\ViewAction::make()
+                    ->label('Preview')
+                    ->icon('heroicon-o-eye'),
+                ...static::workflowActions(Tables\Actions\Action::class),
                 Tables\Actions\Action::make('submitFinalReport')
                     ->label('Submit Laporan Final')
                     ->icon('heroicon-o-paper-airplane')
@@ -938,11 +849,223 @@ class LearningEventResource extends Resource
             ]);
     }
 
+    /**
+     * Aksi alur pengajuan event (submit, approve, publish, revisi, cancel). Dipakai di tabel Kelola Seminar
+     * dan di halaman Preview event, dengan $class Tables\Actions\Action atau Filament\Actions\Action.
+     *
+     * @param  class-string  $class
+     * @return array<int, \Filament\Actions\Action|Tables\Actions\Action>
+     */
+    public static function workflowActions(string $class): array
+    {
+        return [
+                $class::make('submitApplication')
+                    ->label('Submit Pengajuan')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin && in_array($record->workflow_status, ['draft', 'needs_revision'], true))
+                    ->action(function (LearningEvent $record): void {
+                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
+
+                        $record->update([
+                            'workflow_status' => 'submitted',
+                            'central_admin_notes' => null,
+                            'local_updated_at' => now(),
+                            'local_update_summary' => 'Pengajuan event dikirim ke Admin RTIK Pusat.',
+                        ]);
+                    }),
+                $class::make('verifyTerm1')
+                    ->label('Approve Event')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->workflow_status === 'submitted')
+                    ->form([
+                        Forms\Components\Textarea::make('central_admin_notes')
+                            ->label('Catatan approval')
+                            ->placeholder('Opsional: catatan untuk Admin RTIK daerah.')
+                            ->rows(3),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        app(LearningEventProvisioner::class)->provisionAccounts($record);
+                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
+
+                        $note = $data['central_admin_notes'] ?? null;
+
+                        $record->update([
+                            'workflow_status' => 'verified_term_1',
+                            'status' => 'active',
+                            'publish_approval_status' => 'pending',
+                            'is_published' => false,
+                            'registration_open' => false,
+                            'central_admin_notes' => $note,
+                        ]);
+
+                        Notification::make()
+                            ->title('Pengajuan disetujui')
+                            ->body('Akun peserta dan tutor sudah dibuat. Event menunggu approval publish sebelum tampil di landing page dan Termin-1 aktif.')
+                            ->success()
+                            ->send();
+                    }),
+                $class::make('requestPublishApproval')
+                    ->label('Ajukan Publish')
+                    ->icon('heroicon-o-megaphone')
+                    ->color('warning')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
+                        && in_array($record->publish_approval_status, ['draft', 'revision'], true))
+                    ->action(function (LearningEvent $record): void {
+                        $record->update([
+                            'publish_approval_status' => 'pending',
+                            'publish_revision_notes' => null,
+                            'local_updated_at' => now(),
+                            'local_update_summary' => 'Admin RTIK Daerah mengajukan publish event.',
+                        ]);
+
+                        Notification::make()
+                            ->title('Pengajuan publish dikirim')
+                            ->body('Admin RTIK Pusat akan mengecek event sebelum tampil di landing page.')
+                            ->success()
+                            ->send();
+                    }),
+                $class::make('approvePublish')
+                    ->label('Publish + T1')
+                    ->icon('heroicon-o-rocket-launch')
+                    ->color('success')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
+                        && in_array($record->publish_approval_status, ['pending', 'revision', 'draft'], true))
+                    ->form([
+                        Forms\Components\Textarea::make('central_admin_notes')
+                            ->label('Catatan publish / Termin-1')
+                            ->placeholder('Opsional: catatan publish dan Termin-1.')
+                            ->rows(3),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        app(LearningEventProvisioner::class)->provisionPaymentTerms($record);
+
+                        $note = $data['central_admin_notes'] ?? null;
+
+                        $record->update([
+                            'publish_approval_status' => 'published',
+                            'publish_revision_notes' => null,
+                            'is_published' => true,
+                            'registration_open' => true,
+                            'status' => 'active',
+                            'central_admin_notes' => $note ?: $record->central_admin_notes,
+                            'publish_approved_by' => auth()->id(),
+                            'publish_approved_at' => now(),
+                        ]);
+
+                        $record->payments()->where('term', 1)->update([
+                            'status' => 'eligible',
+                            'notes' => $note,
+                            'approved_by' => auth()->id(),
+                            'approved_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Event dipublish')
+                            ->body('Event tampil di landing page/peserta dan Termin-1 sudah eligible.')
+                            ->success()
+                            ->send();
+                    }),
+                $class::make('requestPublishRevision')
+                    ->label('Revisi Publish')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
+                        && $record->publish_approval_status === 'pending')
+                    ->form([
+                        Forms\Components\Textarea::make('publish_revision_notes')
+                            ->label('Catatan revisi publish')
+                            ->required()
+                            ->rows(4),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        $record->update([
+                            'publish_approval_status' => 'revision',
+                            'is_published' => false,
+                            'registration_open' => false,
+                            'publish_revision_notes' => $data['publish_revision_notes'],
+                        ]);
+
+                        Notification::make()
+                            ->title('Publish dikembalikan untuk revisi')
+                            ->body('Event tetap approved, tetapi belum tampil di landing page sampai publish disetujui.')
+                            ->warning()
+                            ->send();
+                    }),
+                $class::make('requestRevision')
+                    ->label('Revisi Event')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && $record->workflow_status === 'submitted')
+                    ->form([
+                        Forms\Components\Textarea::make('central_admin_notes')
+                            ->label('Catatan perbaikan')
+                            ->required()
+                            ->rows(4),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        $record->update([
+                            'workflow_status' => 'needs_revision',
+                            'publish_approval_status' => 'draft',
+                            'is_published' => false,
+                            'registration_open' => false,
+                            'central_admin_notes' => $data['central_admin_notes'],
+                        ]);
+
+                        $record->payments()->where('term', 1)->update([
+                            'status' => 'revision',
+                            'notes' => $data['central_admin_notes'],
+                        ]);
+
+                        Notification::make()
+                            ->title('Pengajuan dikembalikan untuk perbaikan')
+                            ->warning()
+                            ->send();
+                    }),
+                $class::make('cancelApplication')
+                    ->label('Cancel')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin && in_array($record->workflow_status, ['submitted', 'needs_revision'], true))
+                    ->form([
+                        Forms\Components\Textarea::make('central_admin_notes')
+                            ->label('Alasan cancel')
+                            ->required()
+                            ->rows(4),
+                    ])
+                    ->action(function (LearningEvent $record, array $data): void {
+                        $record->update([
+                            'workflow_status' => 'cancelled',
+                            'publish_approval_status' => 'draft',
+                            'status' => 'closed',
+                            'registration_open' => false,
+                            'is_published' => false,
+                            'central_admin_notes' => $data['central_admin_notes'],
+                        ]);
+
+                        $record->payments()->update([
+                            'status' => 'revision',
+                            'notes' => $data['central_admin_notes'],
+                        ]);
+
+                        Notification::make()
+                            ->title('Pengajuan dibatalkan')
+                            ->danger()
+                            ->send();
+                    }),
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListLearningEvents::route('/'),
             'create' => Pages\CreateLearningEvent::route('/create'),
+            'view' => Pages\ViewLearningEvent::route('/{record}'),
             'edit' => Pages\EditLearningEvent::route('/{record}/edit'),
         ];
     }
@@ -1040,7 +1163,6 @@ class LearningEventResource extends Resource
         $missing = [];
         $requiredEvidence = [
             'absensi_basah' => 'absensi basah / daftar hadir',
-            'foto_sesi' => 'foto dokumentasi acara',
             'video_slogan' => 'video slogan',
             'praktik_microsite' => 'bukti hasil microsite',
         ];
@@ -1055,6 +1177,8 @@ class LearningEventResource extends Resource
                 $missing[] = $label;
             }
         }
+
+        array_push($missing, ...\App\Models\Evidence::missingRequiredPhotos($event->id));
 
         if ($event->participants->isEmpty()) {
             $missing[] = 'daftar registrasi peserta';
@@ -1075,6 +1199,67 @@ class LearningEventResource extends Resource
         return $missing;
     }
 
+    /** Simpan centang "logo di sertifikat" ke pivot mitra event. */
+    public static function syncCertificatePartners(LearningEvent $event, array $checkedPartnerIds): void
+    {
+        $checked = array_map('intval', $checkedPartnerIds);
+
+        foreach ($event->partners()->pluck('partners.id') as $partnerId) {
+            $event->partners()->updateExistingPivot($partnerId, ['show_on_certificate' => in_array((int) $partnerId, $checked, true)]);
+        }
+    }
+
+    /** Susun ulang rundown TOR dari jam mulai dan modul yang dipilih di wizard. */
+    public static function refreshTorRundown(Get $get, Set $set): void
+    {
+        $titles = LearningMeeting::query()
+            ->whereIn('id', array_map('intval', (array) ($get('selected_meeting_ids') ?? [])))
+            ->orderBy('order')
+            ->pluck('title')
+            ->all();
+
+        $set('rundown_items', static::keyedItems(TorEventTemplate::rundown(
+            static::timeFromDateTime($get('starts_at'), TorEventTemplate::DEFAULT_START),
+            $titles,
+        )));
+    }
+
+    public static function refreshTorBudgetQuantities(Get $get, Set $set): void
+    {
+        $set('budget_items', TorEventTemplate::syncBudgetQuantities(
+            (array) ($get('budget_items') ?? []),
+            (int) ($get('target_participants') ?: TorEventTemplate::DEFAULT_PARTICIPANTS),
+            (int) ($get('target_tutors') ?: TorEventTemplate::DEFAULT_TUTORS),
+        ));
+    }
+
+    /** Item repeater Filament memakai key unik per baris. */
+    private static function keyedItems(array $items): array
+    {
+        return collect($items)->mapWithKeys(fn (array $item) => [(string) Str::uuid() => $item])->all();
+    }
+
+    /** @return array<int|string, string> Pertemuan Materi Event yang bisa dipilih sebagai modul event. */
+    public static function templateModuleOptions(mixed $templateId): array
+    {
+        if (! $templateId) {
+            return [];
+        }
+
+        return LearningMeeting::query()
+            ->where('module_template_id', $templateId)
+            ->whereNull('learning_event_id')
+            ->orderBy('order')
+            ->get()
+            ->mapWithKeys(fn (LearningMeeting $meeting) => [(string) $meeting->id => $meeting->title . ' (' . ($meeting->duration_minutes ?: 25) . ' menit)'])
+            ->all();
+    }
+
+    public static function requiredModuleCount(mixed $templateId): int
+    {
+        return min(LearningEvent::MODULES_PER_EVENT, max(1, count(static::templateModuleOptions($templateId))));
+    }
+
     public static function budgetCategoryOptions(): array
     {
         return [
@@ -1085,6 +1270,8 @@ class LearningEventResource extends Resource
             'dokumentasi' => 'Dokumentasi',
             'honor_narasumber' => 'Honor / Narasumber',
             'sewa_perlengkapan' => 'Sewa / Perlengkapan',
+            'kebersihan' => 'Dana Kebersihan Sekolah',
+            'administrasi_operasional' => 'Administrasi & Operasional RTIK Pusat',
             'lain_lain' => 'Lain-lain',
         ];
     }
@@ -1122,6 +1309,12 @@ class LearningEventResource extends Resource
         };
 
         return [
+            Forms\Components\Hidden::make('key'),
+            Forms\Components\Select::make('term')
+                ->label('Termin')
+                ->options([1 => 'Termin-1', 2 => 'Termin-2'])
+                ->default(1)
+                ->columnSpan(2),
             Forms\Components\Select::make('category')
                 ->label('Kategori')
                 ->options(static::budgetCategoryOptions())
@@ -1131,7 +1324,7 @@ class LearningEventResource extends Resource
                 ->label('Keperluan')
                 ->placeholder('Contoh: Banner kegiatan')
                 ->required()
-                ->columnSpan(5),
+                ->columnSpan(3),
             Forms\Components\TextInput::make('quantity')
                 ->label('Qty')
                 ->numeric()
@@ -1202,56 +1395,6 @@ class LearningEventResource extends Resource
 
     public static function defaultRundownItems(): array
     {
-        return [
-            [
-                'start_time' => '09:00',
-                'end_time' => '09:10',
-                'activity' => 'Registrasi peserta dan pembukaan',
-                'pic' => 'Admin RTIK Local',
-                'notes' => 'Cek kehadiran awal dan kesiapan kelas.',
-            ],
-            [
-                'start_time' => '09:10',
-                'end_time' => '09:25',
-                'activity' => 'Ice breaking dan pengarahan kegiatan',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Menjelaskan tujuan sesi dan aturan belajar.',
-            ],
-            [
-                'start_time' => '09:25',
-                'end_time' => '09:40',
-                'activity' => 'Pre-Test peserta',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Peserta wajib menyelesaikan pre-test sebelum modul.',
-            ],
-            [
-                'start_time' => '09:40',
-                'end_time' => '11:15',
-                'activity' => 'Penyampaian modul, praktik, diskusi, dan kuis modul',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Materi mengikuti Materi Event yang dipilih pada seminar.',
-            ],
-            [
-                'start_time' => '11:15',
-                'end_time' => '11:40',
-                'activity' => 'Praktik microsite / simulasi kasus',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Peserta mengerjakan praktik dan refleksi.',
-            ],
-            [
-                'start_time' => '11:40',
-                'end_time' => '11:55',
-                'activity' => 'Post-Test peserta',
-                'pic' => 'Tutor / Fasilitator',
-                'notes' => 'Post-test dibuka setelah pre-test dan kuis modul selesai.',
-            ],
-            [
-                'start_time' => '11:55',
-                'end_time' => '12:00',
-                'activity' => 'Penutupan dan dokumentasi',
-                'pic' => 'Admin RTIK Local / Tutor',
-                'notes' => 'Ambil foto, video slogan, dan cek bukti dukung.',
-            ],
-        ];
+        return TorEventTemplate::rundown();
     }
 }

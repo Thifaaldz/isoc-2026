@@ -15,6 +15,14 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 /** Ringkasan KPI program (PRD-FR-17). Hanya untuk Super Admin & Admin. */
 class KpiOverview extends StatsOverviewWidget
 {
+    // Paling atas di dashboard, sebelum kartu Update/Reminder dan widget akun.
+    protected static ?int $sort = -7;
+
+    protected function getColumns(): int
+    {
+        return 4;
+    }
+
     public static function canView(): bool
     {
         if (auth()->user()?->role === UserRole::Tutor && ! (bool) auth()->user()?->tutor?->tot_completed) {
@@ -65,15 +73,21 @@ class KpiOverview extends StatsOverviewWidget
             1
         );
 
+        // Hijau bila target TOR tercapai, kuning bila belum.
+        $stat = fn (string $label, int | float $value, string $description, string $icon, int | float | null $target = null) => Stat::make($label, is_float($value) ? number_format($value, 1, ',', '.') : number_format($value, 0, ',', '.'))
+            ->description($description)
+            ->descriptionIcon($icon)
+            ->color($target === null ? 'gray' : ($value >= $target ? 'success' : 'warning'));
+
         return [
-            Stat::make('Lokasi', $schoolQuery->count())->description('Target 20 lokasi'),
-            Stat::make('Event Aktif', LearningEvent::query()->where($eventScope)->count())->description('Sesuai akses akun'),
-            Stat::make('Peserta', $participantQuery->count())->description('Target 2.000 siswa'),
-            Stat::make('Tutor', $tutorQuery->count())->description('Target 3 per lokasi'),
-            Stat::make('Rata-rata Post-Test', $avg('post', 'score'))->description('Target ≥ 85'),
-            Stat::make('Identifikasi Ancaman (%)', $avg('post', 'threat_identification'))->description('Target ≥ 82'),
-            Stat::make('Self-Efficacy (Post)', $avg('post', 'self_efficacy'))->description('Baseline 55 → 70 → 85'),
-            Stat::make('Anggota WAG Aktif', $wagQuery->sum('active_members'))->description('Target ≥ 1.400'),
+            $stat('Lokasi', $schoolQuery->count(), 'Target 20 lokasi', 'heroicon-m-map-pin', $user?->role === UserRole::SuperAdmin ? 20 : null),
+            $stat('Event', LearningEvent::query()->where($eventScope)->count(), 'Sesuai akses akun', 'heroicon-m-calendar-days'),
+            $stat('Peserta', $participantQuery->count(), 'Target 2.000 siswa', 'heroicon-m-user-group', $user?->role === UserRole::SuperAdmin ? 2000 : null),
+            $stat('Tutor', $tutorQuery->count(), 'Target 3 per lokasi', 'heroicon-m-academic-cap'),
+            $stat('Rata-rata Post-Test', $avg('post', 'score'), 'Target ≥ 85', 'heroicon-m-clipboard-document-check', 85),
+            $stat('Identifikasi Ancaman (%)', $avg('post', 'threat_identification'), 'Target ≥ 82', 'heroicon-m-shield-check', 82),
+            $stat('Self-Efficacy (Post)', $avg('post', 'self_efficacy'), 'Baseline 55 → 70 → 85', 'heroicon-m-sparkles', 70),
+            $stat('Anggota WAG Aktif', (int) $wagQuery->sum('active_members'), 'Target ≥ 1.400', 'heroicon-m-chat-bubble-left-right', $user?->role === UserRole::SuperAdmin ? 1400 : null),
         ];
     }
 }

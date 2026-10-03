@@ -60,13 +60,13 @@
                 </div>
                 <p class="text-grey-600 leading-relaxed mb-6">{{ $featuredEvent->description }}</p>
                 <div class="flex flex-wrap gap-3">
-                    @if($featuredEvent->registration_open && $featuredEvent->canRegister())
+                    @if($featuredEvent->canRegister())
                     <a href="{{ route('event.register', $featuredEvent) }}" class="inline-flex items-center gap-2 bg-blue hover:bg-blue-dark text-white px-7 py-3 rounded-full font-semibold text-sm transition-colors">
                         <span class="material-symbols-outlined text-lg">how_to_reg</span> {{ __('Daftar Sekarang') }}
                     </a>
-                    @elseif($featuredEvent->registration_open && $featuredEvent->isFull())
-                    <span class="inline-flex items-center gap-2 bg-grey-300 text-grey-600 px-7 py-3 rounded-full font-semibold text-sm cursor-not-allowed">
-                        <span class="material-symbols-outlined text-lg">group_off</span> {{ __('Kuota Penuh') }}
+                    @else
+                    <span aria-disabled="true" class="inline-flex items-center gap-2 bg-grey-300 text-grey-600 px-7 py-3 rounded-full font-semibold text-sm cursor-not-allowed">
+                        <span class="material-symbols-outlined text-lg">{{ $featuredEvent->registrationStatusIcon() }}</span> {{ __($featuredEvent->registrationStatusLabel()) }}
                     </span>
                     @endif
                     @if($featuredEvent->registration_url)
@@ -98,10 +98,10 @@
                 @if($event->image)
                 <div class="h-52 overflow-hidden relative">
                     <img alt="{{ $event->title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="{{ asset('storage/' . $event->image) }}"/>
-                    @if($event->registration_open && $event->canRegister())
+                    @if($event->canRegister())
                     <span class="absolute top-3 right-3 bg-teal text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __('Open') }}</span>
-                    @elseif($event->registration_open && $event->isFull())
-                    <span class="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __('Penuh') }}</span>
+                    @else
+                    <span class="absolute top-3 right-3 {{ $event->registrationStatus() === 'full' ? 'bg-red-500' : 'bg-grey-500' }} text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __($event->registrationStatusLabel()) }}</span>
                     @endif
                 </div>
                 @endif
@@ -146,13 +146,13 @@
 
                     {{-- Actions (pushed to bottom) --}}
                     <div class="mt-auto flex items-center gap-3 pt-4 border-t border-grey-100">
-                        @if($event->registration_open && $event->canRegister())
+                        @if($event->canRegister())
                         <a href="{{ route('event.register', $event) }}" class="inline-flex items-center gap-1.5 bg-blue hover:bg-blue-dark text-white px-5 py-2.5 rounded-full font-semibold text-xs transition-colors">
                             <span class="material-symbols-outlined text-base">how_to_reg</span> {{ __('Daftar Sekarang') }}
                         </a>
-                        @elseif($event->registration_open && $event->isFull())
-                        <span class="inline-flex items-center gap-1.5 bg-grey-200 text-grey-500 px-5 py-2.5 rounded-full font-semibold text-xs cursor-not-allowed">
-                            <span class="material-symbols-outlined text-base">group_off</span> {{ __('Kuota Penuh') }}
+                        @else
+                        <span aria-disabled="true" class="inline-flex items-center gap-1.5 bg-grey-200 text-grey-500 px-5 py-2.5 rounded-full font-semibold text-xs cursor-not-allowed">
+                            <span class="material-symbols-outlined text-base">{{ $event->registrationStatusIcon() }}</span> {{ __($event->registrationStatusLabel()) }}
                         </span>
                         @endif
                         @if($event->registration_url)
@@ -199,10 +199,14 @@
                     @if($event->location)
                     <p class="text-grey-500 text-sm">{{ $event->location }}</p>
                     @endif
-                    @if($event->registration_open && $event->canRegister())
+                    @if($event->canRegister())
                     <a href="{{ route('event.register', $event) }}" class="mt-2 inline-flex items-center gap-1 text-blue font-semibold text-sm hover:gap-2 transition-all">
                         <span class="material-symbols-outlined text-base">how_to_reg</span> {{ __('Daftar') }}
                     </a>
+                    @else
+                    <span class="mt-2 inline-flex items-center gap-1 text-grey-500 font-semibold text-sm">
+                        <span class="material-symbols-outlined text-base">{{ $event->registrationStatusIcon() }}</span> {{ __($event->registrationStatusLabel()) }}
+                    </span>
                     @endif
                 </div>
             </div>

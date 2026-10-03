@@ -15,8 +15,14 @@ services:
       - XDEBUG=${XDEBUG:-false}
     volumes:
       - ./src:/var/www/html
+      # Konfigurasi PHP & PHP-FPM dibaca langsung dari repo (tanpa rebuild image).
+      - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini:ro
+      - ./php/fpm-tuning.conf:/usr/local/etc/php-fpm.d/zz-tuning.conf:ro
+      - ./php/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 9000"]
@@ -44,6 +50,20 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+  # Cache & session di memori (sebelumnya tabel database: setiap request menulis ke MariaDB).
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_redis
+    restart: unless-stopped
+    # Snapshot berkala ke disk agar sesi login tetap ada setelah Redis di-restart.
+    command: ["redis-server", "--save", "60", "100", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
+    volumes:
+      - ./db/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   db:
     image: mariadb:10.11
     container_name: ${COMPOSE_PROJECT_NAME}_db

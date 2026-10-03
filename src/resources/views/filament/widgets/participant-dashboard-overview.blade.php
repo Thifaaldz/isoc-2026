@@ -86,14 +86,14 @@
     }
 
     .pd-event-switcher select {
-        background: #ffffff;
+        background-color: #ffffff;
         border: 1px solid #d1d5db;
         border-radius: 8px;
         color: #111827;
         font-size: 14px;
         font-weight: 700;
         min-height: 42px;
-        padding: 0 12px;
+        padding: 0 40px 0 12px;
         width: 100%;
     }
 

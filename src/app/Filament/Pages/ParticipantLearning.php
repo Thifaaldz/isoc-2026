@@ -158,20 +158,8 @@ class ParticipantLearning extends Page
             return null;
         }
 
-        $certificate = Certificate::query()->firstOrCreate(
-            [
-                'learning_event_id' => $this->selectedEvent->id,
-                'participant_id' => $this->participant->id,
-            ],
-            [
-                'certificate_template_id' => $this->selectedEvent->certificate_template_id,
-                'number' => $this->generateCertificateNumber(),
-                'status' => 'pending',
-                'eligibility_status' => 'pending',
-            ],
-        );
-
-        return app(CertificateEligibilityService::class)->updateCertificate($certificate);
+        // Sekali per request: view memanggil property ini lebih dari sekali.
+        return $this->memo['certificate.' . $this->selectedEvent->id] ??= app(CertificateEligibilityService::class)->ensureCertificate($this->participant, $this->selectedEvent);
     }
 
     public function getCertificateNotesProperty(): array
@@ -621,11 +609,6 @@ class ParticipantLearning extends Page
             ->get()
             ->sortBy(fn (Assessment $assessment) => str_pad((string) ($assessment->meeting?->order ?? 9999), 4, '0', STR_PAD_LEFT) . '-' . str_pad((string) $assessment->id, 8, '0', STR_PAD_LEFT))
             ->values();
-    }
-
-    private function generateCertificateNumber(): string
-    {
-        return 'DSC/' . now()->format('Y') . '/' . str_pad((string) $this->selectedEvent->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $this->participant->id, 5, '0', STR_PAD_LEFT);
     }
 
     public function selectedEventApproved(): bool

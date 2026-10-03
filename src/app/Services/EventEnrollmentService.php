@@ -39,6 +39,25 @@ class EventEnrollmentService
         return $count >= $target;
     }
 
+    /** Event dianggap sudah lewat setelah jam selesai (atau akhir hari tanggal mulai bila jam selesai kosong). */
+    public function isPast(LearningEvent $event): bool
+    {
+        $endsAt = $event->ends_at ?? $event->starts_at?->copy()->endOfDay();
+
+        return $endsAt !== null && $endsAt->isPast();
+    }
+
+    /** Alasan pendaftaran tertutup, atau null bila event masih bisa didaftari. */
+    public function registrationClosedReason(LearningEvent $event): ?string
+    {
+        return match (true) {
+            $this->isPast($event) => 'Pendaftaran ditutup karena tanggal event sudah lewat.',
+            ! $event->registration_open => 'Pendaftaran event ini sudah ditutup.',
+            $this->isFull($event) => 'Kuota peserta event ini sudah penuh.',
+            default => null,
+        };
+    }
+
     public function wagGroupFor(LearningEvent $event): ?WagGroup
     {
         return $event->school?->wagGroups

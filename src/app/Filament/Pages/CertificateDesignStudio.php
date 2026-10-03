@@ -200,11 +200,11 @@ class CertificateDesignStudio extends Page
     {
         $template = $this->template();
         $event = $template
-            ? LearningEvent::query()->where('certificate_template_id', $template->id)->with('orderedPartners')->first()
+            ? LearningEvent::query()->where('certificate_template_id', $template->id)->with('certificatePartners')->first()
             : null;
 
         $partners = $event
-            ? $event->orderedPartners->where('status', 'active')
+            ? $event->certificatePartners->where('status', 'active')
             : Partner::query()->where('status', 'active')->limit(6)->get();
 
         return $partners

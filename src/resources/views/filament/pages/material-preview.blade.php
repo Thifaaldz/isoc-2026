@@ -2,7 +2,7 @@
     <x-filament::section>
         <div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <label class="block">
-                <span class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Pilih Materi Event atau Event</span>
+                <span class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Pilih Materi</span>
                 <select wire:model.live="source" class="w-full rounded-lg border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950">
                     @foreach ($this->sourceOptions() as $key => $label)
                         <option value="{{ $key }}">{{ $label }}</option>
@@ -20,13 +20,9 @@
         <x-filament::section><p class="text-sm text-gray-500">Belum ada materi yang bisa dipreview.</p></x-filament::section>
     @else
         <x-filament::section>
-            <x-slot name="heading">{{ $selected instanceof \App\Models\LearningEvent ? $selected->title : $selected->name }}</x-slot>
+            <x-slot name="heading">{{ $selected->name }}</x-slot>
             <x-slot name="description">
-                @if ($selected instanceof \App\Models\ModuleTemplate)
-                    {{ \App\Models\ModuleTemplate::AUDIENCES[$selected->audience] ?? $selected->audience }} · {{ $this->meetings->count() }} pertemuan · {{ $this->meetings->sum(fn ($m) => $m->materials->count()) }} materi
-                @else
-                    Event · {{ $selected->starts_at?->translatedFormat('d F Y') }} · {{ $this->meetings->count() }} pertemuan
-                @endif
+                {{ \App\Models\ModuleTemplate::AUDIENCES[$selected->audience] ?? $selected->audience }} · {{ $this->meetings->count() }} pertemuan · {{ $this->meetings->sum(fn ($m) => $m->materials->count()) }} materi
             </x-slot>
 
             <div class="space-y-3">

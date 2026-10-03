@@ -24,7 +24,7 @@ class CertificateTemplatePreviewController extends Controller
             'title' => 'Nama Kegiatan / Seminar',
             'starts_at' => now(),
         ]);
-        $event->setRelation('orderedPartners', Partner::query()->where('status', 'active')->limit(6)->get());
+        $event->setRelation('certificatePartners', Partner::query()->where('status', 'active')->limit(6)->get());
         $event->setRelation('certificateTemplate', $template);
 
         $school = new School([

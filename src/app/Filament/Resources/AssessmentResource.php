@@ -79,6 +79,7 @@ class AssessmentResource extends Resource
                 ->options(fn () => LearningMeeting::query()
                     ->with('moduleTemplate')
                     ->whereNotNull('module_template_id')
+                    ->whereDoesntHave('moduleTemplate', fn ($template) => $template->whereNotNull('source_template_id'))
                     ->orderBy('module_template_id')
                     ->orderBy('order')
                     ->get()

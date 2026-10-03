@@ -11,9 +11,10 @@ class EventApprovalUpdates extends Widget
 {
     protected static string $view = 'filament.widgets.event-approval-updates';
 
-    protected int | string | array $columnSpan = 'full';
+    // Kolom kiri dashboard; kolom kanan berisi Reminder Approval Event.
+    protected int | string | array $columnSpan = ['default' => 'full', 'lg' => 1];
 
-    protected static ?int $sort = -3;
+    protected static ?int $sort = -6;
 
     public static function canView(): bool
     {
@@ -33,12 +34,14 @@ class EventApprovalUpdates extends Widget
             ->orderByRaw('local_updated_at is null')
             ->orderByDesc('local_updated_at')
             ->orderByDesc('updated_at')
-            ->limit(8)
+            ->limit(30)
             ->get();
 
         return [
             'events' => $events,
-            'editUrl' => fn (LearningEvent $event): string => LearningEventResource::getUrl('edit', ['record' => $event]),
+            'previewUrl' => fn (LearningEvent $event): string => LearningEventResource::getUrl('view', ['record' => $event]),
+            'workflowLabels' => LearningEventResource::workflowStatusOptions(),
+            'publishLabels' => LearningEventResource::publishApprovalStatusOptions(),
         ];
     }
 }

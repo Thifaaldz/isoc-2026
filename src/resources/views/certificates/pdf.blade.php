@@ -3,7 +3,7 @@
 
     $participant = $certificate->participant;
     $event = $certificate->learningEvent ?? $participant?->learningEvents()->first();
-    $event?->loadMissing('orderedPartners');
+    $event?->loadMissing('certificatePartners');
     $school = $participant?->school;
     $templateImage = public_path(\App\Models\CertificateTemplate::DEFAULT_BACKGROUND);
     $templateImageSrc = file_exists($templateImage)
@@ -134,7 +134,7 @@
     $templateImageSrc = $imageDataUri($certificateTemplate?->background_image) ?: $templateImageSrc;
     $templateElements = collect($certificateTemplate?->elements ?? [])->values();
     $imageElementTypes = ['sena_logo', 'logo', 'partner_logo', 'uploaded_logo', 'signature_image', 'uploaded_signature', 'image'];
-    $eventPartnerLogoSrcs = $event?->orderedPartners
+    $eventPartnerLogoSrcs = $event?->certificatePartners
         ?->where('status', 'active')
         ->map(fn ($partner) => $imageDataUri($partner->logo_path) ?: $imageDataUri($partner->logo_url) ?: $senaLogoSrc)
         ->filter()
@@ -480,6 +480,21 @@
             float: right;
             text-align: right;
         }
+        .verify-link {
+            bottom: 3.5mm;
+            color: #475569;
+            font-size: 7.5pt;
+            left: 0;
+            position: absolute;
+            text-align: center;
+            width: 297mm;
+            z-index: 6;
+        }
+        .verify-link a,
+        .page-footer a {
+            color: #1d4ed8;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -548,6 +563,9 @@
                 >{{ $elementText($element) }}</div>
             @endif
         @endforeach
+        @if ($verifyUrl)
+            <div class="verify-link"><a href="{{ $verifyUrl }}">{{ $verifyUrl }}</a></div>
+        @endif
     </section>
 
     <section class="page page-2">
@@ -620,6 +638,9 @@
         </div>
         <div class="page-footer">
             <span class="right">Diterbitkan pada {{ $issuedDate }}</span>
+            @if ($verifyUrl)
+                <span><a href="{{ $verifyUrl }}">{{ $verifyUrl }}</a></span>
+            @endif
         </div>
     </section>
 </body>

@@ -18,6 +18,13 @@ class Evidence extends Model
         'follow_ig' => 'Follow IG @isoc.id.jkt',
         'join_wag' => 'Join WAG Mentoring',
         'foto_wajib' => 'Foto wajib',
+        'foto_tutor_guru' => 'Foto wajib a - Tutor bersama guru/manajemen sekolah',
+        'foto_pembukaan_banner' => 'Foto wajib b - Tutor & 100 peserta dengan banner',
+        'foto_tutor_mengajar' => 'Foto wajib c - Tutor memberikan materi',
+        'foto_siswa_menyimak' => 'Foto wajib d - Siswa menyimak materi',
+        'foto_siswa_bertanya' => 'Foto wajib e - Siswa bertanya / beropini',
+        'foto_pemberian_hadiah' => 'Foto wajib f - Pemberian hadiah 10 peserta aktif',
+        'foto_tutor_peserta_aktif' => 'Foto wajib g - Tutor bersama 10 peserta teraktif',
         'video_slogan' => 'Video slogan ISOC',
         'praktik_microsite' => 'Praktik microsite s.id',
         'modul_tersampaikan' => 'Bukti 6 modul tersampaikan',
@@ -26,6 +33,110 @@ class Evidence extends Model
         'bukti_logistik' => 'Bukti pembelian logistik',
         'laporan_akhir' => 'Laporan akhir',
     ];
+
+    /** Jenis lama yang tidak lagi dipakai untuk upload baru (diganti checklist foto wajib a-g). */
+    public const LEGACY_TYPES = ['foto_sesi', 'foto_wajib'];
+
+    /** Foto wajib per lokasi kegiatan sesuai TOR, beserta jumlah minimal foto yang harus dikumpulkan. */
+    public const REQUIRED_PHOTOS = [
+        'foto_tutor_guru' => [
+            'step' => 'a',
+            'title' => 'Tutor bersama guru / manajemen sekolah',
+            'min' => 1,
+            'instruction' => '3 orang Tutor bersama minimal 3 guru/manajemen sekolah dengan atribut lokasi (misalnya papan nama sekolah).',
+        ],
+        'foto_pembukaan_banner' => [
+            'step' => 'b',
+            'title' => 'Tutor & 100 peserta dengan banner',
+            'min' => 1,
+            'instruction' => '3 orang Tutor di awal sesi bersama 100 peserta, diambil dari angle depan sambil memegang banner kegiatan.',
+        ],
+        'foto_tutor_mengajar' => [
+            'step' => 'c',
+            'title' => 'Tutor memberikan materi',
+            'min' => 3,
+            'instruction' => 'Tutor sedang memberikan materi kepada siswa; setiap Tutor difoto (3 foto). Posisi Tutor membelakangi backdrop.',
+        ],
+        'foto_siswa_menyimak' => [
+            'step' => 'd',
+            'title' => 'Siswa menyimak materi',
+            'min' => 3,
+            'instruction' => 'Siswa sedang menyimak materi (3 foto).',
+        ],
+        'foto_siswa_bertanya' => [
+            'step' => 'e',
+            'title' => 'Siswa bertanya / beropini',
+            'min' => 3,
+            'instruction' => 'Siswa sedang menyampaikan pertanyaan atau memberikan opini (3 foto).',
+        ],
+        'foto_pemberian_hadiah' => [
+            'step' => 'f',
+            'title' => 'Pemberian hadiah peserta aktif',
+            'min' => 1,
+            'instruction' => 'Pemberian hadiah kepada 10 peserta aktif.',
+        ],
+        'foto_tutor_peserta_aktif' => [
+            'step' => 'g',
+            'title' => 'Tutor bersama 10 peserta teraktif',
+            'min' => 2,
+            'instruction' => '3 orang Tutor bersama dengan 10 peserta teraktif (2 foto).',
+        ],
+    ];
+
+    /** @return array<string, string> */
+    public static function uploadTypes(): array
+    {
+        return array_diff_key(self::TYPES, array_flip(self::LEGACY_TYPES));
+    }
+
+    /**
+     * Jumlah foto wajib per jenis untuk satu event.
+     *
+     * @return array<string, int>
+     */
+    public static function photoCounts(?int $eventId, bool $approvedOnly = false): array
+    {
+        $counts = $eventId
+            ? self::query()
+                ->where('learning_event_id', $eventId)
+                ->whereIn('type', array_keys(self::REQUIRED_PHOTOS))
+                ->when($approvedOnly, fn ($query) => $query->where('status', 'approved'))
+                ->when(! $approvedOnly, fn ($query) => $query->whereNotIn('status', ['rejected']))
+                ->selectRaw('type, count(*) as total')
+                ->groupBy('type')
+                ->pluck('total', 'type')
+                ->all()
+            : [];
+
+        return collect(self::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => (int) ($counts[$type] ?? 0))->all();
+    }
+
+    /**
+     * Foto wajib yang belum memenuhi jumlah minimal (hanya foto yang sudah disetujui RTIK Pusat).
+     * Event lama yang sudah punya "Foto kegiatan per sesi" disetujui tetap dianggap lengkap.
+     *
+     * @return array<int, string>
+     */
+    public static function missingRequiredPhotos(int $eventId): array
+    {
+        $hasLegacyPhoto = self::query()
+            ->where('learning_event_id', $eventId)
+            ->where('type', 'foto_sesi')
+            ->where('status', 'approved')
+            ->exists();
+
+        if ($hasLegacyPhoto) {
+            return [];
+        }
+
+        $counts = self::photoCounts($eventId, approvedOnly: true);
+
+        return collect(self::REQUIRED_PHOTOS)
+            ->filter(fn (array $photo, string $type) => $counts[$type] < $photo['min'])
+            ->map(fn (array $photo, string $type) => "foto {$photo['step']}. {$photo['title']} ({$counts[$type]}/{$photo['min']})")
+            ->values()
+            ->all();
+    }
 
     protected function casts(): array { return ['verified_at' => 'datetime']; }
 

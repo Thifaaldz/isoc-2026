@@ -42,15 +42,26 @@ class Participant extends Model
 
     public function isApprovedForEvent(LearningEvent $event): bool
     {
-        $this->syncInitialApprovalForEvent($event);
+        // Sudah approved: cukup satu query baca, tanpa sinkronisasi (yang menulis ke database).
+        if ($this->approvalPivotFor($event)['approved']) {
+            return true;
+        }
 
+        return $this->syncInitialApprovalForEvent($event);
+    }
+
+    /** @return array{approved: bool, fully_approved: bool} */
+    private function approvalPivotFor(LearningEvent $event): array
+    {
         $pivot = $this->learningEvents()
             ->where('learning_events.id', $event->id)
             ->first()
             ?->pivot;
 
-        return ($pivot?->admin_approval_status ?? null) === 'approved'
-            || ($pivot?->tutor_approval_status ?? null) === 'approved';
+        $admin = ($pivot?->admin_approval_status ?? null) === 'approved';
+        $tutor = ($pivot?->tutor_approval_status ?? null) === 'approved';
+
+        return ['approved' => $admin || $tutor, 'fully_approved' => $admin && $tutor];
     }
 
     public function hasInitialProofForEvent(LearningEvent $event): bool
@@ -71,6 +82,12 @@ class Participant extends Model
     {
         if (! $this->hasInitialProofForEvent($event)) {
             return false;
+        }
+
+        // Approval admin & tutor sudah tercatat: tidak perlu menulis ulang setiap halaman dibuka.
+        if ($this->approvalPivotFor($event)['fully_approved']
+            && ! Evidence::query()->where('learning_event_id', $event->id)->where('uploaded_by', $this->user_id)->where('type', 'follow_ig')->where('status', '!=', 'approved')->exists()) {
+            return true;
         }
 
         $this->learningEvents()->syncWithoutDetaching([

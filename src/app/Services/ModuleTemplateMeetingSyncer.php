@@ -10,6 +10,11 @@ class ModuleTemplateMeetingSyncer
 {
     public function sync(ModuleTemplate $template): void
     {
+        // Materi tutor auto-generated mengikuti pertemuan dari materi peserta asalnya.
+        if ($template->isGeneratedForTutor()) {
+            return;
+        }
+
         $count = max(1, (int) ($template->meeting_count ?: 1));
 
         $extraMeetings = $template->learningMeetings()->where('order', '>', $count)->get();

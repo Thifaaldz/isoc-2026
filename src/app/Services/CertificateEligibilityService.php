@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Certificate;
 use App\Models\CertificateTemplate;
-use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Models\MicrositePractice;
 use App\Models\Participant;
@@ -14,17 +12,11 @@ use App\Models\Participant;
 class CertificateEligibilityService
 {
     /**
-     * Bukti dukung event yang wajib disetujui RTIK Pusat sebelum sertifikat peserta eligible.
-     * Bukti follow IG dan join WAG dicek per peserta lewat approval peserta, sedangkan
-     * praktik microsite dicek per peserta lewat link s.id.
+     * Syarat sertifikat peserta: Pre-Test, Post-Test, dan link s.id/microsite.
+     * Bila terpenuhi sertifikat langsung terbit tanpa cek eligibility oleh Admin RTIK.
+     *
+     * @return array{eligible: bool, notes: array<int, string>}
      */
-    public const REQUIRED_EVENT_EVIDENCE = [
-        'absensi_basah' => 'Absensi basah',
-        'foto_sesi' => 'Foto kegiatan',
-        'video_slogan' => 'Video slogan',
-    ];
-
-    /** @return array{eligible: bool, notes: array<int, string>} */
     public function check(Participant $participant, ?LearningEvent $event): array
     {
         if (! $event) {
@@ -33,34 +25,12 @@ class CertificateEligibilityService
 
         $notes = [];
 
-        if (! $participant->isApprovedForEvent($event)) {
-            $notes[] = 'Bukti follow Instagram dan checklist join WAG belum approved.';
-        }
-
         if (! $this->hasAttempt($participant, $event, 'pre')) {
             $notes[] = 'Pre-test belum selesai.';
         }
 
         if (! $this->hasAttempt($participant, $event, 'post')) {
             $notes[] = 'Post-test belum selesai.';
-        }
-
-        $quizIds = Assessment::query()
-            ->where('learning_event_id', $event->id)
-            ->where('type', 'quiz')
-            ->where('is_open', true)
-            ->pluck('id');
-
-        if ($quizIds->isNotEmpty()) {
-            $completedQuiz = AssessmentAttempt::query()
-                ->where('participant_id', $participant->id)
-                ->whereIn('assessment_id', $quizIds)
-                ->distinct('assessment_id')
-                ->count('assessment_id');
-
-            if ($completedQuiz < $quizIds->count()) {
-                $notes[] = 'Kuis modul belum lengkap.';
-            }
         }
 
         $hasMicrosite = MicrositePractice::query()
@@ -73,24 +43,29 @@ class CertificateEligibilityService
             $notes[] = 'Link s.id / microsite belum diisi.';
         }
 
-        $approvedEvidenceTypes = Evidence::query()
-            ->where('learning_event_id', $event->id)
-            ->whereIn('type', array_keys(self::REQUIRED_EVENT_EVIDENCE))
-            ->where('status', 'approved')
-            ->distinct()
-            ->pluck('type');
-
-        $missingEvidence = collect(self::REQUIRED_EVENT_EVIDENCE)
-            ->reject(fn (string $label, string $type) => $approvedEvidenceTypes->contains($type));
-
-        if ($missingEvidence->isNotEmpty()) {
-            $notes[] = 'Bukti dukung kegiatan belum disetujui RTIK Pusat: ' . $missingEvidence->implode(', ') . '.';
-        }
-
         return [
             'eligible' => $notes === [],
             'notes' => $notes,
         ];
+    }
+
+    /** Ambil (atau buat) sertifikat peserta untuk event, lalu perbarui status eligibility & terbitnya. */
+    public function ensureCertificate(Participant $participant, LearningEvent $event): Certificate
+    {
+        $certificate = Certificate::query()->firstOrCreate(
+            [
+                'learning_event_id' => $event->id,
+                'participant_id' => $participant->id,
+            ],
+            [
+                'certificate_template_id' => $event->certificate_template_id,
+                'number' => 'DSC/' . now()->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $participant->id, 5, '0', STR_PAD_LEFT),
+                'status' => 'pending',
+                'eligibility_status' => 'pending',
+            ],
+        );
+
+        return $this->updateCertificate($certificate);
     }
 
     public function updateCertificate(Certificate $certificate): Certificate
@@ -108,9 +83,22 @@ class CertificateEligibilityService
                 ?: CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->value('id');
         }
 
-        $certificate->update($updates);
+        // Syarat terpenuhi: sertifikat langsung terbit (kecuali sudah dicabut).
+        if ($result['eligible'] && $certificate->status === 'pending') {
+            $updates['status'] = 'issued';
+            $updates['issued_at'] = now();
+        }
 
-        return $certificate->refresh();
+        // Hanya menulis bila status/catatan berubah (halaman peserta memanggil ini setiap kali dibuka).
+        $changed = collect($updates)
+            ->except('eligibility_checked_at')
+            ->contains(fn ($value, string $key) => $certificate->getAttribute($key) != $value);
+
+        if ($changed || ! $certificate->eligibility_checked_at) {
+            $certificate->update($updates);
+        }
+
+        return $certificate;
     }
 
     private function hasAttempt(Participant $participant, LearningEvent $event, string $type): bool

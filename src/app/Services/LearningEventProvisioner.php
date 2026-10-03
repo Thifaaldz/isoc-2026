@@ -46,13 +46,18 @@ class LearningEventProvisioner
             }
 
             $user = $this->userFor($name, $row['email'] ?? null, UserRole::Peserta, $event->school_id, $row['phone'] ?? null);
+            $isGeneral = ($event->audience_type ?? 'school') === 'general';
+            // Peserta umum tidak punya NISN; baris lama yang menaruh NIK di kolom nis tetap terbaca sebagai NIK.
+            $nis = $isGeneral ? null : ($row['nis'] ?? $row['nisn'] ?? null);
+            $nik = $row['nik'] ?? ($isGeneral ? ($row['nis'] ?? null) : null);
 
             $participant = Participant::query()->firstOrCreate(
                 ['user_id' => $user->id],
                 [
                     'school_id' => $event->school_id,
                     'participant_category' => ($event->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar',
-                    'nis' => $row['nis'] ?? $row['nisn'] ?? null,
+                    'nis' => $nis,
+                    'nik' => $nik,
                     'grade' => $row['grade'] ?? null,
                     'organization' => $row['organization'] ?? null,
                     'position' => $row['position'] ?? null,
@@ -65,7 +70,8 @@ class LearningEventProvisioner
             $participant->update([
                 'school_id' => $event->school_id,
                 'participant_category' => $participant->participant_category ?: (($event->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar'),
-                'nis' => $row['nis'] ?? $row['nisn'] ?? $participant->nis,
+                'nis' => $nis ?? $participant->nis,
+                'nik' => $nik ?? $participant->nik,
                 'grade' => $row['grade'] ?? $participant->grade,
                 'organization' => $row['organization'] ?? $participant->organization,
                 'position' => $row['position'] ?? $participant->position,
@@ -119,6 +125,10 @@ class LearningEventProvisioner
                 [
                     'school_id' => $event->school_id,
                     'institution' => $row['institution'] ?? null,
+                    'nik' => $row['nik'] ?? null,
+                    'npwp' => $row['npwp'] ?? null,
+                    'bank_name' => $row['bank_name'] ?? null,
+                    'bank_account_number' => $row['bank_account_number'] ?? null,
                     'tot_completed' => false,
                 ],
             );
@@ -126,6 +136,10 @@ class LearningEventProvisioner
             $tutor->update([
                 'school_id' => $event->school_id,
                 'institution' => $row['institution'] ?? $tutor->institution,
+                'nik' => $row['nik'] ?? $tutor->nik,
+                'npwp' => $row['npwp'] ?? $tutor->npwp,
+                'bank_name' => $row['bank_name'] ?? $tutor->bank_name,
+                'bank_account_number' => $row['bank_account_number'] ?? $tutor->bank_account_number,
             ]);
 
             $event->tutors()->syncWithoutDetaching([
@@ -140,8 +154,13 @@ class LearningEventProvisioner
             return;
         }
 
-        $totalBudget = collect($event->budget_items ?? [])->sum(fn (array $item) => (float) ($item['amount'] ?? 0));
-        $termAmount = $totalBudget > 0 ? round($totalBudget / 2, 2) : 0;
+        $items = collect($event->budget_items ?? []);
+        $totalBudget = $items->sum(fn (array $item) => (float) ($item['amount'] ?? 0));
+        // Item RAB TOR punya termin masing-masing; RAB lama tanpa termin dibagi dua rata.
+        $hasTerms = $items->contains(fn (array $item) => filled($item['term'] ?? null));
+        $termAmountFor = fn (int $term) => $hasTerms
+            ? round($items->where('term', $term)->sum(fn (array $item) => (float) ($item['amount'] ?? 0)), 2)
+            : ($totalBudget > 0 ? round($totalBudget / 2, 2) : 0);
 
         Payment::query()
             ->where('learning_event_id', $event->id)
@@ -154,7 +173,7 @@ class LearningEventProvisioner
             );
 
             $payment->school_id = $event->school_id;
-            $payment->amount = $termAmount;
+            $payment->amount = $termAmountFor($term);
             $payment->status = $payment->status ?: 'pending';
             $payment->checklist = $payment->checklist ?: $this->defaultChecklist($term);
             $payment->save();
