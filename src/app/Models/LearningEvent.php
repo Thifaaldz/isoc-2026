@@ -24,6 +24,7 @@ class LearningEvent extends Model
             'is_published' => 'boolean',
             'participant_rows' => 'array',
             'tutor_rows' => 'array',
+            'selected_tutor_ids' => 'array',
             'budget_items' => 'array',
             'rundown_items' => 'array',
             'evidence_checklist' => 'array',
@@ -76,11 +77,19 @@ class LearningEvent extends Model
 
     public function partners(): BelongsToMany
     {
+        // Relasi polos untuk form/sync. Jangan beri order kolom pivot di sini: Select Filament memakai
+        // LEFT JOIN ke pivot sehingga opsi mitra menjadi duplikat.
         return $this->belongsToMany(Partner::class)
             ->withPivot('sort_order')
-            ->withTimestamps()
+            ->withTimestamps();
+    }
+
+    /** Mitra urut sesuai sort_order, lalu urutan dipilih di form; dipakai untuk logo (sertifikat, katalog). */
+    public function orderedPartners(): BelongsToMany
+    {
+        return $this->partners()
             ->orderByPivot('sort_order')
-            ->orderBy('name');
+            ->orderBy('learning_event_partner.id');
     }
 
     public function meetings(): HasMany

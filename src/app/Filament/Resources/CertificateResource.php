@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\CertificateResource\Pages;
@@ -32,6 +33,26 @@ class CertificateResource extends Resource
     protected static ?string $pluralModelLabel = 'Sertifikat Saya';
 
     protected static ?int $navigationSort = 2;
+
+    public static function getNavigationLabel(): string
+    {
+        return static::isParticipantView() ? 'Sertifikat Saya' : 'e-Certificate';
+    }
+
+    public static function getModelLabel(): string
+    {
+        return static::isParticipantView() ? 'Sertifikat Saya' : 'e-Certificate';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return static::isParticipantView() ? 'Sertifikat Saya' : 'e-Certificate';
+    }
+
+    protected static function isParticipantView(): bool
+    {
+        return auth()->user()?->role === UserRole::Peserta;
+    }
 
     public static function viewRoles(): array
     {
@@ -79,10 +100,14 @@ class CertificateResource extends Resource
             Forms\Components\Select::make('eligibility_status')
                 ->label('Eligibility')
                 ->options(['pending' => 'Belum dicek', 'eligible' => 'Eligible', 'blocked' => 'Terkunci'])
-                ->default('pending'),
+                ->default('pending')
+                ->helperText('Diisi otomatis oleh sistem lewat Cek Eligibility.')
+                ->disabled()
+                ->dehydrated(false),
             Forms\Components\DateTimePicker::make('issued_at')->label('Tanggal terbit'),
             Forms\Components\Textarea::make('eligibility_notes')->label('Catatan eligibility')->columnSpanFull(),
-            Forms\Components\FileUpload::make('file_path')->label('Berkas PDF')->directory('certificates'),
+            Forms\Components\FileUpload::make('file_path')
+                ->acceptedFileTypes(UploadTypes::PDF)->label('Berkas PDF')->directory('certificates'),
         ]);
     }
 
@@ -126,13 +151,17 @@ class CertificateResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->url(fn (Certificate $record) => route('certificates.preview-pdf', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn (Certificate $record) => $record->eligibility_status === 'eligible'),
+                    ->visible(fn (Certificate $record) => auth()->user()?->role === UserRole::Peserta
+                        ? $record->isIssued()
+                        : ($record->isIssued() || $record->isEligible())),
                 Tables\Actions\Action::make('downloadPdf')
                     ->label('Download')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
                     ->url(fn (Certificate $record) => route('certificates.download-pdf', $record))
-                    ->visible(fn (Certificate $record) => $record->eligibility_status === 'eligible'),
+                    ->visible(fn (Certificate $record) => auth()->user()?->role === UserRole::Peserta
+                        ? $record->isIssued()
+                        : ($record->isIssued() || $record->isEligible())),
                 Tables\Actions\EditAction::make()
                     ->visible(fn () => auth()->user()?->role !== UserRole::Peserta),
                 Tables\Actions\DeleteAction::make()

@@ -12,6 +12,7 @@
         "aymanalhattami/filament-slim-scrollbar": "*",
         "barryvdh/laravel-dompdf": "^3.1",
         "bezhansalleh/filament-shield": "*",
+        "chillerlan/php-qrcode": "^5.0",
         "diogogpinto/filament-auth-ui-enhancer": "*",
         "filament/filament": "^3.3",
         "hasnayeen/themes": "*",

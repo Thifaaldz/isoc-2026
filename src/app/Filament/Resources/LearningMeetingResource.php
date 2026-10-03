@@ -55,7 +55,7 @@ class LearningMeetingResource extends Resource
                 ->schema([
                     Forms\Components\Select::make('module_template_id')
                         ->label('Materi Event')
-                        ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('audience')->orderBy('name')->get()->mapWithKeys(fn (ModuleTemplate $template) => [$template->id => $template->name . ' (' . (ModuleTemplate::AUDIENCES[$template->audience] ?? $template->audience) . ')']))
                         ->default(fn () => request()->integer('module_template_id') ?: null)
                         ->searchable()
                         ->preload()
@@ -110,6 +110,7 @@ class LearningMeetingResource extends Resource
                                 ->helperText('Opsional. Jika kosong, rundown memakai durasi pertemuan.'),
                             Forms\Components\FileUpload::make('file_path')
                                 ->label('Upload file materi')
+                                ->helperText('PDF dan video (MP4/WebM) langsung bisa dipreview di semua panel. Untuk slide PPT/PPTX, unggah juga versi PDF-nya sebagai materi Jenis PDF agar slide tetap bisa dipreview tanpa koneksi ke Office Online.')
                                 ->directory('learning-materials')
                                 ->downloadable()
                                 ->openable()

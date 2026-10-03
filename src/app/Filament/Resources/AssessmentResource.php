@@ -67,7 +67,7 @@ class AssessmentResource extends Resource
                 ->required(),
             Forms\Components\Select::make('module_template_id')
                 ->label('Materi Event')
-                ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('audience')->orderBy('name')->get()->mapWithKeys(fn (ModuleTemplate $template) => [$template->id => $template->name . ' (' . (ModuleTemplate::AUDIENCES[$template->audience] ?? $template->audience) . ')']))
                 ->default(fn () => request()->integer('module_template_id') ?: null)
                 ->searchable()
                 ->preload()
@@ -117,7 +117,7 @@ class AssessmentResource extends Resource
                 Tables\Columns\TextColumn::make('type')->label('Jenis')->badge(),
                 Tables\Columns\TextColumn::make('meeting.title')->label('Pertemuan')->searchable(),
                 Tables\Columns\TextColumn::make('title')->label('Judul')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('questions')->label('Soal')->formatStateUsing(fn ($state) => count(self::normalizeQuestions($state))),
+                Tables\Columns\TextColumn::make('questions_count')->label('Soal')->state(fn (Assessment $record) => count(self::normalizeQuestions($record->questions))),
                 Tables\Columns\IconColumn::make('is_open')->label('Dibuka')->boolean(),
             ])
             ->filters([

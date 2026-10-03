@@ -3,9 +3,15 @@
 namespace App\Filament\Pages;
 
 use App\Enums\UserRole;
+use App\Models\Assessment;
+use App\Models\AssessmentAttempt;
+use App\Models\LearningMaterial;
+use App\Models\ModuleTemplate;
 use App\Models\TotAssessment;
+use App\Support\MaterialViewer;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Database\Eloquent\Collection;
 
 class TutorTraining extends Page
 {
@@ -24,6 +30,12 @@ class TutorTraining extends Page
     /** @var array<int, string|null> */
     public array $answers = [];
 
+    /** Pre-test / post-test ToT yang sedang dikerjakan. */
+    public ?int $activeTestId = null;
+
+    /** @var array<int, string|int|null> */
+    public array $testAnswers = [];
+
     public static function canAccess(): bool
     {
         return auth()->user()?->role === UserRole::Tutor;
@@ -34,6 +46,184 @@ class TutorTraining extends Page
         return auth()->user()?->tutor;
     }
 
+    /** Materi Event tipe Tutor yang dikelola Super Admin dari menu Materi Event dan Pertemuan & Materi. */
+    public function getTutorTemplatesProperty(): Collection
+    {
+        return ModuleTemplate::query()
+            ->forTutors()
+            ->where('is_active', true)
+            ->with([
+                'learningMeetings' => fn ($query) => $query
+                    ->where('is_published', true)
+                    ->orderBy('order')
+                    ->with(['materials' => fn ($materials) => $materials->where('is_published', true)->orderBy('order')]),
+            ])
+            ->orderBy('name')
+            ->get();
+    }
+
+    public function materialUrl(LearningMaterial $material): ?string
+    {
+        return MaterialViewer::url($material);
+    }
+
+    /** Materi Event tipe Tutor terbaru yang memiliki Pre-Test dan Post-Test ToT. */
+    public function getTestTemplateProperty(): ?ModuleTemplate
+    {
+        return ModuleTemplate::query()
+            ->forTutors()
+            ->where('is_active', true)
+            ->whereHas('assessments', fn ($query) => $query->where('type', 'pre')->where('is_open', true))
+            ->whereHas('assessments', fn ($query) => $query->where('type', 'post')->where('is_open', true))
+            ->latest('id')
+            ->first();
+    }
+
+    public function getPreTestProperty(): ?Assessment
+    {
+        return $this->testTemplate?->assessments()->where('type', 'pre')->where('is_open', true)->first();
+    }
+
+    public function getPostTestProperty(): ?Assessment
+    {
+        return $this->testTemplate?->assessments()->where('type', 'post')->where('is_open', true)->first();
+    }
+
+    public function getActiveTestProperty(): ?Assessment
+    {
+        return collect([$this->preTest, $this->postTest])->filter()->firstWhere('id', $this->activeTestId);
+    }
+
+    public function testAttempt(?Assessment $assessment): ?AssessmentAttempt
+    {
+        if (! $assessment || ! $this->tutor) {
+            return null;
+        }
+
+        return AssessmentAttempt::query()
+            ->where('tutor_id', $this->tutor->id)
+            ->where('assessment_id', $assessment->id)
+            ->first();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function testQuestions(?Assessment $assessment): array
+    {
+        $questions = $assessment?->questions;
+
+        if (is_string($questions)) {
+            $questions = json_decode($questions, true);
+        }
+
+        return array_values(is_array($questions) ? $questions : []);
+    }
+
+    public function canStartTest(Assessment $assessment): bool
+    {
+        $attempt = $this->testAttempt($assessment);
+
+        if ($assessment->type === 'pre') {
+            return ! $attempt;
+        }
+
+        // Post-test boleh diulang sampai nilai sempurna, setelah pre-test selesai.
+        return (bool) $this->testAttempt($this->preTest) && (! $attempt || (float) $attempt->score < 100);
+    }
+
+    public function startTest(int $assessmentId): void
+    {
+        $assessment = collect([$this->preTest, $this->postTest])->filter()->firstWhere('id', $assessmentId);
+
+        if (! $assessment || ! $this->canStartTest($assessment)) {
+            Notification::make()
+                ->title('Tes belum bisa dikerjakan')
+                ->body($assessment?->type === 'post' ? 'Selesaikan Pre-Test ToT terlebih dahulu.' : 'Pre-Test ToT sudah dikerjakan.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $this->activeTestId = $assessment->id;
+        $this->testAnswers = [];
+    }
+
+    public function submitTest(): void
+    {
+        $assessment = $this->activeTest;
+        $tutor = $this->tutor;
+
+        if (! $assessment || ! $tutor || ! $this->canStartTest($assessment)) {
+            $this->activeTestId = null;
+
+            return;
+        }
+
+        $questions = $this->testQuestions($assessment);
+
+        foreach (array_keys($questions) as $index) {
+            if (! isset($this->testAnswers[$index]) || $this->testAnswers[$index] === '') {
+                Notification::make()->title('Lengkapi semua jawaban terlebih dahulu.')->danger()->send();
+
+                return;
+            }
+        }
+
+        $correct = collect($questions)
+            ->filter(fn (array $question, int $index) => (bool) (array_values($question['options'] ?? [])[(int) $this->testAnswers[$index]]['is_correct'] ?? false))
+            ->count();
+        $score = round($correct / max(1, count($questions)) * 100, 2);
+
+        AssessmentAttempt::query()->updateOrCreate(
+            ['tutor_id' => $tutor->id, 'assessment_id' => $assessment->id],
+            [
+                'participant_id' => null,
+                'answers' => $this->testAnswers,
+                'correct_count' => $correct,
+                'total_questions' => count($questions),
+                'score' => $score,
+                'submitted_at' => now(),
+            ],
+        );
+
+        $this->activeTestId = null;
+        $this->testAnswers = [];
+
+        if ($assessment->type === 'pre') {
+            Notification::make()->title('Pre-Test ToT tersimpan')->body("Skor: {$score}. Pelajari materi ToT lalu kerjakan Post-Test ToT.")->success()->send();
+
+            return;
+        }
+
+        $this->recordTotScore((int) round($score), 'Post-Test ToT: ' . $assessment->title . ' (benar ' . $correct . '/' . count($questions) . ').');
+
+        $score >= 100
+            ? Notification::make()->title('ToT tutor lulus')->body('Nilai Post-Test ToT sempurna (100).')->success()->send()
+            : Notification::make()->title('Post-Test ToT belum sempurna')->body("Skor: {$score}. Pelajari kembali materi dan ulangi Post-Test ToT sampai nilai 100.")->warning()->send();
+    }
+
+    /** Simpan nilai ToT ke semua event tutor; nilai 100 menandai tutor lulus ToT. */
+    private function recordTotScore(int $score, string $note): void
+    {
+        $tutor = $this->tutor;
+
+        if (! $tutor) {
+            return;
+        }
+
+        if ($score >= 100) {
+            $tutor->update(['tot_completed' => true, 'is_cadre' => true]);
+        }
+
+        foreach ($tutor->learningEvents()->get() as $event) {
+            TotAssessment::query()->updateOrCreate(
+                ['learning_event_id' => $event->id, 'tutor_id' => $tutor->id],
+                ['score' => $score, 'completed_at' => now(), 'assessed_by' => auth()->id(), 'notes' => $note],
+            );
+        }
+    }
+
+    /** Daftar modul bawaan, dipakai bila belum ada Materi Event tipe Tutor. */
     public function getModulesProperty(): array
     {
         return [
@@ -89,35 +279,13 @@ class TutorTraining extends Page
             return;
         }
 
-        $tutor = $this->tutor;
-
-        if (! $tutor) {
+        if (! $this->tutor) {
             Notification::make()->title('Data tutor belum terhubung ke akun ini.')->danger()->send();
 
             return;
         }
 
-        $tutor->update([
-            'tot_completed' => true,
-            'is_cadre' => true,
-        ]);
-
-        $events = $tutor->learningEvents()->get();
-
-        foreach ($events as $event) {
-            TotAssessment::query()->updateOrCreate(
-                [
-                    'learning_event_id' => $event->id,
-                    'tutor_id' => $tutor->id,
-                ],
-                [
-                    'score' => 100,
-                    'completed_at' => now(),
-                    'assessed_by' => auth()->id(),
-                    'notes' => 'Lulus pelatihan awal tutor melalui LMS ToT.',
-                ],
-            );
-        }
+        $this->recordTotScore(100, 'Lulus pelatihan awal tutor melalui LMS ToT.');
 
         Notification::make()
             ->title('ToT tutor selesai')

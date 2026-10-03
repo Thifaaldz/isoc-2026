@@ -1,0 +1,1270 @@
+{
+ "pre_peserta": [
+  {
+   "question": "Anda menerima SMS: \"Selamat! Anda menang hadiah Rp10 juta. Klik link ini untuk klaim.\" Apa yang sebaiknya Anda lakukan?",
+   "options": [
+    {
+     "text": "Klik link untuk klaim hadiah",
+     "is_correct": false
+    },
+    {
+     "text": "Balas SMS minta info",
+     "is_correct": false
+    },
+    {
+     "text": "Abaikan dan hapus SMS",
+     "is_correct": true
+    },
+    {
+     "text": "Bagikan ke teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Di media sosial ada toko menawarkan diskon 90% dengan waktu terbatas. Anda tertarik. Apa yang sebaiknya dilakukan?",
+   "options": [
+    {
+     "text": "Langsung transfer",
+     "is_correct": false
+    },
+    {
+     "text": "Cek dulu apakah toko resmi dan baca ulasan",
+     "is_correct": true
+    },
+    {
+     "text": "Percaya karena banyak like",
+     "is_correct": false
+    },
+    {
+     "text": "Kirim uang muka",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Teman Anda mengirim chat: \"Tolong transfer uang ke rekening ini, urgent.\" Apa langkah aman?",
+   "options": [
+    {
+     "text": "Langsung transfer",
+     "is_correct": false
+    },
+    {
+     "text": "Balas chat minta nomor rekening",
+     "is_correct": false
+    },
+    {
+     "text": "Kirim sebagian",
+     "is_correct": false
+    },
+    {
+     "text": "Telepon teman untuk memastikan",
+     "is_correct": true
+    }
+   ]
+  },
+  {
+   "question": "Anda melihat berita heboh di grup WhatsApp. Apa yang sebaiknya dilakukan sebelum membagikan?",
+   "options": [
+    {
+     "text": "Cek kebenaran dari sumber terpercaya",
+     "is_correct": true
+    },
+    {
+     "text": "Langsung share",
+     "is_correct": false
+    },
+    {
+     "text": "Tambahkan komentar",
+     "is_correct": false
+    },
+    {
+     "text": "Forward ke grup lain",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Ciri berita palsu/hoaks adalah...",
+   "options": [
+    {
+     "text": "Sumber jelas",
+     "is_correct": false
+    },
+    {
+     "text": "Ada tanggal dan penulis",
+     "is_correct": false
+    },
+    {
+     "text": "Judul provokatif dan minta segera dibagikan",
+     "is_correct": true
+    },
+    {
+     "text": "Berisi data resmi",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Anda ingin mengakses mobile banking di Wi-Fi publik. Apa risikonya?",
+   "options": [
+    {
+     "text": "Tidak ada risiko",
+     "is_correct": false
+    },
+    {
+     "text": "Data bisa disadap",
+     "is_correct": true
+    },
+    {
+     "text": "Koneksi lebih cepat",
+     "is_correct": false
+    },
+    {
+     "text": "Baterai lebih awet",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Situs yang aman untuk transaksi online biasanya...",
+   "options": [
+    {
+     "text": "http:// tanpa gembok",
+     "is_correct": false
+    },
+    {
+     "text": "Domain acak",
+     "is_correct": false
+    },
+    {
+     "text": "Banyak iklan",
+     "is_correct": false
+    },
+    {
+     "text": "https:// dan ada ikon gembok",
+     "is_correct": true
+    }
+   ]
+  },
+  {
+   "question": "Anda tidak sengaja mengklik link mencurigakan. Apa yang pertama dilakukan?",
+   "options": [
+    {
+     "text": "Tutup browser dan putuskan internet",
+     "is_correct": true
+    },
+    {
+     "text": "Tetap browsing",
+     "is_correct": false
+    },
+    {
+     "text": "Kirim link ke teman",
+     "is_correct": false
+    },
+    {
+     "text": "Restart HP",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Mengapa tidak boleh mengunduh aplikasi dari luar toko resmi?",
+   "options": [
+    {
+     "text": "Ukuran besar",
+     "is_correct": false
+    },
+    {
+     "text": "Tidak bisa dibuka",
+     "is_correct": false
+    },
+    {
+     "text": "Bisa mengandung malware",
+     "is_correct": true
+    },
+    {
+     "text": "Menghabiskan kuota",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Ada yang meminta kode OTP via SMS. Apa yang harus dilakukan?",
+   "options": [
+    {
+     "text": "Berikan agar cepat",
+     "is_correct": false
+    },
+    {
+     "text": "Jangan berikan ke siapa pun",
+     "is_correct": true
+    },
+    {
+     "text": "Kirim ke teman",
+     "is_correct": false
+    },
+    {
+     "text": "Tulis di media sosial",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Contoh kata sandi yang kuat adalah...",
+   "options": [
+    {
+     "text": "123456",
+     "is_correct": false
+    },
+    {
+     "text": "tanggal lahir",
+     "is_correct": false
+    },
+    {
+     "text": "nama sendiri",
+     "is_correct": false
+    },
+    {
+     "text": "kombinasi huruf, angka, simbol, panjang",
+     "is_correct": true
+    }
+   ]
+  },
+  {
+   "question": "Apa fungsi verifikasi dua langkah (2FA)?",
+   "options": [
+    {
+     "text": "Menambah keamanan meski password bocor",
+     "is_correct": true
+    },
+    {
+     "text": "Membuat password pendek",
+     "is_correct": false
+    },
+    {
+     "text": "Menghilangkan password",
+     "is_correct": false
+    },
+    {
+     "text": "Mempercepat login",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Akun media sosial Anda tiba-tiba logout sendiri dan tidak bisa masuk. Apa yang sebaiknya dilakukan?",
+   "options": [
+    {
+     "text": "Diamkan",
+     "is_correct": false
+    },
+    {
+     "text": "Buat akun baru",
+     "is_correct": false
+    },
+    {
+     "text": "Segera ganti password dari perangkat aman dan laporkan",
+     "is_correct": true
+    },
+    {
+     "text": "Bagikan ke teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Anda menerima email dari \"bank\" yang meminta verifikasi akun dengan klik link. Apa yang harus dilakukan?",
+   "options": [
+    {
+     "text": "Klik link dan isi data",
+     "is_correct": false
+    },
+    {
+     "text": "Hubungi bank melalui nomor resmi",
+     "is_correct": true
+    },
+    {
+     "text": "Balas email",
+     "is_correct": false
+    },
+    {
+     "text": "Teruskan ke teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Jika perangkat terinfeksi malware, langkah awal yang tepat adalah...",
+   "options": [
+    {
+     "text": "Biarkan saja",
+     "is_correct": false
+    },
+    {
+     "text": "Install ulang semua",
+     "is_correct": false
+    },
+    {
+     "text": "Matikan perangkat selamanya",
+     "is_correct": false
+    },
+    {
+     "text": "Putuskan internet, hapus aplikasi mencurigakan, pindai antivirus",
+     "is_correct": true
+    }
+   ]
+  }
+ ],
+ "post_peserta": [
+  {
+   "question": "(Modul 1 – Kenali Online Scam) Anda melihat iklan toko online dengan diskon 80% dan timer \"hanya 10 menit lagi\". Apa yang sebaiknya dilakukan?",
+   "options": [
+    {
+     "text": "Langsung beli karena murah",
+     "is_correct": false
+    },
+    {
+     "text": "Cek URL dan reputasi toko terlebih dahulu",
+     "is_correct": true
+    },
+    {
+     "text": "Transfer cepat sebelum habis",
+     "is_correct": false
+    },
+    {
+     "text": "Percaya karena ada timer",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 1 – Kenali Online Scam) Teman Anda mengirim chat mendadak: \"Tolong transfer uang ke rekening ini, urgent.\" Cara paling aman memverifikasi adalah…",
+   "options": [
+    {
+     "text": "Telepon langsung teman",
+     "is_correct": true
+    },
+    {
+     "text": "Balas chat minta nomor rekening",
+     "is_correct": false
+    },
+    {
+     "text": "Kirim sebagian uang dulu",
+     "is_correct": false
+    },
+    {
+     "text": "Percaya saja",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 1 – Kenali Online Scam) Prinsip utama saat bertransaksi online menurut Modul 1 adalah…",
+   "options": [
+    {
+     "text": "Buru-buru agar tidak kehabisan",
+     "is_correct": false
+    },
+    {
+     "text": "Verifikasi URL, jangan panik, dan telepon langsung jika ada permintaan uang",
+     "is_correct": true
+    },
+    {
+     "text": "Percaya semua promo",
+     "is_correct": false
+    },
+    {
+     "text": "Abaikan keamanan",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Lindungi Device) Mengapa mengunduh file .APK dari luar toko resmi berbahaya?",
+   "options": [
+    {
+     "text": "Ukuran file terlalu besar",
+     "is_correct": false
+    },
+    {
+     "text": "Bisa mengandung malware dan mencuri OTP",
+     "is_correct": true
+    },
+    {
+     "text": "Tidak bisa diinstal",
+     "is_correct": false
+    },
+    {
+     "text": "Menghabiskan kuota",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Lindungi Device) Fungsi Guest Mode atau Multi-User pada perangkat adalah…",
+   "options": [
+    {
+     "text": "Mempercepat internet",
+     "is_correct": false
+    },
+    {
+     "text": "Memisahkan akun dan mencegah akses tidak sah",
+     "is_correct": true
+    },
+    {
+     "text": "Menambah memori",
+     "is_correct": false
+    },
+    {
+     "text": "Menghemat baterai",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Lindungi Device) Langkah pertahanan perangkat setelah ditemukan aplikasi mencurigakan adalah…",
+   "options": [
+    {
+     "text": "Biarkan saja",
+     "is_correct": false
+    },
+    {
+     "text": "Hapus aplikasi, pindai antivirus, dan update OS",
+     "is_correct": true
+    },
+    {
+     "text": "Nonaktifkan update",
+     "is_correct": false
+    },
+    {
+     "text": "Bagikan ke teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Mengenali Informasi Palsu) Ciri khas berita hoaks adalah…",
+   "options": [
+    {
+     "text": "Sumber resmi dan data valid",
+     "is_correct": false
+    },
+    {
+     "text": "Judul clickbait, desakan berbagi, tanpa sumber jelas",
+     "is_correct": true
+    },
+    {
+     "text": "Ada penulis dan tanggal",
+     "is_correct": false
+    },
+    {
+     "text": "Berisi kutipan ahli",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Mengenali Informasi Palsu) Langkah verifikasi informasi sebelum dibagikan adalah…",
+   "options": [
+    {
+     "text": "Lihat jumlah like",
+     "is_correct": false
+    },
+    {
+     "text": "Cek sumber kredibel, konteks & waktu, sumber asli, dan dokumentasi",
+     "is_correct": true
+    },
+    {
+     "text": "Langsung share",
+     "is_correct": false
+    },
+    {
+     "text": "Tambahkan komentar",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Mengenali Informasi Palsu) Mengapa hoaks mudah menyebar?",
+   "options": [
+    {
+     "text": "Karena isinya benar",
+     "is_correct": false
+    },
+    {
+     "text": "Karena memicu emosi dan desakan berbagi cepat",
+     "is_correct": true
+    },
+    {
+     "text": "Karena sumbernya jelas",
+     "is_correct": false
+    },
+    {
+     "text": "Karena sudah diverifikasi",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 4 – Peretas Media Sosial) Penyebab umum akun media sosial dibajak adalah…",
+   "options": [
+    {
+     "text": "Password kuat",
+     "is_correct": false
+    },
+    {
+     "text": "Kredensial lemah dan password reuse",
+     "is_correct": true
+    },
+    {
+     "text": "MFA aktif",
+     "is_correct": false
+    },
+    {
+     "text": "Tidak pernah klik tautan",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 4 – Peretas Media Sosial) Apa fungsi MFA/2FA?",
+   "options": [
+    {
+     "text": "Mempercepat login",
+     "is_correct": false
+    },
+    {
+     "text": "Menambah lapisan keamanan meski sandi bocor",
+     "is_correct": true
+    },
+    {
+     "text": "Menghapus password",
+     "is_correct": false
+    },
+    {
+     "text": "Mengurangi notifikasi",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 5 – Menjelajah Internet) Risiko utama menggunakan Wi-Fi publik tanpa enkripsi adalah…",
+   "options": [
+    {
+     "text": "Koneksi lambat",
+     "is_correct": false
+    },
+    {
+     "text": "Data dapat disadap dan diubah",
+     "is_correct": true
+    },
+    {
+     "text": "Baterai cepat habis",
+     "is_correct": false
+    },
+    {
+     "text": "Kuota cepat habis",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 5 – Menjelajah Internet) Cara aman bertransaksi saat menggunakan Wi-Fi publik adalah…",
+   "options": [
+    {
+     "text": "Langsung login mobile banking",
+     "is_correct": false
+    },
+    {
+     "text": "Gunakan VPN, pastikan https://, dan batasi transaksi finansial",
+     "is_correct": true
+    },
+    {
+     "text": "Abaikan ikon gembok",
+     "is_correct": false
+    },
+    {
+     "text": "Gunakan http://",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 6 – Apa yang Harus Dilakukan Setelahnya) Setelah tidak sengaja mengklik tautan phishing, langkah pertama yang tepat adalah…",
+   "options": [
+    {
+     "text": "Isolasi: tutup browser dan putuskan koneksi internet",
+     "is_correct": true
+    },
+    {
+     "text": "Lanjut browsing",
+     "is_correct": false
+    },
+    {
+     "text": "Kirim tautan ke teman",
+     "is_correct": false
+    },
+    {
+     "text": "Restart perangkat",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 6 – Apa yang Harus Dilakukan Setelahnya) Urutan tanggap darurat pasca-insiden keamanan adalah…",
+   "options": [
+    {
+     "text": "Isolasi, rotasi kredensial, remediasi, lapor & dokumentasi",
+     "is_correct": true
+    },
+    {
+     "text": "Abaikan, lanjut, share, ulangi",
+     "is_correct": false
+    },
+    {
+     "text": "Install ulang, buang, beli baru",
+     "is_correct": false
+    },
+    {
+     "text": "Matikan perangkat selamanya",
+     "is_correct": false
+    }
+   ]
+  }
+ ],
+ "pre_tutor": [
+  {
+   "question": "Apa yang dimaksud dengan aset digital?",
+   "options": [
+    {
+     "text": "Perangkat keras komputer",
+     "is_correct": false
+    },
+    {
+     "text": "Segala sesuatu yang dibuat dan disimpan secara digital, memiliki nilai ekonomi/sentimental",
+     "is_correct": true
+    },
+    {
+     "text": "Aplikasi chatting",
+     "is_correct": false
+    },
+    {
+     "text": "Jaringan internet",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Ciri utama email phishing adalah…",
+   "options": [
+    {
+     "text": "Dikirim oleh domain resmi",
+     "is_correct": false
+    },
+    {
+     "text": "Menggunakan bahasa yang sopan",
+     "is_correct": false
+    },
+    {
+     "text": "Meminta data pribadi dengan desakan urgensi",
+     "is_correct": true
+    },
+    {
+     "text": "Tidak ada lampiran",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Berita bohong yang disebarkan untuk menyesatkan disebut…",
+   "options": [
+    {
+     "text": "Hoaks",
+     "is_correct": true
+    },
+    {
+     "text": "Fakta",
+     "is_correct": false
+    },
+    {
+     "text": "Opini",
+     "is_correct": false
+    },
+    {
+     "text": "Analisis",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Langkah paling tepat untuk melindungi data pribadi di media sosial adalah…",
+   "options": [
+    {
+     "text": "Membagikan lokasi setiap saat",
+     "is_correct": false
+    },
+    {
+     "text": "Menggunakan password kuat dan aktifkan 2FA",
+     "is_correct": true
+    },
+    {
+     "text": "Menerima semua permintaan pertemanan",
+     "is_correct": false
+    },
+    {
+     "text": "Mengunggah foto KTP",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Perundungan yang dilakukan melalui media digital disebut…",
+   "options": [
+    {
+     "text": "Bullying",
+     "is_correct": false
+    },
+    {
+     "text": "Cyberbullying",
+     "is_correct": true
+    },
+    {
+     "text": "Harassment",
+     "is_correct": false
+    },
+    {
+     "text": "Stalking",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Fungsi autentikasi dua faktor (2FA) adalah…",
+   "options": [
+    {
+     "text": "Mempercepat login",
+     "is_correct": false
+    },
+    {
+     "text": "Menambah lapisan keamanan meski password bocor",
+     "is_correct": true
+    },
+    {
+     "text": "Menghapus password",
+     "is_correct": false
+    },
+    {
+     "text": "Mengganti email",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Situs web yang aman untuk transaksi ditandai dengan…",
+   "options": [
+    {
+     "text": "http:// tanpa gembok",
+     "is_correct": false
+    },
+    {
+     "text": "https:// dan ikon gembok",
+     "is_correct": true
+    },
+    {
+     "text": "Domain acak",
+     "is_correct": false
+    },
+    {
+     "text": "Banyak iklan",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Jejak digital adalah…",
+   "options": [
+    {
+     "text": "Riwayat pencarian yang terhapus",
+     "is_correct": false
+    },
+    {
+     "text": "Rekam jejak aktivitas online yang permanen",
+     "is_correct": true
+    },
+    {
+     "text": "Data yang tidak bisa dilacak",
+     "is_correct": false
+    },
+    {
+     "text": "Informasi palsu",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Program berbahaya yang dapat mencuri data disebut…",
+   "options": [
+    {
+     "text": "Malware",
+     "is_correct": true
+    },
+    {
+     "text": "Software",
+     "is_correct": false
+    },
+    {
+     "text": "Firmware",
+     "is_correct": false
+    },
+    {
+     "text": "Freeware",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Cara mencegah penipuan online saat berbelanja adalah…",
+   "options": [
+    {
+     "text": "Transfer langsung ke rekening pribadi",
+     "is_correct": false
+    },
+    {
+     "text": "Cek reputasi toko dan gunakan platform resmi",
+     "is_correct": true
+    },
+    {
+     "text": "Percaya pada diskon besar",
+     "is_correct": false
+    },
+    {
+     "text": "Ikuti timer mendesak",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Etika berinteraksi di media sosial disebut…",
+   "options": [
+    {
+     "text": "Netiket",
+     "is_correct": true
+    },
+    {
+     "text": "Nettiquette",
+     "is_correct": false
+    },
+    {
+     "text": "Netizen",
+     "is_correct": false
+    },
+    {
+     "text": "Network",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Data pribadi yang bersifat umum meliputi…",
+   "options": [
+    {
+     "text": "Nama lengkap, jenis kelamin, kewarganegaraan",
+     "is_correct": true
+    },
+    {
+     "text": "Data kesehatan, biometrik",
+     "is_correct": false
+    },
+    {
+     "text": "Data keuangan pribadi",
+     "is_correct": false
+    },
+    {
+     "text": "Riwayat transaksi",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Microsite adalah…",
+   "options": [
+    {
+     "text": "Website besar",
+     "is_correct": false
+    },
+    {
+     "text": "Tempat yang memuat banyak tautan dalam satu tautan",
+     "is_correct": true
+    },
+    {
+     "text": "Aplikasi chatting",
+     "is_correct": false
+    },
+    {
+     "text": "Email",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Jika akun media sosial diretas, langkah pertama adalah…",
+   "options": [
+    {
+     "text": "Diamkan",
+     "is_correct": false
+    },
+    {
+     "text": "Ganti password dari perangkat aman dan laporkan",
+     "is_correct": true
+    },
+    {
+     "text": "Buat akun baru",
+     "is_correct": false
+    },
+    {
+     "text": "Bagikan ke teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "Enkripsi pada komunikasi digital berfungsi untuk…",
+   "options": [
+    {
+     "text": "Mempercepat koneksi",
+     "is_correct": false
+    },
+    {
+     "text": "Menyandikan data agar tidak mudah dibaca pihak lain",
+     "is_correct": true
+    },
+    {
+     "text": "Menghapus data",
+     "is_correct": false
+    },
+    {
+     "text": "Menambah kuota",
+     "is_correct": false
+    }
+   ]
+  }
+ ],
+ "post_tutor": [
+  {
+   "question": "(Modul 1 – Pengantar Keamanan Digital) Yang termasuk aset digital adalah…",
+   "options": [
+    {
+     "text": "KTP fisik",
+     "is_correct": false
+    },
+    {
+     "text": "Akun media sosial, email, dan data digital",
+     "is_correct": true
+    },
+    {
+     "text": "Rumah",
+     "is_correct": false
+    },
+    {
+     "text": "Kendaraan",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 1 – Pengantar Keamanan Digital) Phishing bertujuan untuk…",
+   "options": [
+    {
+     "text": "Mengambil alih akun dan mencuri data",
+     "is_correct": true
+    },
+    {
+     "text": "Mempercepat internet",
+     "is_correct": false
+    },
+    {
+     "text": "Membersihkan virus",
+     "is_correct": false
+    },
+    {
+     "text": "Menambah teman",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 1 – Pengantar Keamanan Digital) Jejak digital bersifat…",
+   "options": [
+    {
+     "text": "Sementara",
+     "is_correct": false
+    },
+    {
+     "text": "Kekal dan dapat dilacak",
+     "is_correct": true
+    },
+    {
+     "text": "Tidak dapat dihapus",
+     "is_correct": false
+    },
+    {
+     "text": "Hanya di media sosial",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Pemahaman Data Pribadi) Data pribadi yang bersifat spesifik meliputi…",
+   "options": [
+    {
+     "text": "Nama lengkap",
+     "is_correct": false
+    },
+    {
+     "text": "Data biometrik dan kesehatan",
+     "is_correct": true
+    },
+    {
+     "text": "Alamat rumah",
+     "is_correct": false
+    },
+    {
+     "text": "Nomor telepon",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Pemahaman Data Pribadi) Privasi adalah hak individu untuk…",
+   "options": [
+    {
+     "text": "Menyebarkan data orang lain",
+     "is_correct": false
+    },
+    {
+     "text": "Menentukan apakah data pribadi dikomunikasikan atau tidak",
+     "is_correct": true
+    },
+    {
+     "text": "Mengakses data orang lain",
+     "is_correct": false
+    },
+    {
+     "text": "Mengubah data orang lain",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 2 – Pemahaman Data Pribadi) Pelanggaran mengungkapkan data pribadi orang lain dapat diancam pidana maksimal…",
+   "options": [
+    {
+     "text": "1 tahun",
+     "is_correct": false
+    },
+    {
+     "text": "2 tahun",
+     "is_correct": false
+    },
+    {
+     "text": "4 tahun",
+     "is_correct": true
+    },
+    {
+     "text": "10 tahun",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Perundungan Siber & Hoax) Ciri perundungan online adalah…",
+   "options": [
+    {
+     "text": "Dilakukan sekali",
+     "is_correct": false
+    },
+    {
+     "text": "Berulang, ada niat menyakiti, tanpa batas lokasi",
+     "is_correct": true
+    },
+    {
+     "text": "Hanya di sekolah",
+     "is_correct": false
+    },
+    {
+     "text": "Hanya verbal",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Perundungan Siber & Hoax) Bentuk umum perundungan online meliputi…",
+   "options": [
+    {
+     "text": "Cyber harassment, penyebaran hoaks, eksklusi",
+     "is_correct": true
+    },
+    {
+     "text": "Membantu teman",
+     "is_correct": false
+    },
+    {
+     "text": "Berbagi informasi positif",
+     "is_correct": false
+    },
+    {
+     "text": "Diskusi sehat",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 3 – Perundungan Siber & Hoax) Penyebab identitas netizen mudah dibajak adalah…",
+   "options": [
+    {
+     "text": "Password kuat",
+     "is_correct": false
+    },
+    {
+     "text": "Tidak memanfaatkan 2FA dan password lemah",
+     "is_correct": true
+    },
+    {
+     "text": "Aktif 2FA",
+     "is_correct": false
+    },
+    {
+     "text": "Tidak pernah klik tautan",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 4 – Hoax & Bijak Berinternet) Etika vs etiket dalam etika digital: etika online adalah…",
+   "options": [
+    {
+     "text": "Tata cara berinteraksi sebagai netizen beretika Indonesia",
+     "is_correct": true
+    },
+    {
+     "text": "Aturan berpakaian",
+     "is_correct": false
+    },
+    {
+     "text": "Hukum pidana",
+     "is_correct": false
+    },
+    {
+     "text": "Kebiasaan offline",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 4 – Hoax & Bijak Berinternet) Salah satu aturan emas bijak berinternet adalah…",
+   "options": [
+    {
+     "text": "Sebar semua informasi",
+     "is_correct": false
+    },
+    {
+     "text": "Jaga data pribadi, lawan hoax, sopan, cerdas",
+     "is_correct": true
+    },
+    {
+     "text": "Gunakan password lemah",
+     "is_correct": false
+    },
+    {
+     "text": "Abaikan privasi",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 4 – Hoax & Bijak Berinternet) Langkah verifikasi hoax menurut modul 4 adalah…",
+   "options": [
+    {
+     "text": "Cari sumber terpercaya, cek foto/video, konfirmasi ke Kominfo/CekFakta",
+     "is_correct": true
+    },
+    {
+     "text": "Langsung share",
+     "is_correct": false
+    },
+    {
+     "text": "Percaya pada judul",
+     "is_correct": false
+    },
+    {
+     "text": "Tambahkan komentar",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 5 – Microsite) Microsite S.id berfungsi untuk…",
+   "options": [
+    {
+     "text": "Menyimpan file",
+     "is_correct": false
+    },
+    {
+     "text": "Mengumpulkan banyak tautan dalam satu tautan",
+     "is_correct": true
+    },
+    {
+     "text": "Mengirim email",
+     "is_correct": false
+    },
+    {
+     "text": "Bermain game",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 5 – Microsite) Komponen yang dapat ditambahkan ke microsite antara lain…",
+   "options": [
+    {
+     "text": "Profile, Link, Text, Embed, Countdown, Maps",
+     "is_correct": true
+    },
+    {
+     "text": "Hanya teks",
+     "is_correct": false
+    },
+    {
+     "text": "Hanya gambar",
+     "is_correct": false
+    },
+    {
+     "text": "Hanya video",
+     "is_correct": false
+    }
+   ]
+  },
+  {
+   "question": "(Modul 5 – Microsite) Fitur statistik pada microsite S.id berguna untuk…",
+   "options": [
+    {
+     "text": "Melihat jumlah pengunjung",
+     "is_correct": true
+    },
+    {
+     "text": "Mengubah tampilan",
+     "is_correct": false
+    },
+    {
+     "text": "Menghapus akun",
+     "is_correct": false
+    },
+    {
+     "text": "Mengganti password",
+     "is_correct": false
+    }
+   ]
+  }
+ ]
+}

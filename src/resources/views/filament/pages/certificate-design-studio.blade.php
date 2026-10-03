@@ -3,7 +3,10 @@
         $template = $this->template();
         $width = $template?->width_mm ?? 297;
         $height = $template?->height_mm ?? 210;
-        $background = $this->imageUrl($template?->background_image);
+        $background = $this->imageUrl($template?->background_image)
+            ?: (file_exists(public_path(\App\Models\CertificateTemplate::DEFAULT_BACKGROUND))
+                ? asset(\App\Models\CertificateTemplate::DEFAULT_BACKGROUND)
+                : null);
         $partnerLogoUrls = $this->eventPartnerLogoUrls();
     @endphp
 
@@ -57,7 +60,7 @@
                             <img src="{{ $background }}" alt="" class="absolute inset-0 h-full w-full">
                         @else
                             <div class="absolute left-3 top-3 rounded-md bg-white/80 px-2 py-1 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900/80 dark:text-gray-300 dark:ring-gray-700">
-                                Background belum tersimpan
+                                Background belum diatur
                             </div>
                         @endif
 
@@ -137,9 +140,9 @@
                             <div class="absolute inset-y-0 right-0 w-[2.7%] bg-[#19c6d3]"></div>
                             <div class="absolute left-[5.4%] top-[5%] h-[79%] w-[89.2%] bg-white p-[2.4%]">
                                 <div class="flex items-start justify-between gap-4 border-b border-gray-200 pb-3">
-                                    <div class="flex h-12 max-w-[55%] items-center gap-3 overflow-hidden">
+                                    <div class="flex h-12 max-w-[62%] items-center gap-2 overflow-hidden">
                                         @forelse ($partnerLogoUrls as $logoUrl)
-                                            <img src="{{ $logoUrl }}" alt="" class="h-10 max-w-28 object-contain">
+                                            <img src="{{ $logoUrl }}" alt="" class="h-9 max-w-24 object-contain">
                                         @empty
                                             <span class="text-xs font-semibold text-gray-500">Logo mitra event</span>
                                         @endforelse

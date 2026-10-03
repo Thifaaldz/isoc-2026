@@ -126,7 +126,7 @@
                                 class="materi-scope-link {{ $activeTemplateId === $template->id ? 'is-active' : '' }}"
                             >
                                 <span class="materi-scope-name">{{ $template->name }}</span>
-                                <span class="materi-scope-meta">{{ $this->templateCounter($template) }} {{ $this->templateCounterLabel() }}</span>
+                                <span class="materi-scope-meta">{{ \App\Models\ModuleTemplate::AUDIENCES[$template->audience] ?? $template->audience }} · {{ $this->templateCounter($template) }} {{ $this->templateCounterLabel() }}</span>
                             </a>
                         @empty
                             <div class="materi-scope-empty">Belum ada Materi Event.</div>

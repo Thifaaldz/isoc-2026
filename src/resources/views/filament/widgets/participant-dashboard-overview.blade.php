@@ -398,6 +398,27 @@
         font-weight: 800;
     }
 
+    .pd-proof-card {
+        grid-column: 1 / -1;
+    }
+
+    .pd-proof-card .pd-check-row {
+        gap: 10px;
+    }
+
+    .pd-upload-form {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .pd-upload-form input[type="file"] {
+        color: #374151;
+        font-size: 13px;
+        max-width: 100%;
+    }
+
     @media (max-width: 1100px) {
         .pd-info-grid,
         .pd-stat-grid,
@@ -480,18 +501,56 @@
 
         <section class="pd-info-grid">
             @if (($approval['requires_approval'] ?? false) && ! $dashboardOpen)
-                <div class="pd-card pd-info-card">
+                @php
+                    $followDone = (bool) ($proof['follow_complete'] ?? false);
+                    $wagDone = (bool) ($proof['wag_complete'] ?? false);
+                @endphp
+                <div class="pd-card pd-info-card pd-proof-card">
                     <div class="pd-icon"><x-heroicon-o-shield-check /></div>
-                    <div>
-                        <p class="pd-card-label">Approval Peserta Umum</p>
-                        <p class="pd-card-title">Dashboard lengkap belum terbuka</p>
-                        <p class="pd-card-text">
-                            Status approval: {{ ucfirst($approval['status'] ?? 'pending') }}.
-                            Upload bukti follow Instagram dan ceklis join WAG untuk membuka dashboard.
-                        </p>
-                        @if (! empty($approval['notes']))
-                            <p class="pd-card-text">{{ $approval['notes'] }}</p>
-                        @endif
+                    <div style="flex: 1; min-width: 0;">
+                        <p class="pd-card-label">Bukti Dukung Peserta</p>
+                        <p class="pd-card-title">Lengkapi bukti dukung untuk membuka modul, tes, dan rundown</p>
+                        <p class="pd-card-text">Follow Instagram ISOC lalu upload screenshot-nya, dan join WhatsApp Group kegiatan. Akses terbuka otomatis setelah keduanya lengkap.</p>
+
+                        <div class="pd-check-list" style="margin-top: 16px;">
+                            <div class="pd-check-row" style="align-items: flex-start; flex-direction: column;">
+                                <div class="pd-check-left" style="justify-content: space-between; width: 100%;">
+                                    <span class="pd-check-label">1. Follow Instagram ISOC</span>
+                                    <span class="pd-check-status {{ $followDone ? 'is-done' : '' }}">{{ $followDone ? 'Sudah upload' : 'Belum' }}</span>
+                                </div>
+                                <a class="pd-button pd-button-map" style="margin-top: 0;" href="{{ \App\Filament\Widgets\ParticipantDashboardOverview::INSTAGRAM_URL }}" target="_blank" rel="noopener noreferrer">
+                                    <x-heroicon-o-arrow-top-right-on-square style="height: 16px; width: 16px;" />
+                                    Buka Instagram ISOC
+                                </a>
+                                <form wire:submit="submitInstagramEvidence" class="pd-upload-form">
+                                    <input type="file" wire:model="instagramEvidence" accept="image/*">
+                                    <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="instagramEvidence,submitInstagramEvidence">
+                                        {{ $followDone ? 'Ganti Screenshot' : 'Upload Screenshot' }}
+                                    </button>
+                                </form>
+                                <span wire:loading wire:target="instagramEvidence" class="pd-card-text" style="margin: 0;">Mengunggah...</span>
+                                @error('instagramEvidence') <p class="pd-card-text" style="color: #dc2626; margin: 0;">{{ $message }}</p> @enderror
+                            </div>
+
+                            <div class="pd-check-row" style="align-items: flex-start; flex-direction: column;">
+                                <div class="pd-check-left" style="justify-content: space-between; width: 100%;">
+                                    <span class="pd-check-label">2. Join WhatsApp Group kegiatan</span>
+                                    <span class="pd-check-status {{ $wagDone ? 'is-done' : '' }}">{{ $wagDone ? 'Sudah join' : 'Belum' }}</span>
+                                </div>
+                                @if ($wag?->invite_link)
+                                    <a class="pd-button pd-button-success" style="margin-top: 0;" href="{{ $wag->invite_link }}" target="_blank" rel="noopener noreferrer">
+                                        <x-heroicon-o-arrow-top-right-on-square style="height: 16px; width: 16px;" />
+                                        Masuk WAG {{ $wag->name }}
+                                    </a>
+                                @else
+                                    <p class="pd-card-text" style="margin: 0;">Link WAG belum tersedia. Admin akan melengkapi link WAG kegiatan.</p>
+                                @endif
+                                <label class="pd-inline-check" style="margin-top: 0;">
+                                    <input type="checkbox" wire:click="toggleJoinedWag" @checked($wagDone)>
+                                    <span>Saya sudah join WhatsApp Group</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif
@@ -558,7 +617,7 @@
                             Masuk WAG
                         </a>
                     @endif
-                    @if ($hasEvent)
+                    @if ($hasEvent && $dashboardOpen)
                         <label class="pd-inline-check">
                             <input type="checkbox" wire:click="toggleJoinedWag" @checked(auth()->user()?->participant?->joined_wag)>
                             <span>{{ auth()->user()?->participant?->joined_wag ? 'Sudah join WAG' : 'Saya sudah join WAG' }}</span>

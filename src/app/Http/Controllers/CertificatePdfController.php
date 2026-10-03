@@ -31,16 +31,19 @@ class CertificatePdfController extends Controller
 
         $certificate = app(CertificateEligibilityService::class)->updateCertificate($certificate);
 
-        abort_unless($certificate->eligibility_status === 'eligible', 403, 'Sertifikat belum eligible untuk dicetak.');
+        // Sertifikat yang sudah diterbitkan tetap berlaku walau aturan eligibility berubah;
+        // pembatalan dilakukan lewat status "Dicabut".
+        abort_unless($certificate->isIssued() || $certificate->isEligible(), 403, 'Sertifikat belum eligible untuk dicetak.');
 
-        if ($certificate->status !== 'issued') {
-            $certificate->update([
-                'status' => 'issued',
-                'issued_at' => now(),
-            ]);
-        }
+        // Peserta baru bisa mencetak setelah admin menekan "Terbitkan"; admin, tutor, dan pusat
+        // tetap bisa melihat preview tanpa mengubah status penerbitan.
+        abort_if(
+            auth()->user()?->role === UserRole::Peserta && ! $certificate->isIssued(),
+            403,
+            'Sertifikat belum diterbitkan oleh admin.',
+        );
 
-        return $certificate->refresh()->load(['participant.user', 'participant.school', 'learningEvent', 'certificateTemplate']);
+        return $certificate->load(['participant.user', 'participant.school', 'learningEvent', 'certificateTemplate']);
     }
 
     private function canAccess(Certificate $certificate): bool
@@ -59,8 +62,15 @@ class CertificatePdfController extends Controller
             return $certificate->participant_id === $user->participant?->id;
         }
 
-        if (in_array($user->role, [UserRole::Admin, UserRole::Tutor], true)) {
-            return $certificate->participant?->school_id === $user->school_id;
+        $event = $certificate->learningEvent;
+
+        if ($user->role === UserRole::Admin) {
+            return $event && ($event->created_by === $user->id
+                || in_array((int) $event->school_id, \App\Filament\Resources\LearningEventResource::managedSchoolIds(), true));
+        }
+
+        if ($user->role === UserRole::Tutor) {
+            return $event && $event->tutors()->where('tutors.user_id', $user->id)->exists();
         }
 
         return false;

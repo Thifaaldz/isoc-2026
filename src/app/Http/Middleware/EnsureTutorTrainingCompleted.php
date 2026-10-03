@@ -21,13 +21,17 @@ class EnsureTutorTrainingCompleted
 
         if (in_array($routeName, [
             'filament.tutor.pages.pelatihan-tutor',
+            // Preview materi tetap bisa dibuka tutor yang sedang menjalani ToT.
+            'filament.tutor.pages.preview-materi',
             'filament.tutor.auth.login',
             'filament.tutor.auth.logout',
         ], true)) {
             return $next($request);
         }
 
-        if ($request->is('livewire/update') && str_contains((string) $request->headers->get('referer'), '/tutor/pelatihan-tutor')) {
+        $referer = (string) $request->headers->get('referer');
+
+        if ($request->is('livewire/update') && (str_contains($referer, '/tutor/pelatihan-tutor') || str_contains($referer, '/tutor/preview-materi'))) {
             return $next($request);
         }
 

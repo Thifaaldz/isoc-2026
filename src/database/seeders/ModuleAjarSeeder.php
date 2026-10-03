@@ -136,6 +136,7 @@ class ModuleAjarSeeder extends Seeder
             ['name' => 'Modul Ajar ToT - Digital Safety Champions'],
             [
                 'created_by' => null,
+                'audience' => ModuleTemplate::AUDIENCE_TUTOR,
                 'description' => 'Template contoh dari folder docs/modul ajar. Berisi pertemuan, slide PPT, tugas, dan kuis per modul.',
                 'purpose' => 'Membekali tutor dan peserta dengan pemahaman keamanan digital, perlindungan data pribadi, literasi informasi, dan praktik kampanye digital melalui microsite.',
                 'meeting_count' => count($templateMeetings),

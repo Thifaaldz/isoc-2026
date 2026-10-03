@@ -75,9 +75,9 @@
                                         <p class="mt-1 text-sm text-gray-500">{{ $this->questionsFor($assessment)->count() }} soal pilihan ganda</p>
                                     </div>
                                     @if($attempt)
-                                        <span class="rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-700 dark:bg-success-400/10 dark:text-success-300">Selesai</span>
+                                        <x-filament::badge color="success">Selesai</x-filament::badge>
                                     @else
-                                        <span class="rounded-full bg-warning-50 px-3 py-1 text-xs font-medium text-warning-700 dark:bg-warning-400/10 dark:text-warning-300">Belum isi</span>
+                                        <x-filament::badge color="warning">Belum isi</x-filament::badge>
                                     @endif
                                 </div>
 
@@ -87,7 +87,7 @@
                                         <div class="mt-1 text-gray-500">Benar {{ $attempt->correct_count }}/{{ $attempt->total_questions }} soal, submit {{ $attempt->submitted_at?->format('d M Y H:i') }}</div>
                                     </div>
                                 @elseif(! $this->canStartAssessment($assessment))
-                                    <div class="rounded-lg bg-warning-50 p-4 text-sm text-warning-800 dark:bg-warning-400/10 dark:text-warning-200">
+                                    <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--warning-400), 0.12); color: rgb(var(--warning-700));">
                                         {{ $this->assessmentLockReason($assessment) }}
                                     </div>
                                 @else
@@ -110,7 +110,7 @@
                                 <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
                                     <div class="font-medium text-gray-950 dark:text-white">{{ $questionIndex + 1 }}. {{ $question['question'] ?? '-' }}</div>
                                     <div class="mt-4 space-y-3">
-                                        @foreach(collect($question['options'] ?? [])->values() as $optionIndex => $option)
+                                        @foreach($this->displayOptions($this->activeAssessment, $questionIndex, $question) as $optionIndex => $option)
                                             <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5">
                                                 <input type="radio" wire:model="answers.{{ $questionIndex }}" value="{{ $optionIndex }}" class="mt-1 border-gray-300 text-primary-600">
                                                 <span>{{ $option['text'] ?? '-' }}</span>
@@ -131,7 +131,12 @@
                 @php $certificate = $this->certificate; @endphp
                 <x-filament::section>
                     <x-slot name="heading">Sertifikat</x-slot>
-                    @if($certificate?->eligibility_status === 'eligible')
+                    @if($certificate?->isEligible() && ! $certificate->isIssued() && $certificate->status !== 'revoked')
+                        <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--success-400), 0.12); color: rgb(var(--success-700));">
+                            <div class="font-semibold">Syarat sertifikat sudah lengkap.</div>
+                            <div class="mt-1">Sertifikat nomor {{ $certificate->number }} sedang menunggu penerbitan oleh admin. Tombol unduh akan muncul setelah sertifikat diterbitkan.</div>
+                        </div>
+                    @elseif($certificate?->isIssued())
                         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <div class="font-semibold text-gray-950 dark:text-white">Sertifikat sudah bisa dicetak</div>
@@ -147,7 +152,7 @@
                             </div>
                         </div>
                     @else
-                        <div class="rounded-lg bg-warning-50 p-4 text-sm text-warning-800 dark:bg-warning-400/10 dark:text-warning-200">
+                        <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--warning-400), 0.12); color: rgb(var(--warning-700));">
                             <div class="font-semibold">Sertifikat belum bisa dicetak.</div>
                             <ul class="mt-2 list-disc space-y-1 pl-5">
                                 @forelse($this->certificateNotes as $note)

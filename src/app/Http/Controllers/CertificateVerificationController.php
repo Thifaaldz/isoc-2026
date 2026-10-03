@@ -10,8 +10,9 @@ class CertificateVerificationController
     public function show(string $certificateNumber): View
     {
         return view('certificates.verify', [
+            'certificateNumber' => $certificateNumber,
             'certificate' => Certificate::query()
-                ->with('participant.user')
+                ->with(['participant.user', 'participant.school', 'learningEvent'])
                 ->where('number', $certificateNumber)
                 ->where('status', 'issued')
                 ->first(),

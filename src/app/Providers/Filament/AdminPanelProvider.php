@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\MaterialPreview;
 use App\Filament\Pages\CreateSeminarShortcut;
 use App\Filament\Pages\ParticipantApproval;
 use App\Filament\Pages\Profile;
@@ -45,7 +46,7 @@ class AdminPanelProvider extends PanelProvider
                 'Administrasi',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, Profile::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, MaterialPreview::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

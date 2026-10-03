@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\EvidenceResource\Pages;
@@ -29,6 +30,12 @@ class EvidenceResource extends Resource
     protected static ?string $pluralModelLabel = 'Bukti Dukung';
 
     protected static ?int $navigationSort = 2;
+
+    /** Verifikasi bukti dukung hanya dilakukan Admin RTIK Pusat (Super Admin). */
+    public static function canVerify(): bool
+    {
+        return auth()->user()?->role === UserRole::SuperAdmin;
+    }
 
     public static function viewRoles(): array
     {
@@ -87,12 +94,12 @@ class EvidenceResource extends Resource
                             ->visible(fn (Forms\Get $get) => in_array($get('type'), ['foto_sesi', 'absensi_basah'], true))
                             ->helperText('Isi jika bukti dikumpulkan per sesi/pertemuan.'),
                         Forms\Components\FileUpload::make('file_path')
+                            ->acceptedFileTypes(UploadTypes::evidence())
                             ->label('Berkas')
                             ->disk('public')
                             ->directory('evidences')
                             ->downloadable()
                             ->openable()
-                            ->preserveFilenames()
                             ->columnSpanFull(),
                         Forms\Components\TextInput::make('link')
                             ->label('Tautan bukti / video')
@@ -101,20 +108,22 @@ class EvidenceResource extends Resource
                     ])
                     ->columns(2),
                 Forms\Components\Wizard\Step::make('Status Verifikasi')
-                    ->description('Tutor hanya mengirim bukti. Admin RTIK/Pusat melakukan verifikasi.')
+                    ->description('Tutor dan Admin RTIK Daerah mengirim bukti. Admin RTIK Pusat melakukan verifikasi.')
                     ->icon('heroicon-o-shield-check')
                     ->schema([
                         Forms\Components\Select::make('status')
                             ->label('Status')
                             ->options(['pending' => 'Menunggu', 'approved' => 'Disetujui', 'needs_revision' => 'Perlu revisi', 'rejected' => 'Ditolak'])
                             ->default('pending')
-                            ->disabled(fn () => auth()->user()?->role === UserRole::Tutor)
+                            ->disabled(fn () => ! static::canVerify())
                             ->dehydrated()
+                            // Bukti yang dikirim/diubah selain oleh RTIK Pusat selalu kembali menunggu verifikasi.
+                            ->dehydrateStateUsing(fn (?string $state) => static::canVerify() ? $state : 'pending')
                             ->required(),
                         Forms\Components\Textarea::make('review_notes')
                             ->label('Catatan verifikasi')
-                            ->disabled(fn () => auth()->user()?->role === UserRole::Tutor)
-                            ->dehydrated(fn () => auth()->user()?->role !== UserRole::Tutor)
+                            ->disabled(fn () => ! static::canVerify())
+                            ->dehydrated(fn () => static::canVerify())
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
@@ -154,14 +163,14 @@ class EvidenceResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('approve')->label('Setujui')->icon('heroicon-o-check')->color('success')
-                    ->visible(fn ($record) => in_array(auth()->user()?->role, [UserRole::SuperAdmin, UserRole::Admin], true) && $record->status !== 'approved')
+                    ->visible(fn ($record) => static::canVerify() && $record->status !== 'approved')
                     ->action(fn ($record) => $record->update(['status' => 'approved', 'verified_by' => auth()->id(), 'verified_at' => now()])),
                 Tables\Actions\Action::make('reject')->label('Tolak')->icon('heroicon-o-x-mark')->color('danger')
-                    ->visible(fn ($record) => in_array(auth()->user()?->role, [UserRole::SuperAdmin, UserRole::Admin], true) && $record->status !== 'rejected')
+                    ->visible(fn ($record) => static::canVerify() && $record->status !== 'rejected')
                     ->form([Forms\Components\Textarea::make('review_notes')->label('Alasan penolakan')->required()])
                     ->action(fn ($record, array $data) => $record->update(['status' => 'rejected', 'review_notes' => $data['review_notes'], 'verified_by' => auth()->id(), 'verified_at' => now()])),
                 Tables\Actions\Action::make('revision')->label('Minta Revisi')->icon('heroicon-o-arrow-path')->color('warning')
-                    ->visible(fn ($record) => in_array(auth()->user()?->role, [UserRole::SuperAdmin, UserRole::Admin], true) && $record->status !== 'needs_revision')
+                    ->visible(fn ($record) => static::canVerify() && $record->status !== 'needs_revision')
                     ->form([Forms\Components\Textarea::make('review_notes')->label('Catatan revisi')->required()])
                     ->action(fn ($record, array $data) => $record->update(['status' => 'needs_revision', 'review_notes' => $data['review_notes'], 'verified_by' => auth()->id(), 'verified_at' => now()])),
                 Tables\Actions\EditAction::make()

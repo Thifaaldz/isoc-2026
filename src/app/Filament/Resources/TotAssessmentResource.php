@@ -105,8 +105,8 @@ class TotAssessmentResource extends Resource
         $user = auth()->user();
         $query = Tutor::query()->with('user');
 
-        if ($user?->role === UserRole::Admin && $user->school_id) {
-            $query->where('school_id', $user->school_id);
+        if ($user?->role === UserRole::Admin) {
+            $query->whereIn('school_id', static::managedSchoolIds());
         }
 
         if ($user?->role === UserRole::Tutor) {

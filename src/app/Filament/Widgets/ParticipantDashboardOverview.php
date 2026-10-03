@@ -7,13 +7,20 @@ use App\Filament\Pages\EventRundown;
 use App\Filament\Pages\ParticipantLearning;
 use App\Filament\Pages\ParticipantTests;
 use App\Models\AssessmentAttempt;
+use App\Models\Evidence;
 use App\Models\LearningEvent;
+use App\Services\EventEnrollmentService;
 use Filament\Widgets\Widget;
 use Filament\Notifications\Notification;
 use Livewire\Attributes\Url;
+use Livewire\WithFileUploads;
 
 class ParticipantDashboardOverview extends Widget
 {
+    use WithFileUploads;
+
+    public const INSTAGRAM_URL = 'https://www.instagram.com/isoc.jkt/';
+
     protected static string $view = 'filament.widgets.participant-dashboard-overview';
 
     protected int | string | array $columnSpan = 'full';
@@ -22,6 +29,9 @@ class ParticipantDashboardOverview extends Widget
 
     #[Url(as: 'event')]
     public ?int $selectedEventId = null;
+
+    /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
+    public $instagramEvidence = null;
 
     public static function canView(): bool
     {
@@ -99,7 +109,16 @@ class ParticipantDashboardOverview extends Widget
                 'event' => $event,
                 'events' => $events,
                 'school' => $event->school,
-                'wag' => null,
+                'wag' => app(EventEnrollmentService::class)->wagGroupFor($event),
+                'proof' => [
+                    'follow_complete' => Evidence::query()
+                        ->where('learning_event_id', $event->id)
+                        ->where('uploaded_by', $participant->user_id)
+                        ->where('type', 'follow_ig')
+                        ->whereNotNull('file_path')
+                        ->exists(),
+                    'wag_complete' => (bool) $participant->joined_wag,
+                ],
                 'stats' => $this->emptyStats(),
                 'approval' => $approval,
                 'learningUrl' => '#',
@@ -189,6 +208,36 @@ class ParticipantDashboardOverview extends Widget
             'status' => 'approved',
             'notes' => null,
         ];
+    }
+
+    public function submitInstagramEvidence(): void
+    {
+        $participant = auth()->user()?->participant;
+        $event = $this->resolveSelectedEvent();
+
+        if (! $participant || ! $event) {
+            return;
+        }
+
+        $this->validate([
+            'instagramEvidence' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+        ], [], [
+            'instagramEvidence' => 'bukti follow Instagram',
+        ]);
+
+        $approved = app(EventEnrollmentService::class)->submitInstagramEvidence(
+            $participant,
+            $event,
+            $this->instagramEvidence->store('evidences', 'public'),
+        );
+
+        $this->reset('instagramEvidence');
+
+        Notification::make()
+            ->title('Bukti follow Instagram tersimpan')
+            ->body($approved ? 'Bukti dukung lengkap. Modul, tes, dan rundown sudah terbuka.' : 'Centang join WhatsApp Group untuk membuka modul dan tes.')
+            ->success()
+            ->send();
     }
 
     public function toggleJoinedWag(): void

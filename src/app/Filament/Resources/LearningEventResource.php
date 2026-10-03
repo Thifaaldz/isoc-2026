@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\LearningEventResource\Pages;
@@ -117,7 +118,12 @@ class LearningEventResource extends Resource
                                 Forms\Components\TextInput::make('participant_target')->label('Target peserta')->numeric()->default(100),
                                 Forms\Components\DatePicker::make('training_date')->label('Tanggal pelatihan'),
                             ])
-                            ->createOptionUsing(fn (array $data) => School::query()->create($data)->id),
+                            ->createOptionUsing(function (array $data): int {
+                                $schoolId = School::query()->create($data)->id;
+                                static::rememberCreatedSchool($schoolId);
+
+                                return $schoolId;
+                            }),
                         Forms\Components\Textarea::make('description')->label('Deskripsi')->columnSpanFull(),
                         Forms\Components\TextInput::make('zoom_url')
                             ->label('Link Zoom / Webinar')
@@ -129,8 +135,8 @@ class LearningEventResource extends Resource
                             ->columnSpanFull(),
                         Forms\Components\Select::make('module_template_id')
                             ->label('Materi Event')
-                            ->helperText('Pilih materi event dari Super Admin. Sistem akan generate pertemuan, materi, tugas, dan kuis ke seminar ini.')
-                            ->options(fn () => ModuleTemplate::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->helperText('Pilih materi event tipe Peserta dari Admin RTIK Pusat. Sistem akan generate pertemuan, materi, tugas, dan kuis ke seminar ini.')
+                            ->options(fn () => ModuleTemplate::query()->forParticipants()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->nullable(),
@@ -157,6 +163,7 @@ class LearningEventResource extends Resource
                                 Forms\Components\FileUpload::make('logo_path')
                                     ->label('Logo Mitra')
                                     ->image()
+                                    ->acceptedFileTypes(UploadTypes::IMAGES)
                                     ->imageEditor()
                                     ->disk('public')
                                     ->directory('partners')
@@ -197,6 +204,7 @@ class LearningEventResource extends Resource
                         Forms\Components\TextInput::make('target_participants')->label('Target Peserta')->numeric()->default(100)->required(),
                         Forms\Components\TextInput::make('target_tutors')->label('Target Tutor')->numeric()->default(3)->required(),
                         Forms\Components\FileUpload::make('preparation_document')
+                            ->acceptedFileTypes(UploadTypes::documents())
                             ->label('Surat/MoU/Berita Acara Persiapan')
                             ->disk('public')
                             ->directory('event-documents'),
@@ -296,9 +304,25 @@ class LearningEventResource extends Resource
                             ->columnSpanFull(),
                     ]),
                 Forms\Components\Wizard\Step::make('Tutor / Fasilitator')
-                    ->description('Data 3 tutor/fasilitator. Sistem membuat akun tutor.')
+                    ->description('Pilih tutor yang sudah terdaftar atau tambah tutor baru.')
                     ->icon('heroicon-o-user-circle')
                     ->schema([
+                        Forms\Components\Section::make('Tutor yang sudah terdaftar')
+                            ->description('Pilih tutor yang sudah memiliki akun di sistem. Tutor terpilih ditugaskan ke event saat event disetujui RTIK Pusat.')
+                            ->schema([
+                                Forms\Components\Select::make('selected_tutor_ids')
+                                    ->hiddenLabel()
+                                    ->placeholder('Cari nama, email, atau lembaga tutor')
+                                    ->multiple()
+                                    ->searchable()
+                                    ->preload()
+                                    ->options(fn () => static::registeredTutorOptions())
+                                    ->helperText('Tutor yang sama tidak perlu ditambahkan lagi di bagian Tambah tutor baru.'),
+                            ])
+                            ->columnSpanFull(),
+                        Forms\Components\Section::make('Tambah tutor baru')
+                            ->description('Isi manual atau upload Excel untuk tutor yang belum punya akun. Akun tutor dibuat otomatis saat event disetujui RTIK Pusat (password awal: password).')
+                            ->schema([
                         Forms\Components\FileUpload::make('tutor_import_file')
                             ->label('File Excel Tutor')
                             ->helperText('Upload XLSX/CSV sebagai arsip import. Data final tetap dapat diperiksa di daftar tutor manual di bawah.')
@@ -339,7 +363,7 @@ class LearningEventResource extends Resource
                             ])
                             ->columnSpanFull(),
                         Forms\Components\Repeater::make('tutor_rows')
-                            ->label('Data Tutor')
+                            ->label('Data tutor baru')
                             ->schema([
                                 Forms\Components\TextInput::make('name')->label('Nama lengkap')->required(),
                                 Forms\Components\TextInput::make('phone')->label('Kontak'),
@@ -349,8 +373,10 @@ class LearningEventResource extends Resource
                             ])
                             ->columns(2)
                             ->defaultItems(0)
-                            ->addActionLabel('Tambah tutor')
+                            ->addActionLabel('Tambah tutor baru')
                             ->collapsible()
+                            ->columnSpanFull(),
+                            ])
                             ->columnSpanFull(),
                     ]),
                 Forms\Components\Wizard\Step::make('Rundown Acara')
@@ -384,6 +410,7 @@ class LearningEventResource extends Resource
                         Forms\Components\Section::make('Dokumen RAB')
                             ->schema([
                                 Forms\Components\FileUpload::make('rab_file')
+                                    ->acceptedFileTypes(UploadTypes::documents())
                                     ->label('Upload RAB Awal')
                                     ->hintAction(
                                         Forms\Components\Actions\Action::make('downloadRabTemplate')
@@ -431,11 +458,18 @@ class LearningEventResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Hitung tutor & tutor lulus ToT sekali di query (bukan per baris).
+            ->modifyQueryUsing(fn ($query) => $query
+                ->withCount('tutors')
+                ->withCount(['totAssessments as tot_passed_count' => fn ($totQuery) => $totQuery
+                    ->where('is_perfect', true)
+                    ->select(\Illuminate\Support\Facades\DB::raw('count(distinct tutor_id)'))]))
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Event')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('event_type')
                     ->label('Tipe')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => static::eventTypeOptions()[$state ?: 'offline'] ?? $state)
                     ->color(fn (?string $state) => match ($state) {
@@ -445,6 +479,7 @@ class LearningEventResource extends Resource
                     }),
                 Tables\Columns\TextColumn::make('audience_type')
                     ->label('Kategori')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => static::audienceTypeOptions()[$state ?: 'school'] ?? $state)
                     ->color(fn (?string $state) => $state === 'general' ? 'success' : 'gray'),
@@ -454,46 +489,31 @@ class LearningEventResource extends Resource
                     ->url(fn (?string $state) => $state)
                     ->openUrlInNewTab()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('moduleTemplate.name')->label('Materi Event')->searchable()->toggleable(),
+                Tables\Columns\TextColumn::make('moduleTemplate.name')->label('Materi Event')->searchable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('partners.name')
                     ->label('Mitra')
                     ->badge()
                     ->separator(',')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('certificateTemplate.name')
                     ->label('Template Sertifikat')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('starts_at')->label('Mulai')->dateTime()->sortable(),
                 Tables\Columns\TextColumn::make('participants_count')->counts('participants')->label('Peserta')->sortable(),
                 Tables\Columns\TextColumn::make('tutors_count')->counts('tutors')->label('Tutor')->sortable(),
                 Tables\Columns\TextColumn::make('tot_progress')
                     ->label('ToT')
-                    ->state(function (LearningEvent $record): string {
-                        $total = $record->tutors()->count();
-                        $passed = $record->totAssessments()
-                            ->where('is_perfect', true)
-                            ->distinct('tutor_id')
-                            ->count('tutor_id');
-
-                        return $passed . '/' . $total;
-                    })
+                    ->state(fn (LearningEvent $record): string => (int) $record->tot_passed_count . '/' . (int) $record->tutors_count)
                     ->badge()
-                    ->color(function (LearningEvent $record): string {
-                        $total = $record->tutors()->count();
-                        $passed = $record->totAssessments()
-                            ->where('is_perfect', true)
-                            ->distinct('tutor_id')
-                            ->count('tutor_id');
-
-                        return $total > 0 && $passed >= $total ? 'success' : 'warning';
-                    })
+                    ->color(fn (LearningEvent $record): string => $record->tutors_count > 0 && $record->tot_passed_count >= $record->tutors_count ? 'success' : 'warning')
                     ->tooltip('Jumlah tutor yang sudah lulus ToT sempurna.'),
-                Tables\Columns\TextColumn::make('meetings_count')->counts('meetings')->label('Pertemuan')->sortable(),
+                Tables\Columns\TextColumn::make('meetings_count')->counts('meetings')->label('Pertemuan')->sortable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('budget_total')
                     ->label('Total RAB')
                     ->state(fn (LearningEvent $record) => collect($record->budget_items ?? [])->sum(fn ($item) => (float) ($item['amount'] ?? 0)))
                     ->money('IDR')
-                    ->sortable(query: fn ($query, string $direction) => $query->orderBy('id', $direction)),
+                    ->sortable(query: fn ($query, string $direction) => $query->orderBy('id', $direction))
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('workflow_status')->label('Workflow')->badge(),
                 Tables\Columns\TextColumn::make('publish_approval_status')
                     ->label('Approval Publish')
@@ -515,14 +535,14 @@ class LearningEventResource extends Resource
                         'revision' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('status')->label('Publik')->badge(),
+                Tables\Columns\TextColumn::make('status')->label('Publik')->badge()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('local_updated_at')
                     ->label('Update Daerah')
                     ->since()
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('central_admin_notes')
-                    ->label('Catatan Pusat')
+                    ->label('Catatan Admin RTIK Pusat')
                     ->limit(45)
                     ->tooltip(fn (LearningEvent $record) => $record->central_admin_notes)
                     ->toggleable(),
@@ -566,32 +586,6 @@ class LearningEventResource extends Resource
                     ->label('Publish'),
             ])
             ->actions([
-                Tables\Actions\Action::make('updateZoomLink')
-                    ->label('Link Zoom')
-                    ->icon('heroicon-o-video-camera')
-                    ->color('info')
-                    ->visible(fn (LearningEvent $record) => in_array(auth()->user()?->role, [UserRole::Admin, UserRole::Tutor, UserRole::SuperAdmin], true)
-                        && in_array($record->event_type, ['webinar', 'hybrid'], true))
-                    ->form([
-                        Forms\Components\TextInput::make('zoom_url')
-                            ->label('Link Zoom / Webinar')
-                            ->url()
-                            ->required()
-                            ->default(fn (LearningEvent $record) => $record->zoom_url)
-                            ->placeholder('https://zoom.us/j/...'),
-                    ])
-                    ->action(function (LearningEvent $record, array $data): void {
-                        $record->update([
-                            'zoom_url' => $data['zoom_url'],
-                            'local_updated_at' => now(),
-                            'local_update_summary' => 'Link Zoom diperbarui oleh ' . (auth()->user()?->name ?? 'user') . '.',
-                        ]);
-
-                        Notification::make()
-                            ->title('Link Zoom diperbarui')
-                            ->success()
-                            ->send();
-                    }),
                 Tables\Actions\Action::make('submitApplication')
                     ->label('Submit Pengajuan')
                     ->icon('heroicon-o-paper-airplane')
@@ -643,7 +637,7 @@ class LearningEventResource extends Resource
                     ->icon('heroicon-o-megaphone')
                     ->color('warning')
                     ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
-                        && $record->workflow_status === 'verified_term_1'
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
                         && in_array($record->publish_approval_status, ['draft', 'revision'], true))
                     ->action(function (LearningEvent $record): void {
                         $record->update([
@@ -664,7 +658,7 @@ class LearningEventResource extends Resource
                     ->icon('heroicon-o-rocket-launch')
                     ->color('success')
                     ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
-                        && $record->workflow_status === 'verified_term_1'
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
                         && in_array($record->publish_approval_status, ['pending', 'revision', 'draft'], true))
                     ->form([
                         Forms\Components\Textarea::make('central_admin_notes')
@@ -706,7 +700,7 @@ class LearningEventResource extends Resource
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
                     ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
-                        && $record->workflow_status === 'verified_term_1'
+                        && in_array($record->workflow_status, static::publishableWorkflowStatuses(), true)
                         && $record->publish_approval_status === 'pending')
                     ->form([
                         Forms\Components\Textarea::make('publish_revision_notes')
@@ -790,24 +784,6 @@ class LearningEventResource extends Resource
                             ->danger()
                             ->send();
                     }),
-                Tables\Actions\Action::make('generateAttendanceCode')
-                    ->label('Kode Absensi')
-                    ->icon('heroicon-o-qr-code')
-                    ->action(function (LearningEvent $record): void {
-                        $code = strtoupper(Str::random(6));
-                        $record->update(['attendance_code' => $code]);
-                        Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
-                    }),
-                Tables\Actions\Action::make('previewFinalReport')
-                    ->label('Preview Laporan')
-                    ->icon('heroicon-o-document-magnifying-glass')
-                    ->url(fn (LearningEvent $record) => route('reports.events.activity.preview', $record))
-                    ->openUrlInNewTab(),
-                Tables\Actions\Action::make('downloadFinalReport')
-                    ->label('Download Laporan')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->url(fn (LearningEvent $record) => route('reports.events.activity.download', $record))
-                    ->openUrlInNewTab(),
                 Tables\Actions\Action::make('submitFinalReport')
                     ->label('Submit Laporan Final')
                     ->icon('heroicon-o-paper-airplane')
@@ -900,11 +876,59 @@ class LearningEventResource extends Resource
                             ->warning()
                             ->send();
                     }),
-                Tables\Actions\EditAction::make()
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
-                        || (auth()->user()?->role === UserRole::Admin && ! in_array($record->workflow_status, ['cancelled', 'closed'], true))),
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn () => auth()->user()?->role === UserRole::SuperAdmin),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('updateZoomLink')
+                        ->label('Link Zoom')
+                        ->icon('heroicon-o-video-camera')
+                        ->color('info')
+                        ->visible(fn (LearningEvent $record) => in_array(auth()->user()?->role, [UserRole::Admin, UserRole::Tutor, UserRole::SuperAdmin], true)
+                            && in_array($record->event_type, ['webinar', 'hybrid'], true))
+                        ->form([
+                            Forms\Components\TextInput::make('zoom_url')
+                                ->label('Link Zoom / Webinar')
+                                ->url()
+                                ->required()
+                                ->default(fn (LearningEvent $record) => $record->zoom_url)
+                                ->placeholder('https://zoom.us/j/...'),
+                        ])
+                        ->action(function (LearningEvent $record, array $data): void {
+                            $record->update([
+                                'zoom_url' => $data['zoom_url'],
+                                'local_updated_at' => now(),
+                                'local_update_summary' => 'Link Zoom diperbarui oleh ' . (auth()->user()?->name ?? 'user') . '.',
+                            ]);
+
+                            Notification::make()
+                                ->title('Link Zoom diperbarui')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('generateAttendanceCode')
+                        ->label('Kode Absensi')
+                        ->icon('heroicon-o-qr-code')
+                        ->action(function (LearningEvent $record): void {
+                            $code = strtoupper(Str::random(6));
+                            $record->update(['attendance_code' => $code]);
+                            Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
+                        }),
+                    Tables\Actions\Action::make('previewFinalReport')
+                        ->label('Preview Laporan')
+                        ->icon('heroicon-o-document-magnifying-glass')
+                        ->url(fn (LearningEvent $record) => route('reports.events.activity.preview', $record))
+                        ->openUrlInNewTab(),
+                    Tables\Actions\Action::make('downloadFinalReport')
+                        ->label('Download Laporan')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->url(fn (LearningEvent $record) => route('reports.events.activity.download', $record))
+                        ->openUrlInNewTab(),
+                    Tables\Actions\EditAction::make()
+                        ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::SuperAdmin
+                            || (auth()->user()?->role === UserRole::Admin && ! in_array($record->workflow_status, ['cancelled', 'closed'], true))),
+                    Tables\Actions\DeleteAction::make()
+                        ->visible(fn () => auth()->user()?->role === UserRole::SuperAdmin),
+                ])
+                    ->label('Lainnya')
+                    ->tooltip('Aksi lainnya'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -923,6 +947,34 @@ class LearningEventResource extends Resource
         ];
     }
 
+    /** @return array<int, string> Tutor aktif yang sudah terdaftar, untuk dipilih di wizard event. */
+    public static function registeredTutorOptions(): array
+    {
+        return \App\Models\Tutor::query()
+            ->with(['user', 'school'])
+            ->whereHas('user', fn ($query) => $query->where('is_active', true))
+            ->get()
+            ->sortBy(fn ($tutor) => $tutor->user?->name)
+            ->mapWithKeys(fn ($tutor) => [$tutor->id => collect([
+                $tutor->user?->name,
+                $tutor->user?->email,
+                $tutor->institution ?: $tutor->school?->name,
+            ])->filter()->implode(' · ') . ($tutor->tot_completed ? ' · ToT lulus' : '')])
+            ->all();
+    }
+
+    /** Field yang hanya boleh diubah Admin RTIK Pusat (di form hanya tampil sebagai read-only untuk role lain). */
+    public static function centralOnlyFields(): array
+    {
+        return ['workflow_status', 'publish_approval_status', 'registration_open', 'is_published'];
+    }
+
+    /** Status event yang sudah di-approve Pusat dan masih boleh diajukan/di-publish. */
+    public static function publishableWorkflowStatuses(): array
+    {
+        return ['verified_term_1', 'tot_in_progress', 'tot_completed'];
+    }
+
     public static function workflowStatusOptions(): array
     {
         return [
@@ -939,7 +991,7 @@ class LearningEventResource extends Resource
             'closed' => 'Closed',
             'needs_revision' => 'Needs Revision',
             'rejected' => 'Rejected',
-            'cancelled' => 'Cancelled by Pusat',
+            'cancelled' => 'Cancelled by Admin RTIK Pusat',
         ];
     }
 
@@ -974,7 +1026,7 @@ class LearningEventResource extends Resource
     {
         return [
             'draft' => 'Belum disubmit',
-            'submitted' => 'Menunggu approval pusat',
+            'submitted' => 'Menunggu approval Admin RTIK Pusat',
             'revision' => 'Perlu revisi',
             'approved' => 'Approved',
         ];

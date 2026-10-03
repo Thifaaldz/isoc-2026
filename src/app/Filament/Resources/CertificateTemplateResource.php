@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\CertificateTemplateResource\Pages;
@@ -83,6 +84,7 @@ class CertificateTemplateResource extends Resource
                         Forms\Components\FileUpload::make('background_image')
                             ->label('Background Gambar')
                             ->image()
+                            ->acceptedFileTypes(UploadTypes::IMAGES)
                             ->imageEditor()
                             ->disk('public')
                             ->directory('certificate-backgrounds')
@@ -114,6 +116,7 @@ class CertificateTemplateResource extends Resource
                                 Forms\Components\FileUpload::make('image_path')
                                     ->label('Upload Gambar')
                                     ->image()
+                                    ->acceptedFileTypes(UploadTypes::IMAGES)
                                     ->imageEditor()
                                     ->disk('public')
                                     ->directory('certificate-elements')

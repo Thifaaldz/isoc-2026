@@ -45,6 +45,7 @@
                 @endif
             </div>
 
+@if($viewerMode === 'guest')
             <form
                 action="{{ route('event.register.store', $event) }}"
                 method="POST"
@@ -73,6 +74,12 @@
                 }"
             >
                 @csrf
+
+                <div class="rounded-xl border border-blue/20 bg-blue/5 p-4 text-sm text-navy">
+                    {{ __('Sudah punya akun peserta?') }}
+                    <a class="font-semibold text-blue hover:underline" href="{{ route('event.register.login', $event) }}">{{ __('Login untuk mengikuti event ini') }}</a>
+                    {{ __('tanpa membuat akun baru.') }}
+                </div>
 
                 @if($errors->any())
                 <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
@@ -180,41 +187,12 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-blue/20 bg-blue/5 p-5 space-y-4">
-                    <div>
-                        <h3 class="font-bold text-navy flex items-center gap-2 text-sm">
-                            <span class="material-symbols-outlined text-blue text-lg">verified_user</span>
-                            {{ __('Validasi Peserta') }}
-                        </h3>
-                        <p class="text-grey-600 text-xs mt-1">{{ __('Upload screenshot bukti follow Instagram dan ceklis WhatsApp Group. Jika keduanya lengkap, sistem otomatis menyetujui akses awal peserta.') }}</p>
-                    </div>
-                    @if(! empty($wagGroup?->invite_link))
-                        <div class="rounded-xl border border-green-200 bg-green-50 p-4">
-                            <p class="font-semibold text-green-800 text-sm">{{ __('WhatsApp Group Kegiatan') }}</p>
-                            <p class="text-green-700 text-xs mt-1">{{ $wagGroup->name }}</p>
-                            <a class="mt-3 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700" href="{{ $wagGroup->invite_link }}" target="_blank" rel="noopener noreferrer">
-                                <span class="material-symbols-outlined text-base">open_in_new</span>
-                                {{ __('Buka Link WAG') }}
-                            </a>
-                        </div>
-                    @else
-                        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                            <p class="font-semibold">{{ __('Link WhatsApp Group belum tersedia') }}</p>
-                            <p class="text-xs mt-1">{{ __('Silakan lanjutkan pendaftaran. Admin akan melengkapi link WAG kegiatan.') }}</p>
-                        </div>
-                    @endif
-                    <div>
-                        <label class="block text-sm font-semibold text-navy mb-2" for="instagram_evidence">{{ __('Bukti Follow Instagram') }} <span class="text-red-500">*</span></label>
-                        <input class="block w-full rounded-xl bg-white border border-grey-200 p-3 text-sm text-grey-600 file:mr-4 file:rounded-xl file:border-0 file:bg-blue file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-dark" id="instagram_evidence" name="instagram_evidence" type="file" accept="image/*" required>
-                        <p class="text-grey-500 text-xs mt-2">{{ __('Format gambar screenshot bukti follow.') }}</p>
-                        @error('instagram_evidence')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <label class="flex items-start gap-3 rounded-xl border border-grey-200 bg-white p-4 text-sm text-grey-600">
-                        <input type="checkbox" name="joined_wag" value="1" required class="mt-1 rounded border-grey-300 text-blue focus:ring-blue" @checked(old('joined_wag'))>
-                        <span>{{ __('Saya sudah bergabung ke WhatsApp Group kegiatan.') }} <span class="text-red-500">*</span></span>
-                    </label>
+                <div class="rounded-2xl border border-blue/20 bg-blue/5 p-5 text-sm text-grey-600">
+                    <h3 class="font-bold text-navy flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-blue text-lg">verified_user</span>
+                        {{ __('Bukti Dukung Peserta') }}
+                    </h3>
+                    <p class="text-xs mt-1">{{ __('Setelah terdaftar, lengkapi bukti follow Instagram ISOC dan join WhatsApp Group kegiatan di Dashboard peserta. Modul, tes, dan rundown terbuka setelah bukti dukung lengkap.') }}</p>
                 </div>
 
                 <label class="flex items-start gap-3 rounded-xl border border-grey-200 p-4 text-sm text-grey-600">
@@ -229,6 +207,67 @@
                     </button>
                 </div>
             </form>
+            @elseif($viewerMode === 'peserta')
+            <div class="p-8 space-y-6">
+                @if($errors->any())
+                <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+                    <ul class="list-disc list-inside space-y-1">
+                        @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+
+                @if($alreadyJoined)
+                    <div class="rounded-xl border border-green-200 bg-green-50 p-5 text-sm text-green-800">
+                        <p class="font-semibold">{{ __('Kamu sudah terdaftar di event ini.') }}</p>
+                        <a class="mt-3 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700" href="{{ url('/peserta?event=' . $learningEvent?->id) }}">
+                            <span class="material-symbols-outlined text-base">dashboard</span>
+                            {{ __('Buka Dashboard Peserta') }}
+                        </a>
+                    </div>
+                @elseif(! $learningEvent || ! $event->registration_open)
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+                        <p class="font-semibold">{{ __('Pendaftaran event ini belum dibuka atau sudah ditutup.') }}</p>
+                    </div>
+                @else
+                    <form action="{{ route('event.join', $event) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                        @csrf
+                        <div class="rounded-xl border border-grey-200 bg-grey-50 p-4 text-sm text-grey-700">
+                            {{ __('Masuk sebagai') }} <strong>{{ auth()->user()->name }}</strong> ({{ auth()->user()->email }}).
+                            {{ __('Data profil peserta kamu akan dipakai untuk event ini.') }}
+                        </div>
+                <div class="rounded-2xl border border-blue/20 bg-blue/5 p-5 text-sm text-grey-600">
+                    <h3 class="font-bold text-navy flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-blue text-lg">verified_user</span>
+                        {{ __('Bukti Dukung Peserta') }}
+                    </h3>
+                    <p class="text-xs mt-1">{{ __('Setelah terdaftar, lengkapi bukti follow Instagram ISOC dan join WhatsApp Group kegiatan di Dashboard peserta. Modul, tes, dan rundown terbuka setelah bukti dukung lengkap.') }}</p>
+                </div>
+
+                <label class="flex items-start gap-3 rounded-xl border border-grey-200 p-4 text-sm text-grey-600">
+                    <input type="checkbox" name="consent" value="1" required class="mt-1 rounded border-grey-300 text-blue focus:ring-blue">
+                    <span>{{ __('Saya menyetujui pemrosesan data pendaftaran dan bersedia mengikuti ketentuan kegiatan ISOC.') }}</span>
+                </label>
+
+                        <div class="pt-2">
+                            <button class="w-full bg-blue hover:bg-blue-dark text-white py-3.5 px-8 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2" type="submit">
+                                <span class="material-symbols-outlined text-lg">how_to_reg</span>
+                                {{ __('Ikuti Event') }}
+                            </button>
+                        </div>
+                    </form>
+                @endif
+            </div>
+            @else
+            <div class="p-8">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+                    <p class="font-semibold">{{ __('Kamu sedang login sebagai admin/tutor.') }}</p>
+                    <p class="mt-1">{{ __('Pendaftaran event hanya untuk akun peserta. Logout terlebih dahulu untuk mendaftarkan peserta baru.') }}</p>
+                </div>
+            </div>
+            @endif
         </div>
 
         <div class="mt-8 bg-grey-50 rounded-2xl p-8">

@@ -86,8 +86,25 @@ class LearningEventProvisioner
         }
     }
 
+    /** Tugaskan tutor terdaftar yang dipilih di wizard; tutor yang sudah ditugaskan tidak diubah. */
+    public function assignSelectedTutors(LearningEvent $event): void
+    {
+        $assignedIds = $event->tutors()->pluck('tutors.id')->all();
+
+        $newIds = Tutor::query()
+            ->whereKey(array_filter((array) ($event->selected_tutor_ids ?? [])))
+            ->whereKeyNot($assignedIds)
+            ->pluck('id');
+
+        foreach ($newIds as $tutorId) {
+            $event->tutors()->attach($tutorId, ['status' => 'assigned', 'assigned_at' => now()]);
+        }
+    }
+
     private function provisionTutors(LearningEvent $event): void
     {
+        $this->assignSelectedTutors($event);
+
         foreach ($event->tutor_rows ?? [] as $row) {
             $name = trim((string) ($row['name'] ?? ''));
 

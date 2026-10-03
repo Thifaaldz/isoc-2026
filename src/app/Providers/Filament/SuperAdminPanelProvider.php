@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\MaterialPreview;
 use App\Filament\Pages\CertificateDesignStudio;
 use App\Filament\Pages\CreateSeminarShortcut;
 use App\Filament\Pages\Profile;
@@ -46,7 +47,7 @@ class SuperAdminPanelProvider extends PanelProvider
                 'Administrasi',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, CertificateDesignStudio::class, Profile::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, EventApprovalUpdates::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

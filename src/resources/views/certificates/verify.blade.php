@@ -1,26 +1,45 @@
-@extends('layouts.public')
+@extends('layouts.app')
+
+@section('title', __('Verifikasi Sertifikat') . ' - ' . config('app.name', 'sena'))
 
 @section('content')
-<div class="max-w-2xl mx-auto py-16 px-4">
-    <div class="bg-white rounded-xl shadow p-8 text-center">
-        @if ($certificate)
-            <div class="text-emerald-600 text-sm font-semibold mb-2">SERTIFIKAT VALID</div>
-            <h1 class="text-2xl font-bold mb-1">{{ $certificate->participant?->user?->name ?? '-' }}</h1>
-            <p class="text-gray-500 mb-6">Peserta Digital Safety Champions</p>
+<section class="py-16 lg:py-24 bg-grey-50">
+    <div class="max-w-2xl mx-auto px-6 lg:px-8">
+        <div class="bg-white rounded-2xl shadow-lg border border-grey-100 p-8 text-center">
+            @if ($certificate)
+                <span class="material-symbols-outlined text-5xl text-emerald-600">verified</span>
+                <div class="text-emerald-600 text-sm font-semibold tracking-wide mt-2 mb-2">{{ __('SERTIFIKAT VALID') }}</div>
+                <h1 class="text-2xl font-bold text-navy mb-1">{{ $certificate->participant?->user?->name ?? '-' }}</h1>
+                <p class="text-grey-500 mb-6">{{ __('Peserta') }} {{ $certificate->learningEvent?->title ?? 'Digital Safety Champions' }}</p>
 
-            <dl class="text-left grid grid-cols-1 gap-2 border-t pt-4">
-                <div class="flex justify-between"><dt class="text-gray-500">Program</dt><dd class="font-medium">Digital Safety Champions</dd></div>
-                <div class="flex justify-between"><dt class="text-gray-500">No. Sertifikat</dt><dd class="font-medium">{{ $certificate->number }}</dd></div>
-                <div class="flex justify-between"><dt class="text-gray-500">Diterbitkan</dt><dd class="font-medium">{{ optional($certificate->issued_at)->format('d F Y') }}</dd></div>
-            </dl>
+                <dl class="text-left grid grid-cols-1 gap-3 border-t border-grey-100 pt-5 text-sm">
+                    <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('Kegiatan') }}</dt><dd class="font-medium text-right">{{ $certificate->learningEvent?->title ?? 'Digital Safety Champions' }}</dd></div>
+                    @if ($certificate->learningEvent?->starts_at)
+                        <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('Tanggal kegiatan') }}</dt><dd class="font-medium text-right">{{ $certificate->learningEvent->starts_at->translatedFormat('d F Y') }}</dd></div>
+                    @endif
+                    @if ($certificate->participant?->school?->name)
+                        <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('Lokasi / Instansi') }}</dt><dd class="font-medium text-right">{{ $certificate->participant->school->name }}</dd></div>
+                    @endif
+                    <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('No. Sertifikat') }}</dt><dd class="font-medium text-right">{{ $certificate->number }}</dd></div>
+                    <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('Diterbitkan') }}</dt><dd class="font-medium text-right">{{ optional($certificate->issued_at)->translatedFormat('d F Y') ?? '-' }}</dd></div>
+                </dl>
 
-            @if ($certificate->file_path)
-                <a href="{{ asset('storage/' . $certificate->file_path) }}" target="_blank"
-                   class="inline-block mt-6 px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium">
-                    Unduh Sertifikat
-                </a>
+                @if ($certificate->file_path)
+                    <a href="{{ asset('storage/' . $certificate->file_path) }}" target="_blank"
+                       class="inline-block mt-6 px-5 py-2 rounded-lg bg-blue text-white text-sm font-medium">
+                        {{ __('Unduh Sertifikat') }}
+                    </a>
+                @endif
+            @else
+                <span class="material-symbols-outlined text-5xl text-red-500">gpp_bad</span>
+                <div class="text-red-600 text-sm font-semibold tracking-wide mt-2 mb-2">{{ __('SERTIFIKAT TIDAK DITEMUKAN') }}</div>
+                <p class="text-grey-600">
+                    {{ __('Nomor sertifikat') }} <strong class="text-navy">{{ $certificateNumber }}</strong>
+                    {{ __('tidak terdaftar atau belum diterbitkan.') }}
+                </p>
+                <p class="text-grey-500 text-sm mt-3">{{ __('Periksa kembali nomor pada sertifikat atau pindai ulang kode QR. Hubungi penyelenggara jika menurut Anda ini sebuah kesalahan.') }}</p>
             @endif
-        @endif
+        </div>
     </div>
-</div>
+</section>
 @endsection

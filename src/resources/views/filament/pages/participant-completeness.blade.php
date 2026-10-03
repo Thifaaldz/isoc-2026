@@ -129,7 +129,7 @@
                         <h3 class="pc-proof-title">Bukti Follow Instagram</h3>
                         <span class="pc-badge {{ $data['follow_complete'] ? 'ok' : 'wait' }}">{{ $data['follow_complete'] ? 'Lengkap' : 'Belum lengkap' }}</span>
                     </div>
-                    <p class="pc-text">Screenshot yang diupload saat registrasi.</p>
+                    <p class="pc-text">Screenshot yang diupload dari Dashboard peserta.</p>
                     <div class="pc-proof-image">
                         @if ($data['follow_src'])
                             <a href="{{ $data['follow_url'] ?: $data['follow_src'] }}" target="_blank">

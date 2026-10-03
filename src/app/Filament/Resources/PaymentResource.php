@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\PaymentResource\Pages;
@@ -71,8 +72,10 @@ class PaymentResource extends Resource
                 ->required(),
             Forms\Components\DatePicker::make('due_at')->label('Deadline / Reminder'),
             Forms\Components\DatePicker::make('paid_at')->label('Tanggal bayar'),
-            Forms\Components\FileUpload::make('invoice_path')->label('Invoice')->disk('public')->directory('payments'),
-            Forms\Components\FileUpload::make('receipt_path')->label('Kuitansi')->disk('public')->directory('payments'),
+            Forms\Components\FileUpload::make('invoice_path')
+                ->acceptedFileTypes(UploadTypes::documents())->label('Invoice')->disk('public')->directory('payments'),
+            Forms\Components\FileUpload::make('receipt_path')
+                ->acceptedFileTypes(UploadTypes::documents())->label('Kuitansi')->disk('public')->directory('payments'),
             Forms\Components\Repeater::make('checklist')
                 ->label('Checklist Termin')
                 ->schema([

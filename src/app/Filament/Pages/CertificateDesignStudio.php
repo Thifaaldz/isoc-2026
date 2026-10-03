@@ -200,12 +200,12 @@ class CertificateDesignStudio extends Page
     {
         $template = $this->template();
         $event = $template
-            ? LearningEvent::query()->where('certificate_template_id', $template->id)->with('partners')->first()
+            ? LearningEvent::query()->where('certificate_template_id', $template->id)->with('orderedPartners')->first()
             : null;
 
         $partners = $event
-            ? $event->partners->where('status', 'active')
-            : Partner::query()->where('status', 'active')->limit(4)->get();
+            ? $event->orderedPartners->where('status', 'active')
+            : Partner::query()->where('status', 'active')->limit(6)->get();
 
         return $partners
             ->map(fn (Partner $partner) => $this->imageUrl($partner->logoSource()) ?: asset('images/sena-symbol.png'))
@@ -291,11 +291,11 @@ class CertificateDesignStudio extends Page
             'sena_logo' => $this->imageElement($type, 'Logo Sena', 230, 13, 45, 18, '/images/sena-logo.png'),
             'logo' => $this->imageElement($type, 'Logo utama', 20, 16, 28, 18),
             'partner_logo' => $this->imageElement($type, 'Logo mitra', 249, 16, 28, 18),
-            'event_partner_logos' => ['type' => $type, 'label' => 'Logo Mitra Event', 'x' => 18, 'y' => 14, 'width' => 86, 'height' => 16],
+            'event_partner_logos' => ['type' => $type, 'label' => 'Logo Mitra Event', 'x' => 12, 'y' => 8, 'width' => 175, 'height' => 24],
             'white_box' => ['type' => $type, 'label' => 'Kotak penutup', 'x' => 60, 'y' => 60, 'width' => 120, 'height' => 18, 'color' => '#ffffff'],
             'uploaded_logo' => $this->imageElement($type, 'Upload logo', 230, 13, 45, 18),
-            'signature_image' => $this->imageElement($type, 'Gambar tanda tangan', 35, 135, 85, 22),
-            'uploaded_signature' => $this->imageElement($type, 'Upload tanda tangan', 35, 135, 85, 22),
+            'signature_image' => $this->imageElement($type, 'Gambar tanda tangan', 45, 146, 52, 18),
+            'uploaded_signature' => $this->imageElement($type, 'Upload tanda tangan', 198, 146, 52, 18),
             'image' => $this->imageElement($type, 'Gambar bebas', 20, 20, 32, 22),
             'qr_code' => ['type' => 'qr_code', 'label' => 'QR verifikasi', 'x' => 255, 'y' => 172, 'width' => 24, 'height' => 24],
             default => $this->textElement('custom_text', 'Tulisan baru', 'Tulisan baru', 40, 70, 120, 12, 14),

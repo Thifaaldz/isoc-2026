@@ -6,12 +6,24 @@ use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
 use App\Models\Certificate;
 use App\Models\CertificateTemplate;
+use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Models\MicrositePractice;
 use App\Models\Participant;
 
 class CertificateEligibilityService
 {
+    /**
+     * Bukti dukung event yang wajib disetujui RTIK Pusat sebelum sertifikat peserta eligible.
+     * Bukti follow IG dan join WAG dicek per peserta lewat approval peserta, sedangkan
+     * praktik microsite dicek per peserta lewat link s.id.
+     */
+    public const REQUIRED_EVENT_EVIDENCE = [
+        'absensi_basah' => 'Absensi basah',
+        'foto_sesi' => 'Foto kegiatan',
+        'video_slogan' => 'Video slogan',
+    ];
+
     /** @return array{eligible: bool, notes: array<int, string>} */
     public function check(Participant $participant, ?LearningEvent $event): array
     {
@@ -59,6 +71,20 @@ class CertificateEligibilityService
 
         if (! $hasMicrosite) {
             $notes[] = 'Link s.id / microsite belum diisi.';
+        }
+
+        $approvedEvidenceTypes = Evidence::query()
+            ->where('learning_event_id', $event->id)
+            ->whereIn('type', array_keys(self::REQUIRED_EVENT_EVIDENCE))
+            ->where('status', 'approved')
+            ->distinct()
+            ->pluck('type');
+
+        $missingEvidence = collect(self::REQUIRED_EVENT_EVIDENCE)
+            ->reject(fn (string $label, string $type) => $approvedEvidenceTypes->contains($type));
+
+        if ($missingEvidence->isNotEmpty()) {
+            $notes[] = 'Bukti dukung kegiatan belum disetujui RTIK Pusat: ' . $missingEvidence->implode(', ') . '.';
         }
 
         return [

@@ -71,6 +71,7 @@ class ParticipantResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['learningEvents', 'user', 'school']))
             ->columns([
                 Tables\Columns\TextColumn::make('user.name')->label('Nama')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('participant_category')->label('Kategori')->badge()->toggleable(),
@@ -139,10 +140,10 @@ class ParticipantResource extends Resource
 
     protected static function generalApprovalPivot(Participant $participant): ?object
     {
-        return $participant->learningEvents()
-            ->orderByDesc('starts_at')
-            ->first()
-            ?->pivot;
+        // Gunakan relasi yang sudah di-eager-load tabel agar tidak query per baris.
+        return $participant->relationLoaded('learningEvents')
+            ? $participant->learningEvents->sortByDesc('starts_at')->first()?->pivot
+            : $participant->learningEvents()->orderByDesc('starts_at')->first()?->pivot;
     }
 
     protected static function generalApprovalStatus(Participant $participant): string

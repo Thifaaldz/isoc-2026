@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260" role="img" aria-labelledby="title">
+  <title id="title">Relawan TIK Indonesia</title>
+  <rect width="900" height="260" fill="none"/>
+  <g transform="translate(34 28)">
+    <circle cx="102" cy="102" r="98" fill="#ffffff" stroke="#0f766e" stroke-width="8"/>
+    <path d="M49 113c33-8 61-33 77-69 22 38 10 79-24 103-17 12-36 18-57 18 4-18 5-35 4-52Z" fill="#12a89d"/>
+    <path d="M102 35c51 27 74 70 65 123-28 0-52-10-72-30 23-21 31-54 7-93Z" fill="#1d4ed8"/>
+    <path d="M45 165c45-2 78-16 101-43 6 12 12 24 18 36-29 32-69 47-119 45v-38Z" fill="#f59e0b"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#111827">
+    <text x="260" y="105" font-size="58" font-weight="800">RELAWAN TIK</text>
+    <text x="264" y="154" font-size="32" font-weight="700" fill="#0f766e">INDONESIA</text>
+    <text x="264" y="196" font-size="23" font-weight="500" fill="#475569">Relawan Teknologi Informasi dan Komunikasi</text>
+  </g>
+</svg>

@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
-use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Models\Module;
 use App\Models\Participant;
 use App\Models\School;
 use App\Models\User;
-use App\Models\WagGroup;
+use App\Services\EventEnrollmentService;
 use App\Support\PublicEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -46,7 +45,7 @@ class ParticipantRegistrationController
     {
         $learningEvent = LearningEvent::query()
             ->withCount('participants')
-            ->with('school.wagGroups')
+            ->with('school')
             ->where('is_published', true)
             ->where('status', 'active')
             ->when($event, fn ($query) => $query->where('slug', $event))
@@ -70,20 +69,23 @@ class ParticipantRegistrationController
                 capacity_info: Participant::query()->count() . '/500 peserta'
             );
 
-        $wagGroup = $learningEvent?->school?->wagGroups
-            ?->filter(fn (WagGroup $group): bool => $group->status === 'active' && filled($group->invite_link))
-            ->sortByDesc('updated_at')
-            ->first()
-            ?: WagGroup::query()
-                ->where('status', 'active')
-                ->whereNotNull('invite_link')
-                ->latest()
-                ->first();
+        $user = auth()->user();
+        $viewerMode = match (true) {
+            ! $user => 'guest',
+            $user->role === UserRole::Peserta => 'peserta',
+            default => 'staff',
+        };
 
         return view('pages.event-register', [
             'event' => $registrationEvent,
-            'wagGroup' => $wagGroup,
-            'registrationCount' => Participant::query()->count(),
+            'learningEvent' => $learningEvent,
+            'viewerMode' => $viewerMode,
+            'alreadyJoined' => $learningEvent && $user?->participant
+                ? $user->participant->learningEvents()->whereKey($learningEvent->id)->exists()
+                : false,
+            'registrationCount' => $learningEvent
+                ? (int) $learningEvent->participants_count
+                : Participant::query()->count(),
             'gradeOptions' => self::GRADE_OPTIONS,
             'schools' => School::query()
                 ->where('status', 'active')
@@ -143,6 +145,14 @@ class ParticipantRegistrationController
                 ->where('school_id', $programLocationId)
                 ->where('participant_category', $participantCategory));
 
+        if ($learningEvent && ! $learningEvent->registration_open) {
+            return back()->withInput()->withErrors(['event' => 'Pendaftaran event ini sudah ditutup.']);
+        }
+
+        if ($learningEvent && app(EventEnrollmentService::class)->isFull($learningEvent)) {
+            return back()->withInput()->withErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
+        }
+
         $validated = $request->validate([
             'participant_category' => ['required', Rule::in(['pelajar', 'mahasiswa', 'umum', 'karyawan'])],
             'name' => ['required', 'string', 'max:255'],
@@ -159,15 +169,15 @@ class ParticipantRegistrationController
             'gender' => ['required', Rule::in(['L', 'P'])],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'instagram_evidence' => ['required', 'image'],
-            'joined_wag' => ['accepted'],
             'consent' => ['accepted'],
-        ], [], [
+        ], [
+            'email.unique' => 'Email ini sudah terdaftar. Silakan login dengan akun tersebut, lalu buka kembali halaman event ini dan klik "Ikuti Event".',
+        ], [
             'nis' => $identityLabel,
             'participant_category' => 'kategori peserta',
         ]);
 
-        $user = DB::transaction(function () use ($request, $validated, $learningEvent, $programLocationId): User {
+        $user = DB::transaction(function () use ($validated, $learningEvent, $programLocationId): User {
             $user = User::query()->create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -189,34 +199,13 @@ class ParticipantRegistrationController
                 'gender' => $validated['gender'],
                 'birth_date' => $validated['birth_date'] ?? null,
                 'consent_at' => now(),
-                'followed_instagram' => true,
-                'joined_wag' => true,
+                'followed_instagram' => false,
+                'joined_wag' => false,
                 'registered_ecert' => false,
             ]);
 
-            Evidence::query()->create([
-                'learning_event_id' => $learningEvent?->id,
-                'school_id' => $programLocationId,
-                'type' => 'follow_ig',
-                'file_path' => $request->file('instagram_evidence')->store('evidences', 'public'),
-                'status' => 'approved',
-                'uploaded_by' => $user->id,
-                'verified_at' => now(),
-                'review_notes' => 'Auto-approved dari registrasi: bukti follow IG dan checklist WAG lengkap.',
-            ]);
-
             if ($learningEvent) {
-                $participant->learningEvents()->syncWithoutDetaching([
-                    $learningEvent->id => [
-                        'status' => 'registered',
-                        'registered_at' => now(),
-                        'admin_approval_status' => 'approved',
-                        'admin_approved_at' => now(),
-                        'tutor_approval_status' => 'approved',
-                        'tutor_approved_at' => now(),
-                        'approval_notes' => 'Auto-approved: bukti follow IG dan checklist join WAG sudah lengkap.',
-                    ],
-                ]);
+                app(EventEnrollmentService::class)->enroll($participant, $learningEvent);
             }
 
             return $user;
@@ -226,6 +215,51 @@ class ParticipantRegistrationController
         $request->session()->regenerate();
 
         return redirect('/peserta');
+    }
+
+    /** Peserta yang sudah punya akun mengikuti event lain tanpa membuat akun baru. */
+    public function join(Request $request, string $event): RedirectResponse
+    {
+        $user = $request->user();
+        $participant = $user?->participant;
+
+        abort_unless($user?->role === UserRole::Peserta && $participant, 403, 'Hanya akun peserta yang dapat mengikuti event.');
+
+        $learningEvent = LearningEvent::query()
+            ->where('slug', $event)
+            ->where('is_published', true)
+            ->where('status', 'active')
+            ->firstOrFail();
+
+        if ($participant->learningEvents()->whereKey($learningEvent->id)->exists()) {
+            return redirect('/peserta?event=' . $learningEvent->id);
+        }
+
+        if (! $learningEvent->registration_open) {
+            return back()->withErrors(['event' => 'Pendaftaran event ini sudah ditutup.']);
+        }
+
+        if (app(EventEnrollmentService::class)->isFull($learningEvent)) {
+            return back()->withErrors(['event' => 'Kuota peserta event ini sudah penuh.']);
+        }
+
+        $request->validate([
+            'consent' => ['accepted'],
+        ], [], [
+            'consent' => 'persetujuan',
+        ]);
+
+        app(EventEnrollmentService::class)->enroll($participant, $learningEvent);
+
+        return redirect('/peserta?event=' . $learningEvent->id);
+    }
+
+    /** Simpan halaman event sebagai tujuan setelah login, lalu arahkan ke halaman login. */
+    public function login(string $event): RedirectResponse
+    {
+        session()->put('url.intended', route('event.register', $event));
+
+        return redirect('/login');
     }
 
     private function publicEventFromModel(LearningEvent $event): PublicEvent

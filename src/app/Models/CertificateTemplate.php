@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CertificateTemplate extends Model
 {
+    /** Background bawaan (relatif ke folder public) bila template belum punya background sendiri. */
+    public const DEFAULT_BACKGROUND = 'certificate-templates/esertifikat-litdig-2026.png';
+
     protected $guarded = [];
 
     protected function casts(): array

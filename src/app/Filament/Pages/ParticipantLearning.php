@@ -11,6 +11,7 @@ use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
 use App\Models\Participant;
 use App\Services\CertificateEligibilityService;
+use App\Support\MaterialViewer;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -45,6 +46,9 @@ class ParticipantLearning extends Page
     /** @var array<int, string|int|null> */
     public array $answers = [];
 
+    /** Cache per request (tidak disimpan di state Livewire) agar query tidak diulang setiap kali Blade memanggil getter. */
+    protected array $memo = [];
+
     public static function canAccess(): bool
     {
         return auth()->user()?->role === UserRole::Peserta;
@@ -59,6 +63,7 @@ class ParticipantLearning extends Page
 
     public function updatedSelectedEventId(): void
     {
+        $this->memo = [];
         $this->activeAssessmentId = null;
         $this->activeMaterialId = null;
         $this->activeMeetingId = null;
@@ -72,15 +77,17 @@ class ParticipantLearning extends Page
 
     public function getEventsProperty(): EloquentCollection
     {
-        if (! $this->participant) {
-            return new EloquentCollection();
-        }
+        return $this->memo['events'] ??= (function () {
+            if (! $this->participant) {
+                return new EloquentCollection();
+            }
 
-        return LearningEvent::query()
-            ->where('is_published', true)
-            ->whereHas('participants', fn ($query) => $query->where('participants.id', $this->participant->id))
-            ->orderByDesc('starts_at')
-            ->get();
+            return LearningEvent::query()
+                ->where('is_published', true)
+                ->whereHas('participants', fn ($query) => $query->where('participants.id', $this->participant->id))
+                ->orderByDesc('starts_at')
+                ->get();
+        })();
     }
 
     public function getSelectedEventProperty(): ?LearningEvent
@@ -90,35 +97,39 @@ class ParticipantLearning extends Page
 
     public function getMeetingsProperty(): EloquentCollection
     {
-        if (! $this->selectedEventId || ! $this->selectedEventApproved()) {
-            return new EloquentCollection();
-        }
+        return $this->memo['meetings.' . $this->selectedEventId] ??= (function () {
+            if (! $this->selectedEventId || ! $this->selectedEventApproved()) {
+                return new EloquentCollection();
+            }
 
-        return $this->selectedEvent
-            ? $this->selectedEvent
-                ->meetings()
-                ->with([
-                    'materials' => fn ($query) => $query->where('is_published', true)->orderBy('order'),
-                    'assessments' => fn ($query) => $query->where('is_open', true)->orderBy('id'),
-                ])
-                ->where('is_published', true)
-                ->orderBy('order')
-                ->get()
-            : new EloquentCollection();
+            return $this->selectedEvent
+                ? $this->selectedEvent
+                    ->meetings()
+                    ->with([
+                        'materials' => fn ($query) => $query->where('is_published', true)->orderBy('order'),
+                        'assessments' => fn ($query) => $query->where('is_open', true)->orderBy('id'),
+                    ])
+                    ->where('is_published', true)
+                    ->orderBy('order')
+                    ->get()
+                : new EloquentCollection();
+        })();
     }
 
     public function getAssessmentsProperty(): EloquentCollection
     {
-        if (! $this->selectedEventId || ! $this->selectedEventApproved()) {
-            return new EloquentCollection();
-        }
+        return $this->memo['assessments.' . $this->selectedEventId] ??= (function () {
+            if (! $this->selectedEventId || ! $this->selectedEventApproved()) {
+                return new EloquentCollection();
+            }
 
-        return Assessment::query()
-            ->where('learning_event_id', $this->selectedEventId)
-            ->where('is_open', true)
-            ->orderByRaw("case type when 'pre' then 0 when 'quiz' then 1 when 'post' then 2 else 3 end")
-            ->orderBy('id')
-            ->get();
+            return Assessment::query()
+                ->where('learning_event_id', $this->selectedEventId)
+                ->where('is_open', true)
+                ->orderByRaw("case type when 'pre' then 0 when 'quiz' then 1 when 'post' then 2 else 3 end")
+                ->orderBy('id')
+                ->get();
+        })();
     }
 
     public function getActiveMaterialProperty(): ?LearningMaterial
@@ -181,11 +192,7 @@ class ParticipantLearning extends Page
 
     public function materialUrl(LearningMaterial $material): ?string
     {
-        if ($material->external_url) {
-            return $material->external_url;
-        }
-
-        return $material->file_path ? Storage::disk('public')->url($material->file_path) : null;
+        return MaterialViewer::url($material);
     }
 
     public function previewMaterial(int $materialId): void
@@ -193,7 +200,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Dashboard belum terbuka')
-                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
+                ->body('Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -223,7 +230,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Modul belum bisa dibuka')
-                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
+                ->body('Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -265,24 +272,7 @@ class ParticipantLearning extends Page
 
     public function materialViewer(?LearningMaterial $material): array
     {
-        if (! $material) {
-            return ['type' => 'empty', 'url' => null, 'embed_url' => null];
-        }
-
-        $url = $this->materialUrl($material);
-        $embedUrl = $url;
-
-        if ($url && $youtube = $this->youtubeEmbedUrl($url)) {
-            $embedUrl = $youtube;
-        } elseif ($url && $material->type === 'ppt') {
-            $embedUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' . urlencode(url($url));
-        }
-
-        return [
-            'type' => $material->type,
-            'url' => $url,
-            'embed_url' => $embedUrl,
-        ];
+        return MaterialViewer::for($material);
     }
 
     public function attemptFor(int $assessmentId): ?AssessmentAttempt
@@ -291,10 +281,12 @@ class ParticipantLearning extends Page
             return null;
         }
 
-        return AssessmentAttempt::query()
+        $this->memo['attempts'] ??= AssessmentAttempt::query()
             ->where('participant_id', $this->participant->id)
-            ->where('assessment_id', $assessmentId)
-            ->first();
+            ->get()
+            ->keyBy('assessment_id');
+
+        return $this->memo['attempts']->get($assessmentId);
     }
 
     public function startAssessment(int $assessmentId): void
@@ -302,7 +294,7 @@ class ParticipantLearning extends Page
         if (! $this->selectedEventApproved()) {
             Notification::make()
                 ->title('Tes belum bisa dikerjakan')
-                ->body('Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.')
+                ->body('Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.')
                 ->warning()
                 ->send();
 
@@ -397,6 +389,8 @@ class ParticipantLearning extends Page
             'submitted_at' => now(),
         ]);
 
+        unset($this->memo['attempts']);
+
         Notification::make()
             ->title('Tes berhasil disubmit')
             ->body("Skor kamu: {$score}")
@@ -420,6 +414,21 @@ class ParticipantLearning extends Page
         }
 
         return collect(is_array($questions) ? $questions : [])->values();
+    }
+
+    /**
+     * Opsi jawaban dalam urutan acak yang stabil per peserta dan soal, dengan key tetap
+     * indeks opsi asli sehingga penilaian di submitAssessment() tidak berubah.
+     */
+    public function displayOptions(Assessment $assessment, int $questionIndex, array $question): Collection
+    {
+        $options = collect($question['options'] ?? [])->values();
+        $seed = crc32($assessment->id . '-' . $questionIndex . '-' . ($this->participant?->id ?? 0));
+
+        return $options
+            ->keys()
+            ->sortBy(fn (int $index) => crc32($seed . '-' . $index))
+            ->mapWithKeys(fn (int $index) => [$index => $options->get($index)]);
     }
 
     public function canStartAssessment(Assessment $assessment): bool
@@ -519,7 +528,7 @@ class ParticipantLearning extends Page
     public function meetingLockReason(LearningMeeting $meeting): string
     {
         if (! $this->selectedEventApproved()) {
-            return 'Bukti follow Instagram dan checklist join WAG harus lengkap terlebih dahulu.';
+            return 'Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.';
         }
 
         if ($this->allAssessmentsCompleted()) {
@@ -614,31 +623,6 @@ class ParticipantLearning extends Page
             ->values();
     }
 
-    private function youtubeEmbedUrl(string $url): ?string
-    {
-        if (! Str::contains($url, ['youtube.com', 'youtu.be'])) {
-            return null;
-        }
-
-        $videoId = null;
-        $parts = parse_url($url);
-
-        if (($parts['host'] ?? '') === 'youtu.be') {
-            $videoId = trim($parts['path'] ?? '', '/');
-        }
-
-        if (! $videoId && isset($parts['query'])) {
-            parse_str($parts['query'], $query);
-            $videoId = $query['v'] ?? null;
-        }
-
-        if (! $videoId && str_contains($parts['path'] ?? '', '/embed/')) {
-            $videoId = basename($parts['path']);
-        }
-
-        return $videoId ? 'https://www.youtube.com/embed/' . $videoId : null;
-    }
-
     private function generateCertificateNumber(): string
     {
         return 'DSC/' . now()->format('Y') . '/' . str_pad((string) $this->selectedEvent->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $this->participant->id, 5, '0', STR_PAD_LEFT);
@@ -650,6 +634,6 @@ class ParticipantLearning extends Page
             return false;
         }
 
-        return $this->participant->isApprovedForEvent($this->selectedEvent);
+        return $this->memo['approved.' . $this->selectedEvent->id] ??= $this->participant->isApprovedForEvent($this->selectedEvent);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\PartnerResource\Pages;
@@ -87,6 +88,7 @@ class PartnerResource extends Resource
                     Forms\Components\FileUpload::make('logo_path')
                         ->label('Upload Logo Mitra')
                         ->image()
+                        ->acceptedFileTypes(UploadTypes::IMAGES)
                         ->imageEditor()
                         ->disk('public')
                         ->directory('partners')
@@ -109,7 +111,8 @@ class PartnerResource extends Resource
                 Tables\Columns\ImageColumn::make('logo_path')
                     ->label('Logo')
                     ->disk('public')
-                    ->square()
+                    ->height(36)
+                    ->extraImgAttributes(['style' => 'object-fit: contain; max-width: 120px; width: auto;'])
                     ->defaultImageUrl(fn (Partner $record) => $record->logo_url ?: asset('images/sena-symbol.png')),
                 Tables\Columns\TextColumn::make('name')->label('Mitra')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('category')->label('Kategori')->badge()->sortable(),

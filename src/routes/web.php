@@ -26,14 +26,19 @@ Route::get('/resources', fn () => view('pages.resources', ['settings' => []]))->
 Route::get('/our-partner', [PublicPageController::class, 'ourPartner'])->name('our-partner');
 
 Route::get('/events/{event}/register', [ParticipantRegistrationController::class, 'showEventRegistration'])
-    ->middleware('guest')
     ->name('event.register');
-Route::post('/events/{event}/register', [ParticipantRegistrationController::class, 'store'])
+Route::get('/events/{event}/login', [ParticipantRegistrationController::class, 'login'])
     ->middleware('guest')
+    ->name('event.register.login');
+Route::post('/events/{event}/join', [ParticipantRegistrationController::class, 'join'])
+    ->middleware(['auth', 'throttle:10,1'])
+    ->name('event.join');
+Route::post('/events/{event}/register', [ParticipantRegistrationController::class, 'store'])
+    ->middleware(['guest', 'throttle:10,1'])
     ->name('event.register.store');
 
 Route::redirect('/webinars', '/events');
-Route::redirect('/login', '/auth/login');
+Route::redirect('/login', '/auth/login')->name('login');
 Route::redirect('/student/login', '/login');
 Route::redirect('/portal/login', '/login')->name('participant.login');
 Route::redirect('/superadmin/login', '/login');
@@ -50,11 +55,12 @@ Route::get('/participants/register', [ParticipantRegistrationController::class, 
     ->name('participants.register');
 
 Route::post('/register-participant', [ParticipantRegistrationController::class, 'store'])
-    ->middleware('guest')
+    ->middleware(['guest', 'throttle:10,1'])
     ->name('participants.register.store');
 
 Route::get('/certificates/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
+    ->middleware('throttle:30,1')
     ->name('certificates.verify');
 Route::middleware('auth')->get('/certificates/{certificate}/preview-pdf', [CertificatePdfController::class, 'preview'])
     ->name('certificates.preview-pdf');
@@ -68,6 +74,7 @@ Route::middleware('auth')->get('/reports/events/{event}/activity-report/download
     ->name('reports.events.activity.download');
 Route::get('/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
+    ->middleware('throttle:30,1')
     ->name('certificate.verify');
 
 // Pintasan: /dashboard mengarahkan pengguna ke panel sesuai rolenya.

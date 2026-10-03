@@ -5,9 +5,9 @@
 
     $participant = $certificate->participant;
     $event = $certificate->learningEvent ?? $participant?->learningEvents()->first();
-    $event?->loadMissing('partners');
+    $event?->loadMissing('orderedPartners');
     $school = $participant?->school;
-    $templateImage = public_path('certificate-templates/esertifikat-litdig-2026.png');
+    $templateImage = public_path(\App\Models\CertificateTemplate::DEFAULT_BACKGROUND);
     $templateImageSrc = file_exists($templateImage)
         ? 'data:image/png;base64,' . base64_encode(file_get_contents($templateImage))
         : null;
@@ -21,8 +21,29 @@
     $nameFontSize = mb_strlen($participantName) > 34 ? 20 : (mb_strlen($participantName) > 24 ? 23 : 26);
     $eventTitle = $event?->title ?? 'Digital Safety Champions';
     $competencyTitle = 'PESERTA LITERASI DIGITAL SAFETY CHAMPIONS';
+    $primaryTutor = $event?->exists
+        ? $event->tutors()->with('user')->orderBy('tutors.id')->first()
+        : null;
+    $tutorName = $primaryTutor?->user?->name ?? 'Nama Tutor';
+    $tutorInstitution = $primaryTutor?->institution ?: ($primaryTutor ? ($school?->name ?? '-') : 'Lembaga Tutor');
+    $organizerName = 'Sena';
+    $verifyUrl = filled($certificate->number) ? route('certificate.verify', $certificate->number) : null;
+    $qrCodeSrc = null;
 
-    $assessments = $event
+    if ($verifyUrl) {
+        try {
+            $qrCodeSrc = (new \chillerlan\QRCode\QRCode(new \chillerlan\QRCode\QROptions([
+                'outputType' => \chillerlan\QRCode\Output\QROutputInterface::GDIMAGE_PNG,
+                'scale' => 6,
+                'quietzoneSize' => 1,
+                'outputBase64' => true,
+            ])))->render($verifyUrl);
+        } catch (\Throwable) {
+            $qrCodeSrc = null;
+        }
+    }
+
+    $assessments = $event?->exists
         ? Assessment::query()
             ->with('meeting')
             ->where('learning_event_id', $event->id)
@@ -51,7 +72,7 @@
         ]);
     }
 
-    $meetings = $event
+    $meetings = $event?->exists
         ? LearningMeeting::query()
             ->with([
                 'materials' => fn ($query) => $query->where('is_published', true)->orderBy('order'),
@@ -158,9 +179,10 @@
         return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($absolutePath));
     };
 
+    $templateImageSrc = $imageDataUri($certificateTemplate?->background_image) ?: $templateImageSrc;
     $templateElements = collect($certificateTemplate?->elements ?? [])->values();
     $imageElementTypes = ['sena_logo', 'logo', 'partner_logo', 'uploaded_logo', 'signature_image', 'uploaded_signature', 'image'];
-    $eventPartnerLogoSrcs = $event?->partners
+    $eventPartnerLogoSrcs = $event?->orderedPartners
         ?->where('status', 'active')
         ->map(fn ($partner) => $imageDataUri($partner->logo_path) ?: $imageDataUri($partner->logo_url) ?: $senaLogoSrc)
         ->filter()
@@ -178,11 +200,38 @@
         ]);
     }
 
+    // Rasio lebar/tinggi logo dipakai agar logo tidak gepeng (dompdf tidak mendukung object-fit).
+    $logoRatio = function (string $src): float {
+        if (! str_starts_with($src, 'data:')) {
+            return 1.0;
+        }
+
+        $binary = base64_decode(substr($src, strpos($src, ',') + 1)) ?: '';
+
+        if (str_contains(substr($src, 0, 40), 'svg')) {
+            if (preg_match('/viewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/', $binary, $match) && (float) $match[2] > 0) {
+                return (float) $match[1] / (float) $match[2];
+            }
+
+            return 1.0;
+        }
+
+        $size = @getimagesizefromstring($binary);
+
+        return $size && $size[1] > 0 ? $size[0] / $size[1] : 1.0;
+    };
+    $fitLogo = function (string $src, float $maxWidthMm, float $maxHeightMm) use ($logoRatio): array {
+        $ratio = max(0.1, $logoRatio($src));
+        $width = min($maxWidthMm, $maxHeightMm * $ratio);
+
+        return ['src' => $src, 'width' => round($width, 2), 'height' => round($width / $ratio, 2)];
+    };
+
     $pageTwoLogoSrcs = $eventPartnerLogoSrcs->isNotEmpty()
         ? $eventPartnerLogoSrcs
         : collect([$senaLogoSrc])->filter();
     $hasStudioSenaLogo = $templateElements->contains(fn ($element) => ($element['type'] ?? null) === 'sena_logo');
-    $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $school, $participant, $eventDate, $competencyTitle): string {
+    $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $school, $participant, $eventDate, $competencyTitle, $tutorName, $tutorInstitution, $organizerName): string {
         $type = $element['type'] ?? 'custom_text';
         $content = match ($type) {
             'participant_name' => $participantName,
@@ -191,9 +240,9 @@
             'issued_date' => $issuedDate,
             'school_name' => $school?->name ?? 'Nama Sekolah / Instansi',
             'class_name' => $participant?->grade ?? 'Kelas / Peran',
-            'tutor_name' => 'Nama Tutor',
-            'tutor_institution' => 'Lembaga Tutor',
-            'organizer_name' => 'Sena',
+            'tutor_name' => $tutorName,
+            'tutor_institution' => $tutorInstitution,
+            'organizer_name' => $organizerName,
             'signature_line' => '________________________',
             default => $element['content'] ?? 'Tulisan bebas',
         };
@@ -207,9 +256,9 @@
             '{{class_name}}' => $participant?->grade ?? 'Kelas / Peran',
             '{{event_date}}' => $eventDate,
             '{{competency_title}}' => $competencyTitle,
-            '{{tutor_name}}' => 'Nama Tutor',
-            '{{tutor_institution}}' => 'Lembaga Tutor',
-            '{{organizer_name}}' => 'Sena',
+            '{{tutor_name}}' => $tutorName,
+            '{{tutor_institution}}' => $tutorInstitution,
+            '{{organizer_name}}' => $organizerName,
         ]);
     };
     $elementImageSrc = function (array $element) use ($imageDataUri, $eventPartnerLogoSrcs, $senaLogoSrc): ?string {
@@ -280,19 +329,21 @@
             z-index: 5;
         }
         .event-partner-logos {
-            overflow: hidden;
+            border-collapse: collapse;
             position: absolute;
-            text-align: left;
-            white-space: nowrap;
+            table-layout: fixed;
             z-index: 5;
         }
-        .event-partner-logos img {
-            display: inline-block;
-            height: 100%;
-            margin-right: 3mm;
-            max-width: 26mm;
-            object-fit: contain;
+        .event-partner-logos td,
+        .partner-logo-row td {
+            border: 0;
+            padding: 0 1.3mm;
+            text-align: center;
             vertical-align: middle;
+        }
+        .partner-logo-row {
+            border-collapse: collapse;
+            table-layout: fixed;
             width: auto;
         }
         .template-text-element {
@@ -307,15 +358,14 @@
             z-index: 4;
         }
         .template-qr-element {
-            align-items: center;
-            border: .35mm solid #111827;
-            color: #111827;
-            display: flex;
-            font-size: 7pt;
-            font-weight: 800;
-            justify-content: center;
+            background: #ffffff;
             position: absolute;
+            text-align: center;
             z-index: 5;
+        }
+        .template-qr-element img {
+            height: 100%;
+            width: 100%;
         }
         .cert-number {
             color: #202427;
@@ -422,9 +472,7 @@
         }
         .transcript-partner-logo {
             display: inline-block;
-            height: 16mm;
-            margin-right: 4mm;
-            max-width: 42mm;
+            margin-right: 3mm;
             object-fit: contain;
             vertical-align: middle;
         }
@@ -462,6 +510,7 @@
         }
         .watermark {
             color: rgba(5, 143, 206, .05);
+            display: none;
             font-size: 74pt;
             font-weight: 900;
             left: 70mm;
@@ -541,14 +590,24 @@
 
             @if ($type === 'event_partner_logos')
                 @if ($eventPartnerLogoSrcs->isNotEmpty())
-                    <div
+                    @php
+                        // Logo disusun dalam sel tabel berukuran sama agar seluruh mitra muat dalam satu baris.
+                        $logoCount = max(1, $eventPartnerLogoSrcs->count());
+                        $logoSlotMm = min(32, ($widthMm / $logoCount) - 2.6);
+                    @endphp
+                    <table
                         class="event-partner-logos"
-                        style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm;"
+                        style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ min($widthMm, ($logoSlotMm + 2.6) * $logoCount) }}mm; height: {{ $heightMm }}mm;"
                     >
-                        @foreach ($eventPartnerLogoSrcs as $partnerLogoSrc)
-                            <img src="{{ $partnerLogoSrc }}" alt="">
-                        @endforeach
-                    </div>
+                        <tr>
+                            @foreach ($eventPartnerLogoSrcs as $partnerLogoSrc)
+                                @php $logo = $fitLogo($partnerLogoSrc, $logoSlotMm, $heightMm); @endphp
+                                <td style="width: {{ $logoSlotMm }}mm; height: {{ $heightMm }}mm;">
+                                    <img src="{{ $logo['src'] }}" alt="" style="width: {{ $logo['width'] }}mm; height: {{ $logo['height'] }}mm;">
+                                </td>
+                            @endforeach
+                        </tr>
+                    </table>
                 @endif
             @elseif ($type === 'white_box')
                 <div
@@ -569,7 +628,11 @@
                 <div
                     class="template-qr-element"
                     style="left: {{ $x }}mm; top: {{ $y }}mm; width: {{ $widthMm }}mm; height: {{ $heightMm }}mm;"
-                >QR</div>
+                >
+                    @if ($qrCodeSrc)
+                        <img src="{{ $qrCodeSrc }}" alt="QR verifikasi sertifikat">
+                    @endif
+                </div>
             @else
                 <div
                     class="template-text-element"
@@ -594,9 +657,20 @@
             <div class="transcript-head">
                 <div class="transcript-logo-row">
                     <div class="transcript-logo-cell">
-                        @foreach ($pageTwoLogoSrcs as $pageTwoLogoSrc)
-                            <img class="transcript-partner-logo" src="{{ $pageTwoLogoSrc }}" alt="">
-                        @endforeach
+                        @php
+                            $pageTwoLogoCount = max(1, $pageTwoLogoSrcs->count());
+                            $pageTwoLogoSlotMm = min(31, (130 / $pageTwoLogoCount) - 2.6);
+                        @endphp
+                        <table class="partner-logo-row">
+                            <tr>
+                                @foreach ($pageTwoLogoSrcs as $pageTwoLogoSrc)
+                                    @php $logo = $fitLogo($pageTwoLogoSrc, $pageTwoLogoSlotMm, 13); @endphp
+                                    <td style="width: {{ $pageTwoLogoSlotMm }}mm; height: 13mm;">
+                                        <img src="{{ $logo['src'] }}" alt="" style="width: {{ $logo['width'] }}mm; height: {{ $logo['height'] }}mm;">
+                                    </td>
+                                @endforeach
+                            </tr>
+                        </table>
                     </div>
                     <div class="transcript-logo-cell transcript-brand">
                         SENA
@@ -610,8 +684,6 @@
                     Peserta: <strong>{{ $participant?->user?->name ?? '-' }}</strong>{{ $school?->name ? ' - ' . $school->name : '' }}
                 </div>
             </div>
-
-            <div class="watermark">DSC</div>
             <table>
                 <thead>
                     <tr>

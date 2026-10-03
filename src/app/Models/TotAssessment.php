@@ -32,7 +32,10 @@ class TotAssessment extends Model
                 ->pluck('tutor_id')
                 ->unique();
 
-            if ($perfectTutorIds->count() >= $event->tutors->count()) {
+            // Hanya majukan status dari tahap awal; jangan mundurkan event yang sudah lebih jauh
+            // (mis. laporan final terkirim) ketika tutor menyimpan ulang ToT.
+            if ($perfectTutorIds->count() >= $event->tutors->count()
+                && in_array($event->workflow_status, ['verified_term_1', 'tot_in_progress'], true)) {
                 $event->update(['workflow_status' => 'tot_completed']);
             }
         });

@@ -25,6 +25,13 @@ class EditLearningEvent extends EditRecord
     {
         $data = LearningEventResource::normalizeEventScheduleData($data);
 
+        if (auth()->user()?->role !== UserRole::SuperAdmin) {
+            // Abaikan perubahan field wewenang Pusat walau dikirim lewat request yang dimanipulasi.
+            foreach (LearningEventResource::centralOnlyFields() as $field) {
+                $data[$field] = $this->record->getAttribute($field);
+            }
+        }
+
         if (auth()->user()?->role === UserRole::Admin) {
             $data['local_updated_at'] = now();
             $data['local_update_summary'] = 'Event diperbarui oleh Admin RTIK Daerah.';
@@ -40,5 +47,10 @@ class EditLearningEvent extends EditRecord
         }
 
         app(LearningEventProvisioner::class)->provisionPaymentTerms($this->record);
+
+        // Event yang sudah disetujui: tutor terdaftar yang baru dipilih langsung ditugaskan.
+        if (! in_array($this->record->workflow_status, ['draft', 'submitted', 'needs_revision', 'cancelled', 'rejected'], true)) {
+            app(LearningEventProvisioner::class)->assignSelectedTutors($this->record);
+        }
     }
 }

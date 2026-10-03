@@ -4,6 +4,7 @@ namespace App\Filament\Concerns;
 
 use App\Enums\UserRole;
 use App\Models\Assessment;
+use App\Models\LearningEvent;
 use App\Models\Participant;
 use App\Models\School;
 use App\Models\TrainingSession;
@@ -127,6 +128,47 @@ trait RoleScoped
         };
     }
 
+    /**
+     * Lokasi yang boleh dikelola user non-Super Admin: lokasi akunnya sendiri, lokasi event yang
+     * dibuat (admin daerah) atau diikuti (tutor/peserta), dan lokasi yang baru dibuat di sesi ini.
+     *
+     * @return array<int, int>
+     */
+    public static function managedSchoolIds(): array
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return [];
+        }
+
+        $eventSchoolIds = match ($user->role) {
+            UserRole::Admin => LearningEvent::query()->where('created_by', $user->id)->pluck('school_id'),
+            UserRole::Tutor => $user->tutor
+                ? LearningEvent::query()->whereHas('tutors', fn (Builder $query) => $query->where('tutors.id', $user->tutor->id))->pluck('school_id')
+                : collect(),
+            UserRole::Peserta => $user->participant
+                ? LearningEvent::query()->whereHas('participants', fn (Builder $query) => $query->where('participants.id', $user->participant->id))->pluck('school_id')
+                : collect(),
+            default => collect(),
+        };
+
+        return collect([$user->school_id])
+            ->merge($eventSchoolIds)
+            ->merge(session('created_school_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /** Catat lokasi yang baru dibuat user agar langsung bisa dipilih di form. */
+    public static function rememberCreatedSchool(int $schoolId): void
+    {
+        session()->push('created_school_ids', $schoolId);
+    }
+
     protected static function scopeSchoolBuilder(Builder $query): Builder
     {
         $user = auth()->user();
@@ -135,7 +177,7 @@ trait RoleScoped
             return $query;
         }
 
-        return $user->school_id ? $query->whereKey($user->school_id) : $query->whereRaw('1 = 0');
+        return $query->whereKey(static::managedSchoolIds());
     }
 
     protected static function scopedSchoolOptions(): Collection
@@ -149,9 +191,7 @@ trait RoleScoped
         $user = auth()->user();
 
         if ($user?->role !== UserRole::SuperAdmin) {
-            $user->school_id
-                ? $query->where('school_id', $user->school_id)
-                : $query->whereRaw('1 = 0');
+            $query->whereIn('school_id', static::managedSchoolIds());
         }
 
         return $query->pluck('name', 'id');
@@ -195,9 +235,7 @@ trait RoleScoped
         $query = TrainingSession::query()->orderByDesc('date')->orderBy('title');
 
         if ($user?->role !== UserRole::SuperAdmin) {
-            $user?->school_id
-                ? $query->where('school_id', $user->school_id)
-                : $query->whereRaw('1 = 0');
+            $query->whereIn('school_id', static::managedSchoolIds());
         }
 
         return $query->pluck('title', 'id');
@@ -266,9 +304,9 @@ trait RoleScoped
         }
 
         return match (static::scopeType()) {
-            'school' => $query->where('school_id', $user->school_id),
-            'session' => $query->whereHas('session', fn ($q) => $q->where('school_id', $user->school_id)),
-            'school_self' => $query->where('id', $user->school_id),
+            'school' => $query->whereIn('school_id', static::managedSchoolIds()),
+            'session' => $query->whereHas('session', fn ($q) => $q->whereIn('school_id', static::managedSchoolIds())),
+            'school_self' => $query->whereIn('id', static::managedSchoolIds()),
             'participant_self' => $user->role === UserRole::Peserta
                 ? $query->whereKey($user->participant?->id)
                 : $query->whereHas('learningEvents', fn (Builder $eventQuery) => static::scopeLearningEventBuilder($eventQuery)),

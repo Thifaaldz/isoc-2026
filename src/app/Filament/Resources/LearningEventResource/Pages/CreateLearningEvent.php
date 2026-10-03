@@ -20,9 +20,11 @@ class CreateLearningEvent extends CreateRecord
             $data['created_by'] = auth()->id();
             $data['local_updated_at'] = now();
             $data['local_update_summary'] = 'Event baru dibuat oleh Admin RTIK Daerah.';
+            // Event baru dari daerah selalu mulai dari draft; status dan publikasi ditentukan Pusat.
+            $data['workflow_status'] = 'draft';
             $data['is_published'] = false;
             $data['registration_open'] = false;
-            $data['publish_approval_status'] = $data['publish_approval_status'] ?? 'draft';
+            $data['publish_approval_status'] = 'draft';
         }
 
         return $data;

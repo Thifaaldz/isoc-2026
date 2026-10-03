@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Models\LearningEvent;
 use App\Models\MicrositePractice;
@@ -96,6 +97,7 @@ class Profile extends Page implements HasForms
                         Forms\Components\FileUpload::make('avatar_url')
                             ->label('Foto Profil')
                             ->image()
+                            ->acceptedFileTypes(UploadTypes::IMAGES)
                             ->avatar()
                             ->imageEditor()
                             ->disk('public')
@@ -119,6 +121,8 @@ class Profile extends Page implements HasForms
                             ->maxLength(30),
                         Forms\Components\Select::make('school_id')
                             ->label('Sekolah Utama')
+                            ->disabled(fn () => auth()->user()?->role !== UserRole::Peserta)
+                            ->helperText(fn () => auth()->user()?->role !== UserRole::Peserta ? 'Diatur oleh Admin RTIK Pusat.' : null)
                             ->options(fn () => $this->schoolOptions())
                             ->searchable()
                             ->preload()
@@ -183,6 +187,8 @@ class Profile extends Page implements HasForms
                     ->description('Lengkapi data tutor yang dipakai untuk pengelolaan pendampingan sekolah.')
                     ->schema([
                         Forms\Components\Select::make('tutor.school_id')
+                            ->disabled()
+                            ->helperText('Diatur oleh Admin RTIK Pusat.')
                             ->label('Sekolah Dampingi')
                             ->options(fn () => $this->schoolOptions())
                             ->searchable()
@@ -288,13 +294,14 @@ class Profile extends Page implements HasForms
             return;
         }
 
-        $user->update(Arr::only($data, [
+        // Sekolah akun admin/tutor menentukan cakupan data, jadi hanya bisa diubah Admin RTIK Pusat lewat menu Users.
+        $user->update(Arr::only($data, array_filter([
             'avatar_url',
             'name',
             'email',
             'phone',
-            'school_id',
-        ]));
+            $user->role === UserRole::Peserta ? 'school_id' : null,
+        ])));
 
         if ($user->role === UserRole::Peserta) {
             $participantData = $data['participant'] ?? [];
@@ -317,17 +324,14 @@ class Profile extends Page implements HasForms
 
         if ($user->role === UserRole::Tutor) {
             $tutorData = $data['tutor'] ?? [];
-            $schoolId = $tutorData['school_id'] ?? $data['school_id'] ?? $user->school_id;
 
             $user->tutor()->updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'school_id' => $schoolId,
+                    'school_id' => $user->tutor?->school_id ?? $user->school_id,
                     'institution' => $tutorData['institution'] ?? null,
                 ],
             );
-
-            $user->update(['school_id' => $schoolId]);
         }
 
         Notification::make()
