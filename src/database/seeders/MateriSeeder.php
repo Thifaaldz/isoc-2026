@@ -82,6 +82,8 @@ class MateriSeeder extends Seeder
                 'type' => $type,
                 'title' => trim($title . ' ' . $label) . ': Online Trust & Safety',
                 'passing_score' => $passingScore,
+                // Peserta: 5 soal acak per orang dari bank soal; ToT tutor tetap semua soal.
+                'questions_per_attempt' => $audience === ModuleTemplate::AUDIENCE_PESERTA ? 5 : null,
                 'is_open' => true,
                 'questions' => $questions,
             ]);

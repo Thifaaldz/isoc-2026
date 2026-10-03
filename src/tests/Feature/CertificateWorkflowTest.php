@@ -160,21 +160,24 @@ test('peserta langsung bisa mengunduh sertifikat setelah syarat terpenuhi', func
     expect($certificate->refresh()->status)->toBe('issued');
 });
 
-test('e-sertifikat satu event dapat diunduh sebagai ZIP untuk bukti dukung', function () {
+test('e-sertifikat satu event diunduh sebagai satu PDF panjang untuk bukti dukung', function () {
     $event = makeEvent();
     $done = enrol($event, 'peserta.selesai@isoc.id');
     completeLearning($event, $done);
+    $other = enrol($event, 'peserta.selesai2@isoc.id');
+    MicrositePractice::query()->create(['participant_id' => $other->id, 'learning_event_id' => $event->id, 'sid_url' => 'https://s.id/dua']);
+    foreach (Assessment::query()->where('learning_event_id', $event->id)->get() as $assessment) {
+        AssessmentAttempt::query()->create(['assessment_id' => $assessment->id, 'participant_id' => $other->id, 'score' => 90, 'submitted_at' => now()]);
+    }
     enrol($event, 'peserta.belum@isoc.id');
 
     $response = $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.zip@isoc.id'))
         ->get(route('certificates.event-download', $event))
         ->assertOk()
-        ->assertHeader('content-type', 'application/zip');
+        ->assertHeader('content-type', 'application/pdf');
 
-    $zip = new ZipArchive();
-    $zip->open($response->baseResponse->getFile()->getPathname());
-    expect($zip->numFiles)->toBe(1);
-    $zip->close();
+    // 2 peserta selesai x 2 halaman per sertifikat = 4 halaman dalam satu PDF.
+    expect(preg_match_all('/\/Type\s*\/Page[^s]/', $response->getContent()))->toBe(4);
 
     $this->flushSession();
     $this->actingAs($done->user)->get(route('certificates.event-download', $event))->assertForbidden();
@@ -281,6 +284,40 @@ test('opsi jawaban diacak tanpa mengubah indeks penilaian', function () {
         ->and($options->get(0)['text'])->toBe('A')
         ->and((new \App\Filament\Pages\ParticipantLearning())->displayOptions($assessment, 0, $question)->keys()->all())
         ->toBe($options->keys()->all());
+});
+
+test('peserta mendapat 5 soal acak dari bank soal dengan urutan berbeda dan dinilai dari 5 soal itu', function () {
+    $event = makeEvent();
+    $first = enrol($event, 'acak.satu@isoc.id');
+    $second = enrol($event, 'acak.dua@isoc.id');
+    // Bank 15 soal; jawaban benar selalu opsi pertama.
+    $bank = collect(range(1, 15))->map(fn ($n) => ['question' => "Soal {$n}", 'options' => [['text' => 'Benar', 'is_correct' => true], ['text' => 'Salah']]])->all();
+    $assessment = Assessment::query()->create(['learning_event_id' => $event->id, 'type' => 'pre', 'title' => 'Pre', 'is_open' => true, 'questions' => $bank, 'questions_per_attempt' => 5]);
+    $page = fn () => new \App\Filament\Pages\ParticipantLearning();
+
+    $this->actingAs($first->user);
+    $firstQuestions = $page()->questionsFor($assessment);
+    expect($firstQuestions)->toHaveCount(5)
+        ->and($page()->questionsFor($assessment)->keys()->all())->toBe($firstQuestions->keys()->all());
+
+    $this->actingAs($second->user);
+    $secondQuestions = $page()->questionsFor($assessment);
+    expect($secondQuestions)->toHaveCount(5)
+        ->and($secondQuestions->keys()->all())->not->toBe($firstQuestions->keys()->all());
+
+    // Submit: 4 dari 5 soal benar = 80, total soal tercatat 5.
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('peserta'));
+    $this->actingAs($first->user);
+    $answers = $firstQuestions->keys()->mapWithKeys(fn ($index, $i) => [$index => $i === 0 ? 1 : 0])->all();
+    \Livewire\Livewire::test(\App\Filament\Pages\ParticipantTests::class, ['selectedEventId' => $event->id])
+        ->set('selectedEventId', $event->id)
+        ->call('startAssessment', $assessment->id)
+        ->set('answers', $answers)
+        ->call('submitAssessment', $assessment->id);
+
+    $attempt = AssessmentAttempt::query()->where('participant_id', $first->id)->firstOrFail();
+    expect($attempt->total_questions)->toBe(5)
+        ->and((float) $attempt->score)->toEqual(80.0);
 });
 
 test('hanya admin pusat yang dapat memverifikasi bukti dukung', function () {

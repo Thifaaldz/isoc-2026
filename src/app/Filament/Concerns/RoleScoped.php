@@ -88,10 +88,9 @@ trait RoleScoped
             $tutorId = $user->tutor?->id;
 
             return $query->where(function (Builder $eventQuery) use ($user, $tutorId): void {
+                // Tutor hanya melihat event yang ditugaskan kepadanya.
                 if ($tutorId) {
                     $eventQuery->whereHas('tutors', fn (Builder $tutorQuery) => $tutorQuery->where('tutors.id', $tutorId));
-                } elseif ($user->school_id) {
-                    $eventQuery->where('school_id', $user->school_id);
                 } else {
                     $eventQuery->whereRaw('1 = 0');
                 }

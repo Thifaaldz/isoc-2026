@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
-use App\Filament\Resources\LearningEventResource;
 use App\Models\TrainingSession;
 use Illuminate\Contracts\View\View;
 
@@ -11,28 +10,34 @@ class AttendanceTemplateController
 {
     public function show(TrainingSession $session): View
     {
-        // Daftar hadir memuat data pribadi peserta: hanya Pusat, atau admin/tutor yang mengelola lokasinya.
+        // Daftar hadir memuat data pribadi: Pusat, atau fasilitator/tutor yang punya event di lokasi ini.
         $user = auth()->user();
+        $events = \App\Models\LearningEvent::query()
+            ->where('school_id', $session->school_id)
+            ->when($user?->role === UserRole::Admin, fn ($query) => $query->where('created_by', $user->id))
+            ->when($user?->role === UserRole::Tutor, fn ($query) => $query->whereHas('tutors', fn ($tutors) => $tutors->where('tutors.id', $user->tutor?->id)));
+
         abort_unless(
             $user?->role === UserRole::SuperAdmin
-                || (in_array($user?->role, [UserRole::Admin, UserRole::Tutor], true)
-                    && in_array((int) $session->school_id, LearningEventResource::managedSchoolIds(), true)),
+                || (in_array($user?->role, [UserRole::Admin, UserRole::Tutor], true) && $session->school_id && (clone $events)->exists()),
             403,
         );
 
         $session->load(['school']);
+        $eventIds = $events->pluck('id');
 
-        $participants = $session->school
-            ? $session->school->participants()->with('user')->orderBy('nis')->get()
-            : collect();
+        // Hanya peserta & tutor dari event yang boleh dilihat user ini (Pusat: semua event di lokasi).
+        $participants = \App\Models\Participant::query()
+            ->with('user')
+            ->whereHas('learningEvents', fn ($query) => $query->whereIn('learning_events.id', $eventIds))
+            ->orderBy('nis')
+            ->get();
 
         // TOR: absensi nama & tanda tangan basah untuk 3 tutor + 100 peserta per lokasi.
-        $tutors = $session->school_id
-            ? \App\Models\Tutor::query()
-                ->with('user')
-                ->whereHas('learningEvents', fn ($query) => $query->where('school_id', $session->school_id))
-                ->get()
-            : collect();
+        $tutors = \App\Models\Tutor::query()
+            ->with('user')
+            ->whereHas('learningEvents', fn ($query) => $query->whereIn('learning_events.id', $eventIds))
+            ->get();
 
         return view('attendance.template', [
             'session' => $session,

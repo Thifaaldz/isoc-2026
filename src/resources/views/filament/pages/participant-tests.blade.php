@@ -108,7 +108,7 @@
                         <form wire:submit.prevent="submitAssessment({{ $this->activeAssessment->id }})" class="space-y-6">
                             @foreach($this->questionsFor($this->activeAssessment) as $questionIndex => $question)
                                 <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
-                                    <div class="font-medium text-gray-950 dark:text-white">{{ $questionIndex + 1 }}. {{ $question['question'] ?? '-' }}</div>
+                                    <div class="font-medium text-gray-950 dark:text-white">{{ $loop->iteration }}. {{ $question['question'] ?? '-' }}</div>
                                     <div class="mt-4 space-y-3">
                                         @foreach($this->displayOptions($this->activeAssessment, $questionIndex, $question) as $optionIndex => $option)
                                             <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5">

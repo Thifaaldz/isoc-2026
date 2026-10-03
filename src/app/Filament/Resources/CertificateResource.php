@@ -172,6 +172,12 @@ class CertificateResource extends Resource
             ]);
     }
 
+    /** @return \Illuminate\Support\Collection<int, string> Event yang boleh diakses user (fasilitator: event miliknya). */
+    public static function eventOptions(): \Illuminate\Support\Collection
+    {
+        return static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id');
+    }
+
     public static function getPages(): array
     {
         return [

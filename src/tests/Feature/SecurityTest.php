@@ -65,8 +65,42 @@ test('template absensi hanya untuk pusat atau admin/tutor pengelola lokasi', fun
     $this->actingAs(secUser(UserRole::Peserta, 'p.abs@isoc.id', $schoolA->id))->get(route('attendance.template', $session))->assertForbidden();
     $this->flushSession();
     $this->actingAs(secUser(UserRole::Admin, 'adm.lain@isoc.id', $schoolB->id))->get(route('attendance.template', $session))->assertForbidden();
+    // Fasilitator di lokasi yang sama tetapi tanpa event miliknya di lokasi itu tidak boleh membuka absensi.
     $this->flushSession();
-    $this->actingAs(secUser(UserRole::Admin, 'adm.a@isoc.id', $schoolA->id))->get(route('attendance.template', $session))->assertOk();
+    $this->actingAs(secUser(UserRole::Admin, 'adm.a@isoc.id', $schoolA->id))->get(route('attendance.template', $session))->assertForbidden();
+    $this->flushSession();
+    $owner = secUser(UserRole::Admin, 'adm.owner@isoc.id', $schoolA->id);
+    secEvent($schoolA, $owner);
+    $this->actingAs($owner)->get(route('attendance.template', $session))->assertOk();
+});
+
+test('fasilitator dan tutor hanya melihat event yang mereka buat atau dampingi', function () {
+    $school = School::query()->create(['name' => 'Lokasi Sama']);
+    $adminA = secUser(UserRole::Admin, 'fasil.a@isoc.id', $school->id);
+    $adminB = secUser(UserRole::Admin, 'fasil.b@isoc.id', $school->id);
+    $eventA = secEvent($school, $adminA, ['title' => 'Event Fasilitator A']);
+    $eventB = secEvent($school, $adminB, ['title' => 'Event Fasilitator B']);
+    $tutorUser = secUser(UserRole::Tutor, 'tutor.a@isoc.id', $school->id);
+    $tutor = \App\Models\Tutor::query()->create(['user_id' => $tutorUser->id, 'school_id' => $school->id, 'tot_completed' => true]);
+    $eventA->tutors()->attach($tutor->id, ['status' => 'assigned']);
+    $participant = Participant::query()->create(['user_id' => secUser(UserRole::Peserta, 'p.b@isoc.id', $school->id)->id, 'school_id' => $school->id]);
+    $certificateB = Certificate::query()->create(['learning_event_id' => $eventB->id, 'participant_id' => $participant->id, 'number' => 'SEC/B', 'status' => 'issued', 'eligibility_status' => 'eligible']);
+
+    // Daftar Kelola Seminar fasilitator A: hanya event A.
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $this->actingAs($adminA);
+    expect(\App\Filament\Resources\LearningEventResource::getEloquentQuery()->pluck('title')->all())->toBe(['Event Fasilitator A']);
+    $this->get(\App\Filament\Resources\LearningEventResource::getUrl('view', ['record' => $eventB], panel: 'admin'))->assertNotFound();
+    $this->get(route('reports.events.activity.preview', $eventB))->assertForbidden();
+    $this->get(route('certificates.event-download', $eventB))->assertForbidden();
+    $this->get(route('certificates.preview-pdf', $certificateB))->assertForbidden();
+
+    // Tutor: hanya event yang ditugaskan kepadanya.
+    $this->flushSession();
+    Filament::setCurrentPanel(Filament::getPanel('tutor'));
+    $this->actingAs($tutorUser);
+    expect(\App\Filament\Resources\LearningEventResource::getEloquentQuery()->pluck('title')->all())->toBe(['Event Fasilitator A']);
+    $this->get(route('reports.events.activity.preview', $eventB))->assertForbidden();
 });
 
 test('admin daerah dan tutor hanya bisa membuka PDF sertifikat event yang mereka kelola', function () {

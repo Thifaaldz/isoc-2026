@@ -401,7 +401,19 @@ class ParticipantLearning extends Page
             $questions = json_decode($questions, true);
         }
 
-        return collect(is_array($questions) ? $questions : [])->values();
+        $questions = collect(is_array($questions) ? $questions : [])->values();
+
+        // Urutan soal diacak stabil per peserta (tetap sama saat halaman dimuat ulang); key tetap indeks
+        // soal asli agar jawaban dan penilaian merujuk soal yang benar. Bila diatur, hanya N soal yang diambil.
+        $seed = crc32('soal-' . $assessment->id . '-' . ($this->participant?->id ?? 0));
+        $order = $questions->keys()->sortBy(fn (int $index) => crc32($seed . '-' . $index));
+        $limit = (int) ($assessment->questions_per_attempt ?? 0);
+
+        if ($limit > 0 && $limit < $questions->count()) {
+            $order = $order->take($limit);
+        }
+
+        return $order->mapWithKeys(fn (int $index) => [$index => $questions->get($index)]);
     }
 
     /**

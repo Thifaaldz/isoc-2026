@@ -20,22 +20,6 @@ class ManageEvidence extends ManageRecords
     {
         return [
             $this->requiredPhotosAction(),
-            Actions\Action::make('downloadCertificates')
-                ->label('Download e-Sertifikat')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->modalHeading('Download e-Sertifikat Peserta')
-                ->modalDescription('Unduh semua e-sertifikat yang sudah terbit di satu event (ZIP berisi PDF) sebagai dokumen bukti dukung.')
-                ->modalSubmitActionLabel('Download')
-                ->form([
-                    Forms\Components\Select::make('learning_event_id')
-                        ->label('Event')
-                        ->options(fn () => EvidenceResource::eventOptions())
-                        ->searchable()
-                        ->preload()
-                        ->required(),
-                ])
-                ->action(fn (array $data) => redirect()->route('certificates.event-download', $data['learning_event_id'])),
             Actions\CreateAction::make()
                 ->label('Upload Bukti Dukung')
                 ->modalWidth('5xl'),

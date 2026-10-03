@@ -9,8 +9,6 @@ use App\Services\CertificateEligibilityService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use ZipArchive;
 
 class CertificatePdfController extends Controller
 {
@@ -28,36 +26,40 @@ class CertificatePdfController extends Controller
         return $this->pdf($certificate)->download($this->filename($certificate));
     }
 
-    /** Semua e-sertifikat terbit dalam satu event, dijadikan ZIP untuk bukti dukung laporan. */
-    public function downloadEvent(LearningEvent $event): BinaryFileResponse
+    /** Semua e-sertifikat terbit dalam satu event, digabung menjadi satu PDF panjang untuk dicetak / bukti dukung. */
+    public function downloadEvent(LearningEvent $event): Response
     {
         abort_unless($this->canAccessEvent($event), 403);
-        abort_unless(class_exists(ZipArchive::class), Response::HTTP_INTERNAL_SERVER_ERROR, 'Ekstensi ZIP PHP belum aktif.');
 
         set_time_limit(0);
+        ini_set('memory_limit', '1024M');
 
         $service = app(CertificateEligibilityService::class);
         $certificates = $event->participants()->with('user')->get()
             ->map(fn ($participant) => $service->ensureCertificate($participant, $event))
-            ->filter(fn (Certificate $certificate) => $certificate->isIssued());
+            ->filter(fn (Certificate $certificate) => $certificate->isIssued())
+            ->sortBy(fn (Certificate $certificate) => $certificate->participant?->user?->name)
+            ->values();
 
         abort_if($certificates->isEmpty(), 404, 'Belum ada e-sertifikat yang terbit untuk event ini.');
 
-        $path = tempnam(sys_get_temp_dir(), 'isoc-certificates-');
-        $zip = new ZipArchive();
-        $zip->open($path, ZipArchive::OVERWRITE);
-
-        foreach ($certificates as $certificate) {
+        // Setiap sertifikat dirender dengan template yang sama; isi <body> digabung berurutan dalam satu dokumen.
+        $head = null;
+        $bodies = $certificates->map(function (Certificate $certificate, int $index) use (&$head): string {
             $certificate->load(['participant.user', 'participant.school', 'learningEvent', 'certificateTemplate']);
-            $name = Str::slug($certificate->participant?->user?->name ?: 'peserta') . '-' . $this->filename($certificate);
-            $zip->addFromString($name, $this->pdf($certificate)->output());
-        }
+            $html = view('certificates.pdf', ['certificate' => $certificate, 'qrSvg' => null])->render();
+            $head ??= Str::before($html, '<body>');
+            $body = Str::beforeLast(Str::after($html, '<body>'), '</body>');
 
-        $zip->close();
+            return $index === 0 ? $body : '<div style="page-break-before: always;"></div>' . $body;
+        })->implode('');
 
-        return response()
-            ->download($path, 'e-sertifikat-' . Str::slug($event->title) . '.zip', ['Content-Type' => 'application/zip'])
-            ->deleteFileAfterSend();
+        $pdf = Pdf::loadHTML($head . '<body>' . $bodies . '</body></html>')->setOptions([
+            'isRemoteEnabled' => true,
+            'isHtml5ParserEnabled' => true,
+        ]);
+
+        return $pdf->download('e-sertifikat-' . Str::slug($event->title) . '.pdf');
     }
 
     private function eligibleCertificate(Certificate $certificate): Certificate
@@ -109,8 +111,8 @@ class CertificatePdfController extends Controller
         }
 
         if ($user?->role === UserRole::Admin) {
-            return $event && ($event->created_by === $user->id
-                || in_array((int) $event->school_id, \App\Filament\Resources\LearningEventResource::managedSchoolIds(), true));
+            // Fasilitator hanya mengakses event yang ia buat (bukan event fasilitator lain di lokasi yang sama).
+            return $event && (int) $event->created_by === (int) $user->id;
         }
 
         if ($user?->role === UserRole::Tutor) {

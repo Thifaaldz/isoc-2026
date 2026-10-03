@@ -105,8 +105,9 @@ class TotAssessmentResource extends Resource
         $user = auth()->user();
         $query = Tutor::query()->with('user');
 
+        // Fasilitator hanya melihat tutor yang ditugaskan di event yang ia buat.
         if ($user?->role === UserRole::Admin) {
-            $query->whereIn('school_id', static::managedSchoolIds());
+            $query->whereHas('learningEvents', fn ($eventQuery) => $eventQuery->where('created_by', $user->id));
         }
 
         if ($user?->role === UserRole::Tutor) {

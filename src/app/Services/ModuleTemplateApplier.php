@@ -52,6 +52,7 @@ class ModuleTemplateApplier
                     'title' => $assessment->title,
                     'form_url' => $assessment->form_url,
                     'passing_score' => $assessment->passing_score,
+                    'questions_per_attempt' => $assessment->questions_per_attempt,
                     'is_open' => $assessment->is_open,
                     'questions' => $assessment->questions,
                 ]);

@@ -40,8 +40,8 @@ class EventActivityReportController extends Controller
 
         return match ($user->role) {
             UserRole::SuperAdmin => true,
-            UserRole::Admin => $event->created_by === $user->id
-                || in_array((int) $event->school_id, \App\Filament\Resources\LearningEventResource::managedSchoolIds(), true),
+            // Fasilitator hanya membuka laporan event yang ia buat.
+            UserRole::Admin => (int) $event->created_by === (int) $user->id,
             UserRole::Tutor => $event->tutors()->where('tutors.user_id', $user->id)->exists(),
             default => false,
         };

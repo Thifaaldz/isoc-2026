@@ -87,6 +87,12 @@ class AssessmentResource extends Resource
                 ->searchable(),
             Forms\Components\TextInput::make('form_url')->label('Tautan eksternal (opsional)')->url(),
             Forms\Components\TextInput::make('passing_score')->label('Nilai lulus')->numeric()->default(85),
+            Forms\Components\TextInput::make('questions_per_attempt')
+                ->label('Jumlah soal per peserta')
+                ->numeric()
+                ->minValue(1)
+                ->maxValue(100)
+                ->helperText('Opsional. Isi mis. 5 agar setiap peserta mendapat 5 soal acak dari bank soal. Kosongkan untuk memakai semua soal. Urutan soal selalu diacak per peserta.'),
             Forms\Components\Toggle::make('is_open')->label('Dibuka')->default(true),
             Forms\Components\Repeater::make('questions')
                 ->label('Soal pilihan ganda')
