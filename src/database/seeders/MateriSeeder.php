@@ -2,34 +2,26 @@
 
 namespace Database\Seeders;
 
-use App\Filament\Resources\LearningEventResource;
 use App\Models\Assessment;
-use App\Models\CertificateTemplate;
-use App\Models\LearningEvent;
 use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
 use App\Models\ModuleTemplate;
-use App\Models\Partner;
-use App\Models\School;
 use App\Models\User;
-use App\Services\LearningEventProvisioner;
-use App\Services\ModuleTemplateApplier;
-use App\Support\IndonesiaRegion;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * Materi "Online Trust & Safety" (6 modul: slide PPT/PDF + video) dari docs/modul ajar/modul terbaru,
- * beserta pre/post-test siswa dan tutor, serta event DSC di SMAN 1 Sragen (5 Oktober 2026).
+ * beserta pre/post-test siswa dan tutor (Modul ToT PPT untuk tutor).
  *
- * File materi diharapkan ada di storage/app/public/learning-materials/dsc-ots/ (disk public).
- * Jalankan: php artisan db:seed --class=DscSragenSeeder (aman diulang).
+ * File materi diharapkan ada di storage/app/public/learning-materials/dsc-ots/ dan .../modul-ajar/ (disk public).
+ * Jalankan: php artisan db:seed --class=MateriSeeder (aman diulang).
  */
-class DscSragenSeeder extends Seeder
+class MateriSeeder extends Seeder
 {
     private const DIR = 'learning-materials/dsc-ots/';
 
-    private const MATERI_SISWA = 'DSC Online Trust & Safety - Modul Siswa (6 Modul)';
+    public const MATERI_SISWA = 'DSC Online Trust & Safety - Modul Siswa (6 Modul)';
 
     private const MATERI_TUTOR = 'DSC Online Trust & Safety - ToT Tutor (6 Modul)';
 
@@ -57,19 +49,15 @@ class DscSragenSeeder extends Seeder
 
     public function run(): void
     {
-        $this->call(PartnerSeeder::class);
         $this->warnMissingFiles();
 
         $tests = json_decode(file_get_contents(database_path('seeders/data/dsc-ots-tests.json')), true);
         $superAdmin = User::query()->where('email', 'su@isoc.id')->firstOrFail();
-        $admin = User::query()->where('email', 'adm@isoc.id')->firstOrFail();
 
-        $materiSiswa = $this->material(self::MATERI_SISWA, ModuleTemplate::AUDIENCE_PESERTA, $superAdmin, $tests['pre_peserta'], $tests['post_peserta'], 70,
+        $this->material(self::MATERI_SISWA, ModuleTemplate::AUDIENCE_PESERTA, $superAdmin, $tests['pre_peserta'], $tests['post_peserta'], 70,
             'Materi siswa Digital Safety Champions: Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia. Setiap modul berisi slide presentasi dan video ajar.');
         $this->material(self::MATERI_TUTOR, ModuleTemplate::AUDIENCE_TUTOR, $superAdmin, $tests['pre_tutor'], $tests['post_tutor'], 100,
             'Materi ToT tutor: 5 Modul ToT (PPT) sebagai bekal fasilitator, lalu 6 Materi Ajar Siswa (slide dan video) yang dibawakan di kelas. Tutor menyelesaikan Pre-Test dan Post-Test ToT.');
-
-        $this->event($materiSiswa, $admin, $superAdmin);
     }
 
     private function material(string $name, string $audience, User $creator, array $pre, array $post, int $passingScore, string $description): ModuleTemplate
@@ -201,96 +189,6 @@ class DscSragenSeeder extends Seeder
         ]);
     }
 
-    private function event(ModuleTemplate $materi, User $admin, User $superAdmin): void
-    {
-        $slug = 'digital-safety-champions-sman-1-sragen';
-
-        if (LearningEvent::query()->where('slug', $slug)->exists()) {
-            return;
-        }
-
-        $provinceCode = $this->codeFor(IndonesiaRegion::provinces(), 'JAWA TENGAH');
-        $cityCode = $this->codeFor(IndonesiaRegion::regencies($provinceCode), 'KABUPATEN SRAGEN');
-        $districtCode = $this->codeFor(IndonesiaRegion::districts($cityCode), 'SRAGEN');
-
-        $school = School::query()->firstOrCreate(['name' => 'SMA Negeri 1 Sragen'], [
-            'type' => 'SMA',
-            'province_code' => $provinceCode,
-            'province' => IndonesiaRegion::provinces()[$provinceCode] ?? 'JAWA TENGAH',
-            'city_code' => $cityCode,
-            'city' => IndonesiaRegion::regencies($provinceCode)[$cityCode] ?? 'KABUPATEN SRAGEN',
-            'district_code' => $districtCode,
-            'district' => IndonesiaRegion::districts($cityCode)[$districtCode] ?? 'SRAGEN',
-            'address' => 'Kabupaten Sragen, Jawa Tengah',
-            'maps_url' => 'https://maps.google.com/?q=' . urlencode('SMA Negeri 1 Sragen'),
-            'participant_target' => 100,
-            'status' => 'active',
-        ]);
-
-        $event = LearningEvent::query()->create(LearningEventResource::normalizeEventScheduleData([
-            'created_by' => $admin->id,
-            'title' => 'Digital Safety Champions - SMAN 1 Sragen',
-            'slug' => $slug,
-            'description' => 'Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia. Pelatihan 6 modul untuk siswa SMA Negeri 1 Sragen, Kabupaten Sragen.',
-            'event_type' => 'offline',
-            'audience_type' => 'school',
-            'school_id' => $school->id,
-            'module_template_id' => $materi->id,
-            'certificate_template_id' => CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->value('id'),
-            'starts_at' => '2026-10-05 08:00:00',
-            'ends_at' => '2026-10-05 12:00:00',
-            'target_participants' => 100,
-            'target_tutors' => 3,
-            'workflow_status' => 'draft',
-            'publish_approval_status' => 'draft',
-            'status' => 'draft',
-            'participant_rows' => [
-                ['name' => 'Peserta Demo Sragen', 'nis' => '0033300101', 'grade' => 'XI', 'organization' => 'SMA Negeri 1 Sragen', 'position' => 'Siswa', 'gender' => 'P', 'birth_date' => null, 'phone' => '081233300101', 'email' => 'peserta.sragen@isoc.id'],
-            ],
-            'tutor_rows' => [
-                ['name' => 'Tutor SMAN 1 Sragen', 'phone' => '081333300101', 'email' => 'tutor.sragen@isoc.id', 'institution' => 'Relawan TIK Kabupaten Sragen', 'notes' => null],
-            ],
-            'budget_items' => [
-                ['category' => 'konsumsi', 'description' => 'Snack dan makan siang peserta', 'quantity' => 100, 'unit' => 'paket', 'unit_price' => 35000, 'amount' => 3500000, 'vendor' => null, 'receipt_number' => null, 'notes' => null],
-                ['category' => 'banner_publikasi', 'description' => 'Banner kegiatan', 'quantity' => 1, 'unit' => 'pcs', 'unit_price' => 300000, 'amount' => 300000, 'vendor' => null, 'receipt_number' => null, 'notes' => null],
-            ],
-            'local_admin_notes' => 'Pelatihan Digital Safety Champions di SMAN 1 Sragen, Kabupaten Sragen.',
-        ]));
-
-        // Urutan mitra mengikuti banner kegiatan.
-        $partnerIds = collect(['ISOC Indonesia Jakarta Chapter', 'Kementerian Komunikasi dan Digital', '.id Academy', 'Relawan TIK Indonesia', 'APJII', 'Universitas Esa Unggul'])
-            ->map(fn (string $name) => Partner::query()->where('name', $name)->value('id'))
-            ->filter()
-            ->values();
-        foreach ($partnerIds as $index => $partnerId) {
-            $event->partners()->attach($partnerId, ['sort_order' => $index + 1]);
-        }
-
-        app(ModuleTemplateApplier::class)->applyToEvent($event);
-        app(LearningEventProvisioner::class)->provisionPaymentTerms($event);
-
-        // Disetujui dan dipublish RTIK Pusat (akun tutor & peserta dibuat, Termin-1 eligible).
-        app(LearningEventProvisioner::class)->provisionAccounts($event);
-        $event->update([
-            'workflow_status' => 'verified_term_1',
-            'publish_approval_status' => 'published',
-            'status' => 'active',
-            'is_published' => true,
-            'registration_open' => true,
-            'central_admin_notes' => 'Event disetujui dan dipublish. Termin-1 eligible.',
-            'publish_approved_by' => $superAdmin->id,
-            'publish_approved_at' => now(),
-            'local_updated_at' => now(),
-            'local_update_summary' => 'Event dibuat oleh Admin RTIK Daerah.',
-        ]);
-        $event->payments()->where('term', 1)->update([
-            'status' => 'eligible',
-            'notes' => 'Event dipublish. Termin-1 eligible.',
-            'approved_by' => $superAdmin->id,
-            'approved_at' => now(),
-        ]);
-    }
-
     private function warnMissingFiles(): void
     {
         foreach (self::TOT_MODULES as $module) {
@@ -308,12 +206,5 @@ class DscSragenSeeder extends Seeder
                 }
             }
         }
-    }
-
-    private function codeFor(array $options, string $name): ?string
-    {
-        $code = array_search(strtoupper($name), array_map('strtoupper', $options), true);
-
-        return $code === false ? array_key_first($options) : (string) $code;
     }
 }
