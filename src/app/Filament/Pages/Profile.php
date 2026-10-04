@@ -2,6 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Services\MicrositeLinkChecker;
+use App\Rules\ReachableMicrositeUrl;
+use App\Support\IdentityNumber;
 use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Models\LearningEvent;
@@ -161,13 +164,12 @@ class Profile extends Page implements HasForms
                             ->native(false)
                             ->required()
                             ->live(),
-                        Forms\Components\TextInput::make('participant.nik')
-                            ->label('NIK')
-                            ->maxLength(50),
-                        Forms\Components\TextInput::make('participant.nis')
+                        IdentityNumber::nik(Forms\Components\TextInput::make('participant.nik')
+                            ->label('NIK')),
+                        IdentityNumber::nisn(Forms\Components\TextInput::make('participant.nis')
                             ->label(fn (Forms\Get $get) => $get('participant.participant_category') === 'mahasiswa' ? 'NIM' : 'NISN')
-                            ->visible(fn (Forms\Get $get) => in_array($get('participant.participant_category'), ['pelajar', 'mahasiswa'], true))
-                            ->maxLength(50),
+                            ->visible(fn (Forms\Get $get) => in_array($get('participant.participant_category'), ['pelajar', 'mahasiswa'], true)),
+                            fn (Forms\Get $get) => $get('participant.participant_category') === 'pelajar'),
                         Forms\Components\Select::make('participant.grade')
                             ->label('Kelas')
                             ->options([
@@ -207,9 +209,8 @@ class Profile extends Page implements HasForms
                         Forms\Components\TextInput::make('tutor.institution')
                             ->label('Institusi')
                             ->maxLength(255),
-                        Forms\Components\TextInput::make('tutor.nik')
-                            ->label('NIK')
-                            ->maxLength(50),
+                        IdentityNumber::nik(Forms\Components\TextInput::make('tutor.nik')
+                            ->label('NIK')),
                         Forms\Components\TextInput::make('tutor.npwp')
                             ->label('NPWP')
                             ->maxLength(30),
@@ -264,10 +265,12 @@ class Profile extends Page implements HasForms
                             }),
                         Forms\Components\TextInput::make('sid_url')
                             ->label('Link s.id')
-                            ->placeholder('https://s.id/...')
-                            ->url()
+                            ->placeholder('s.id/ISOC_Champion')
+                            ->helperText('Link dicek otomatis: harus bisa dibuka, bukan halaman "Tidak Ditemukan".')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->rule(new ReachableMicrositeUrl())
+                            ->dehydrateStateUsing(fn (?string $state) => MicrositeLinkChecker::normalize($state)),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan')
                             ->placeholder('Opsional, jelaskan isi microsite atau tugas yang dikumpulkan.')

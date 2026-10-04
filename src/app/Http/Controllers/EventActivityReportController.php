@@ -142,7 +142,9 @@ class EventActivityReportController extends Controller
 
         // Bukti dukung sesuai TOR ("Bukti Dukung" poin 1-7) beserta capaiannya di lokasi ini.
         $torEvidence = [
-            ['Absensi nama & tanda tangan basah', "{$targetTutors} tutor + {$targetParticipants} peserta", $approvedTypeCount('absensi_basah') . ' berkas disetujui', $approvedTypeCount('absensi_basah') > 0],
+            $event->attendance_proof_mode === 'system'
+                ? ['Daftar hadir peserta (generate sistem dari kode absensi)', "{$targetParticipants} peserta", $event->checkedInAttendances()->count() . ' peserta hadir', $event->attendanceProofComplete()]
+                : ['Absensi nama & tanda tangan basah', "{$targetTutors} tutor + {$targetParticipants} peserta", $approvedTypeCount('absensi_basah') . ' berkas disetujui', $approvedTypeCount('absensi_basah') > 0],
             ['Follow Instagram ISOC @isoc.id.jkt', "{$participantCount} peserta", "{$followedInstagram} peserta", $participantCount > 0 && $followedInstagram >= $participantCount],
             ['Join WAG ISOC Champion', "{$participantCount} peserta", "{$joinedWag} peserta", $participantCount > 0 && $joinedWag >= $participantCount],
             ['Registrasi laman ISOC untuk e-Sertifikat', "{$participantCount} peserta", "{$participantCount} terdaftar, {$issuedCertificates} e-Sertifikat terbit", $participantCount > 0],
@@ -160,7 +162,28 @@ class EventActivityReportController extends Controller
         $torEvidence[] = ['Video Tutor & Peserta dengan slogan "ISOC - The Internet is for Everyone"', '1 video', $approvedTypeCount('video_slogan') . ' video disetujui', $approvedTypeCount('video_slogan') > 0];
         $torEvidence[] = ['Pre-Test di awal dan Post-Test di akhir sesi', "{$participantCount} peserta", "Pre {$preCompleted}, Post {$postCompleted} peserta", $participantCount > 0 && $preCompleted >= $participantCount && $postCompleted >= $participantCount];
 
+        // Bukti dukung per peserta: semua peserta tampil, termasuk yang buktinya belum lengkap.
+        $followEvidence = $evidences->where('type', 'follow_ig')->sortByDesc('id')->unique('uploaded_by')->keyBy('uploaded_by');
+        $micrositeByParticipant = $microsites->keyBy('participant_id');
+        $issuedParticipantIds = Certificate::query()->where('learning_event_id', $event->id)->where('status', 'issued')->pluck('participant_id')->flip();
+        $participantProofs = $participants
+            ->sortBy(fn ($participant) => $participant->user?->name)
+            ->values()
+            ->map(fn ($participant) => [
+                'name' => $participant->user?->name ?? '-',
+                'grade' => $participant->grade ?: '-',
+                'ig_evidence' => $followEvidence->get($participant->user_id),
+                'followed_instagram' => (bool) $participant->followed_instagram,
+                'joined_wag' => (bool) $participant->joined_wag,
+                'microsite' => $micrositeByParticipant->get($participant->id)?->sid_url,
+                'certificate' => $issuedParticipantIds->has($participant->id),
+            ]);
+        $wagMembers = $participants->where('joined_wag', true)->sortBy(fn ($participant) => $participant->user?->name)->values();
+
         return Pdf::loadView('reports.event-activity', [
+            'checkedIn' => $event->attendance_proof_mode === 'system' ? $event->checkedInAttendances()->get() : collect(),
+            'participantProofs' => $participantProofs,
+            'wagMembers' => $wagMembers,
             'torEvidence' => $torEvidence,
             'microsites' => $microsites,
             'issuedCertificates' => $issuedCertificates,
@@ -175,7 +198,7 @@ class EventActivityReportController extends Controller
             'school' => $event->school,
             'participants' => $event->participants,
             'tutors' => $event->tutors,
-            'meetings' => $event->meetings->sortBy('order'),
+            'meetings' => $event->meetings->sortBy('order')->values(),
             'evidences' => $event->evidences->sortBy('type'),
             'evidenceTypes' => Evidence::TYPES,
             'preAverage' => $averageScore('pre'),

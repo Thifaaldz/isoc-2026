@@ -13,6 +13,8 @@
             theme: {
                 extend: {
                     colors: {
+                        // Warna utama situs isoc.id.
+                        isoc: { DEFAULT: '#075bb1', container: '#3474cc', soft: '#dbe2f9', ink: '#191c1d', muted: '#424752', line: '#c2c6d4' },
                         navy: { DEFAULT: '#002D56', light: '#003d75', dark: '#001833' },
                         blue: { DEFAULT: '#0060AC', light: '#0097DC', dark: '#004883' },
                         teal: { DEFAULT: '#00B4A0', light: '#00D4BC' },

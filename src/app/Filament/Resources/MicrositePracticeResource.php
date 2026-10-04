@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Notifications\Notification;
+use App\Services\MicrositeLinkChecker;
+use App\Rules\ReachableMicrositeUrl;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\MicrositePracticeResource\Pages;
@@ -60,7 +63,11 @@ class MicrositePracticeResource extends Resource
                 ->searchable()
                 ->preload()
                 ->required(),
-            Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->url(),
+            Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->maxLength(255)
+                ->placeholder('s.id/ISOC_Champion')
+                ->helperText('Link dicek otomatis: harus bisa dibuka, bukan halaman "Tidak Ditemukan".')
+                ->rule(new ReachableMicrositeUrl())
+                ->dehydrateStateUsing(fn (?string $state) => MicrositeLinkChecker::normalize($state)),
             Forms\Components\Textarea::make('notes')->label('Catatan'),
             // Peserta hanya mengumpulkan link; status tinjauan diisi admin/tutor.
             Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default('submitted')
@@ -87,6 +94,20 @@ class MicrositePracticeResource extends Resource
                     ->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau']),
             ])
             ->actions([
+                Tables\Actions\Action::make('checkLink')
+                    ->label('Cek Link')
+                    ->icon('heroicon-o-signal')
+                    ->color('gray')
+                    ->visible(fn (MicrositePractice $record) => filled($record->sid_url))
+                    ->action(function (MicrositePractice $record): void {
+                        $result = app(MicrositeLinkChecker::class)->check($record->sid_url);
+
+                        Notification::make()
+                            ->title($result['ok'] ? 'Link microsite aktif' : 'Link microsite belum valid')
+                            ->body($result['ok'] ? $result['url'] . ' bisa diakses.' : $result['reason'])
+                            ->{$result['ok'] ? 'success' : 'danger'}()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

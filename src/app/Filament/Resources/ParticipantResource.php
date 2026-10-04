@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Support\IdentityNumber;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\ParticipantResource\Pages;
@@ -55,11 +56,11 @@ class ParticipantResource extends Resource
                 'umum' => 'Umum',
                 'karyawan' => 'Karyawan',
             ])->default('pelajar')->required()->live(),
-            Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
-            Forms\Components\TextInput::make('nis')
+            IdentityNumber::nik(Forms\Components\TextInput::make('nik')->label('NIK')),
+            IdentityNumber::nisn(Forms\Components\TextInput::make('nis')
                 ->label(fn (Forms\Get $get) => $get('participant_category') === 'mahasiswa' ? 'NIM' : 'NISN')
-                ->visible(fn (Forms\Get $get) => in_array($get('participant_category'), ['pelajar', 'mahasiswa'], true))
-                ->maxLength(50),
+                ->visible(fn (Forms\Get $get) => in_array($get('participant_category'), ['pelajar', 'mahasiswa'], true)),
+                fn (Forms\Get $get) => $get('participant_category') === 'pelajar'),
             Forms\Components\Select::make('grade')->label('Kelas')->options(['X' => 'X', 'XI' => 'XI', 'XII' => 'XII']),
             Forms\Components\TextInput::make('organization')->label('Organisasi / Instansi'),
             Forms\Components\TextInput::make('position')->label('Jabatan / Peran'),

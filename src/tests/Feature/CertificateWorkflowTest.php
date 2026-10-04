@@ -510,6 +510,7 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
     \App\Models\Partner::query()->create(['name' => 'Mitra Lain', 'status' => 'active']);
     $school = School::query()->create(['name' => 'SMAN 1 Uji', 'city' => 'Kota Uji', 'status' => 'active']);
     $admin = makeUser(UserRole::SuperAdmin, 'pusat.mitra@isoc.id');
+    config(['app.event_creation_enabled' => true]);
 
     \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
     $this->actingAs($admin);
@@ -526,7 +527,7 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
         ->assertSet('data.ends_at', now()->addDays(10)->format('Y-m-d 12:00:00'))
         ->set('data.certificate_partner_ids', array_values(array_diff($defaultPartners, [$hidden])))
         ->set('data.term_checklist_1', ['banner', 'snack'])
-        ->set('data.term_checklist_2', ['honor_tutor'])
+        ->set('data.term_checklist_2', ['daftar_hadir'])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -540,9 +541,9 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
         ->and(collect($event->rundown_items)->last()['end_time'])->toBe('12:00')
         ->and($event->starts_at->format('H:i'))->toBe('09:00')
         ->and($event->ends_at->format('H:i'))->toBe('12:00')
-        ->and(collect($event->budget_items)->pluck('key')->all())->toBe(['banner', 'snack', 'kebersihan', 'honor_tutor', 'administrasi'])
+        ->and(collect($event->budget_items)->pluck('key')->all())->toBe(['banner', 'snack', 'kebersihan', ...array_keys(\App\Support\TorEventTemplate::TERM_CHECKLIST[2])])
         // Langkah Checklist Termin: hanya centang, tanpa nominal.
-        ->and(collect($event->budget_items)->where('done', true)->pluck('key')->all())->toBe(['banner', 'snack', 'honor_tutor'])
+        ->and(collect($event->budget_items)->where('done', true)->pluck('key')->all())->toBe(['banner', 'snack', 'daftar_hadir'])
         ->and(\App\Support\TorEventTemplate::checkedKeys($event->budget_items, 1))->toBe(['banner', 'snack'])
         ->and(collect($event->budget_items)->first())->not->toHaveKey('amount');
 });

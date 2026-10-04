@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\SystemProofGenerator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -135,5 +136,38 @@ class LearningEvent extends Model
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);
+    }
+
+    /** Peserta yang sudah absen hadir lewat kode absensi (dipakai bila bukti absensi "generate sistem"). */
+    public function checkedInAttendances()
+    {
+        return $this->attendances()
+            ->with('participant.user')
+            ->whereNotNull('participant_id')
+            ->where('status', 'hadir')
+            ->orderBy('checked_in_at');
+    }
+
+    /** Mode bukti laporan final ("system" / "manual" / null) untuk absensi atau microsite. */
+    public function proofMode(string $kind): ?string
+    {
+        return $this->getAttribute(SystemProofGenerator::KINDS[$kind]['column']);
+    }
+
+    /** Syarat bukti laporan final: generate sistem = PDF sistem sudah tersimpan; manual = bukti upload/tautan disetujui. */
+    public function proofComplete(string $kind): bool
+    {
+        $proofs = $this->evidences()->where('type', SystemProofGenerator::KINDS[$kind]['type'])->where('status', 'approved');
+        $systemPath = SystemProofGenerator::path($kind, $this);
+
+        // Bukti manual bisa berupa link saja (file_path kosong), jadi NULL harus ikut dihitung.
+        return $this->proofMode($kind) === 'system'
+            ? $proofs->where('file_path', $systemPath)->exists()
+            : $proofs->where(fn ($query) => $query->whereNull('file_path')->orWhere('file_path', '!=', $systemPath))->exists();
+    }
+
+    public function attendanceProofComplete(): bool
+    {
+        return $this->proofComplete('attendance');
     }
 }

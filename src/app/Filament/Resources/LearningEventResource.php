@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Support\IdentityNumber;
 use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
@@ -36,6 +37,26 @@ class LearningEventResource extends Resource
 
     protected static ?string $model = LearningEvent::class;
 
+    /** Admin RTIK Pusat: jumlah event yang menunggu keputusan (pengajuan, publish, atau laporan final). */
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->role !== UserRole::SuperAdmin) {
+            return null;
+        }
+
+        $count = LearningEvent::query()->where(fn ($query) => $query
+            ->whereIn('workflow_status', ['submitted', 'needs_revision'])
+            ->orWhere('publish_approval_status', 'pending')
+            ->orWhere('final_report_status', 'submitted'))->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'danger';
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
 
     protected static ?string $navigationGroup = 'Seminar';
@@ -44,7 +65,7 @@ class LearningEventResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Seminar / Event';
 
-    protected static ?string $navigationLabel = 'Kelola Seminar';
+    protected static ?string $navigationLabel = 'Kelola Event';
 
     protected static ?int $navigationSort = 2;
 
@@ -67,6 +88,15 @@ class LearningEventResource extends Resource
     public static function canView(Model $record): bool
     {
         return static::canViewAny();
+    }
+
+    /**
+     * Event tiap lokus sudah disiapkan RTIK Pusat (RtikDaerahSeeder), jadi tombol New Event dinonaktifkan untuk semua role.
+     * Aktifkan lagi lewat EVENT_CREATION_ENABLED=true.
+     */
+    public static function canCreate(): bool
+    {
+        return (bool) config('app.event_creation_enabled') && auth()->user()?->role === UserRole::SuperAdmin;
     }
 
     public static function canDelete(Model $record): bool
@@ -382,11 +412,10 @@ class LearningEventResource extends Resource
                             ->label('Data Peserta')
                             ->schema([
                                 Forms\Components\TextInput::make('name')->label('Nama lengkap')->required(),
-                                Forms\Components\TextInput::make('nik')
-                                    ->label('NIK')
-                                    ->maxLength(50),
-                                Forms\Components\TextInput::make('nis')
-                                    ->label('NISN')
+                                IdentityNumber::nik(Forms\Components\TextInput::make('nik')
+                                    ->label('NIK')),
+                                IdentityNumber::nisn(Forms\Components\TextInput::make('nis')
+                                    ->label('NISN'))
                                     ->helperText('Khusus Lokasi (pelajar) dapat mengisi NISN selain NIK.')
                                     ->visible(fn (Get $get) => $get('../../audience_type') !== 'general'),
                                 Forms\Components\TextInput::make('grade')->label('Kelas'),
@@ -469,7 +498,7 @@ class LearningEventResource extends Resource
                                 Forms\Components\TextInput::make('phone')->label('Kontak'),
                                 Forms\Components\TextInput::make('email')->label('Email')->email(),
                                 Forms\Components\TextInput::make('institution')->label('Institusi / Lembaga'),
-                                Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
+                                IdentityNumber::nik(Forms\Components\TextInput::make('nik')->label('NIK')),
                                 Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30),
                                 Forms\Components\TextInput::make('bank_name')->label('Bank')->maxLength(100),
                                 Forms\Components\TextInput::make('bank_account_number')->label('Nomor Rekening')->maxLength(50),
@@ -548,7 +577,8 @@ class LearningEventResource extends Resource
                     ->select(\Illuminate\Support\Facades\DB::raw('count(distinct tutor_id)'))]))
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Event')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable(),
+                // Nama event sudah memuat kota lokasi, jadi kolom lokasi disembunyikan default agar status tidak terpotong.
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('event_type')
                     ->label('Tipe')
                     ->toggleable(isToggledHiddenByDefault: true)
@@ -580,9 +610,9 @@ class LearningEventResource extends Resource
                 Tables\Columns\TextColumn::make('certificateTemplate.name')
                     ->label('Template Sertifikat')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('starts_at')->label('Mulai')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('starts_at')->label('Jadwal')->dateTime('d M Y, H:i')->sortable(),
                 Tables\Columns\TextColumn::make('participants_count')->counts('participants')->label('Peserta')->sortable(),
-                Tables\Columns\TextColumn::make('tutors_count')->counts('tutors')->label('Tutor')->sortable(),
+                Tables\Columns\TextColumn::make('tutors_count')->counts('tutors')->label('Tutor')->sortable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('tot_progress')
                     ->label('ToT')
                     ->state(fn (LearningEvent $record): string => (int) $record->tot_passed_count . '/' . (int) $record->tutors_count)
@@ -596,9 +626,16 @@ class LearningEventResource extends Resource
                         ->map(fn (array $options, int $term) => "T{$term} " . count(TorEventTemplate::checkedKeys($record->budget_items, $term)) . '/' . count($options))
                         ->implode(' · '))
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('workflow_status')->label('Workflow')->badge(),
+                // Status ringkas dalam bahasa sederhana (sama dengan kartu event Admin RTIK Daerah).
+                Tables\Columns\TextColumn::make('workflow_status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (LearningEvent $record) => (new \App\Support\EventOverview($record))->status()['label'])
+                    ->color(fn (LearningEvent $record) => (new \App\Support\EventOverview($record))->status()['color'])
+                    ->tooltip(fn (?string $state) => static::workflowStatusOptions()[$state] ?? $state),
                 Tables\Columns\TextColumn::make('publish_approval_status')
                     ->label('Approval Publish')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => static::publishApprovalStatusOptions()[$state ?: 'draft'] ?? $state)
                     ->color(fn (?string $state) => match ($state) {
@@ -627,7 +664,7 @@ class LearningEventResource extends Resource
                     ->label('Catatan Admin RTIK Pusat')
                     ->limit(45)
                     ->tooltip(fn (LearningEvent $record) => $record->central_admin_notes)
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('local_admin_notes')
                     ->label('Catatan Fasilitator')
                     ->limit(45)
@@ -672,43 +709,7 @@ class LearningEventResource extends Resource
                     ->label('Preview')
                     ->icon('heroicon-o-eye'),
                 ...static::workflowActions(Tables\Actions\Action::class),
-                Tables\Actions\Action::make('submitFinalReport')
-                    ->label('Submit Laporan Final')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->color('warning')
-                    ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
-                        && in_array($record->workflow_status, ['verified_term_1', 'tot_completed', 'field_training_completed', 'verified_term_2'], true)
-                        && in_array($record->final_report_status ?? 'draft', ['draft', 'revision'], true))
-                    ->requiresConfirmation()
-                    ->modalDescription('Sistem akan membuat laporan kegiatan dari data event, rundown, materi, nilai, dan bukti dukung. Laporan dikirim ke Admin RTIK Pusat untuk approval Termin-2.')
-                    ->action(function (LearningEvent $record): void {
-                        $missing = static::missingFinalReportRequirements($record);
-
-                        if ($missing !== []) {
-                            Notification::make()
-                                ->title('Laporan belum lengkap')
-                                ->body('Lengkapi dulu: ' . implode(', ', $missing))
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        $record->update([
-                            'workflow_status' => 'final_report_submitted',
-                            'final_report_status' => 'submitted',
-                            'final_report_submitted_at' => now(),
-                            'final_report_notes' => null,
-                            'local_updated_at' => now(),
-                            'local_update_summary' => 'Laporan kegiatan final dikirim ke Admin RTIK Pusat.',
-                        ]);
-
-                        Notification::make()
-                            ->title('Laporan final dikirim')
-                            ->body('Admin RTIK Pusat dapat membuka preview laporan dan approve Termin-2.')
-                            ->success()
-                            ->send();
-                    }),
+                static::submitFinalReportAction(Tables\Actions\Action::class),
                 Tables\Actions\Action::make('approveFinalReport')
                     ->label('Approve Laporan + T2')
                     ->icon('heroicon-o-check-badge')
@@ -842,6 +843,54 @@ class LearningEventResource extends Resource
      * @param  class-string  $class
      * @return array<int, \Filament\Actions\Action|Tables\Actions\Action>
      */
+    /** Kirim laporan final ke Admin RTIK Pusat bila semua syarat lengkap; mengembalikan true bila terkirim. */
+    public static function submitFinalReport(LearningEvent $record): bool
+    {
+        $missing = static::missingFinalReportRequirements($record);
+
+        if ($missing !== []) {
+            Notification::make()
+                ->title('Laporan belum lengkap')
+                ->body('Lengkapi dulu: ' . implode(', ', $missing))
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        $record->update([
+            'workflow_status' => 'final_report_submitted',
+            'final_report_status' => 'submitted',
+            'final_report_submitted_at' => now(),
+            'final_report_notes' => null,
+            'local_updated_at' => now(),
+            'local_update_summary' => 'Laporan kegiatan final dikirim ke Admin RTIK Pusat.',
+        ]);
+
+        Notification::make()
+            ->title('Laporan final dikirim')
+            ->body('Admin RTIK Pusat dapat membuka preview laporan dan approve Termin-2.')
+            ->success()
+            ->send();
+
+        return true;
+    }
+
+    /** Aksi Admin RTIK Daerah mengirim laporan final (dipakai di tabel dan halaman event). */
+    public static function submitFinalReportAction(string $class)
+    {
+        return $class::make('submitFinalReport')
+            ->label('Submit Laporan Final')
+            ->icon('heroicon-o-paper-airplane')
+            ->color('warning')
+            ->visible(fn (LearningEvent $record) => auth()->user()?->role === UserRole::Admin
+                && in_array($record->workflow_status, ['verified_term_1', 'tot_completed', 'field_training_completed', 'verified_term_2'], true)
+                && in_array($record->final_report_status ?? 'draft', ['draft', 'revision'], true))
+            ->requiresConfirmation()
+            ->modalDescription('Sistem akan membuat laporan kegiatan dari data event, rundown, materi, nilai, dan bukti dukung. Laporan dikirim ke Admin RTIK Pusat untuk approval Termin-2.')
+            ->action(fn (LearningEvent $record) => static::submitFinalReport($record));
+    }
+
     public static function workflowActions(string $class): array
     {
         return [
@@ -1062,6 +1111,8 @@ class LearningEventResource extends Resource
         return \App\Models\Tutor::query()
             ->with(['user', 'school'])
             ->whereHas('user', fn ($query) => $query->where('is_active', true))
+            // Admin RTIK Daerah hanya memilih tutor dari lokus yang dikelolanya.
+            ->when(auth()->user()?->role === UserRole::Admin, fn ($query) => $query->whereIn('school_id', static::managedSchoolIds()))
             ->get()
             ->sortBy(fn ($tutor) => $tutor->user?->name)
             ->mapWithKeys(fn ($tutor) => [$tutor->id => collect([
@@ -1147,10 +1198,16 @@ class LearningEventResource extends Resource
         $event->loadMissing(['participants', 'meetings', 'assessments', 'evidences']);
 
         $missing = [];
+        if (! $event->attendanceProofComplete()) {
+            $missing[] = $event->attendance_proof_mode === 'system' ? 'daftar hadir (PDF belum digenerate)' : 'absensi basah / daftar hadir';
+        }
+
+        if (! $event->proofComplete('microsite')) {
+            $missing[] = $event->proofMode('microsite') === 'system' ? 'rekap microsite (PDF belum digenerate)' : 'bukti hasil microsite';
+        }
+
         $requiredEvidence = [
-            'absensi_basah' => 'absensi basah / daftar hadir',
             'video_slogan' => 'video slogan',
-            'praktik_microsite' => 'bukti hasil microsite',
         ];
 
         foreach ($requiredEvidence as $type => $label) {

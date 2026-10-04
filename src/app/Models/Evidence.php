@@ -108,7 +108,23 @@ class Evidence extends Model
                 ->all()
             : [];
 
-        return collect(self::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => (int) ($counts[$type] ?? 0))->all();
+        // Link Google Drive (tanpa berkas) dianggap berisi seluruh foto minimal jenis tersebut.
+        $driveTypes = $eventId
+            ? self::query()
+                ->where('learning_event_id', $eventId)
+                ->whereIn('type', array_keys(self::REQUIRED_PHOTOS))
+                ->whereNull('file_path')
+                ->whereNotNull('link')
+                ->when($approvedOnly, fn ($query) => $query->where('status', 'approved'))
+                ->when(! $approvedOnly, fn ($query) => $query->whereNotIn('status', ['rejected']))
+                ->distinct()
+                ->pluck('type')
+                ->flip()
+            : collect();
+
+        return collect(self::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => $driveTypes->has($type)
+            ? max((int) ($counts[$type] ?? 0), $photo['min'])
+            : (int) ($counts[$type] ?? 0))->all();
     }
 
     /**

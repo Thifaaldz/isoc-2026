@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Assessment;
+use App\Models\LearningEvent;
 use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
 use App\Models\ModuleTemplate;
@@ -12,11 +13,11 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Materi "Online Trust & Safety" (6 modul: slide PPT/PDF + video) dari docs/modul ajar/modul terbaru,
+ * Materi "Online Trust & Safety" (6 modul: slide PPT/PDF + video ajar YouTube) dari docs/modul ajar/modul terbaru,
  * beserta pre/post-test siswa dan tutor. Materi ToT berisi modul yang sama dengan materi siswa;
  * yang membedakan hanya Pre-Test dan Post-Test ToT.
  *
- * File materi diharapkan ada di storage/app/public/learning-materials/dsc-ots/ (disk public).
+ * Slide PDF diharapkan ada di storage/app/public/learning-materials/dsc-ots/ (disk public); video ajar memakai YouTube.
  * Jalankan: php artisan db:seed --class=MateriSeeder (aman diulang).
  */
 class MateriSeeder extends Seeder
@@ -27,15 +28,15 @@ class MateriSeeder extends Seeder
 
     private const MATERI_TUTOR = 'DSC Online Trust & Safety - ToT Tutor (6 Modul)';
 
-    private const VIDEO_WAJIB = 'https://youtu.be/pLxS9dVhGGU';
+    private const VIDEO_WAJIB = 'https://youtu.be/7H_sl7ZuG54';
 
     private const MODULES = [
-        1 => ['title' => 'Kenali Online Scam', 'slug' => 'kenali-online-scam', 'video_note' => ' (opsional)', 'description' => 'Pola penipuan online, tanda bahaya promo dan hadiah palsu, verifikasi URL dan reputasi toko, serta prinsip menelepon langsung bila ada permintaan uang.'],
-        2 => ['title' => 'Lindungi Device', 'slug' => 'lindungi-device', 'video_note' => '', 'description' => 'Bahaya file APK dari luar toko resmi, Guest Mode/Multi-User, antivirus, dan pembaruan sistem untuk melindungi perangkat.'],
-        3 => ['title' => 'Mengenali Informasi Palsu', 'slug' => 'mengenali-informasi-palsu', 'video_note' => '', 'description' => 'Ciri hoaks, alasan hoaks mudah menyebar, serta langkah verifikasi sumber, konteks, waktu, dan dokumentasi sebelum membagikan informasi.'],
-        4 => ['title' => 'Peretas Media Sosial', 'slug' => 'peretas-media-sosial', 'video_note' => '', 'description' => 'Penyebab akun media sosial dibajak, bahaya password reuse, dan perlindungan dengan MFA/2FA.'],
-        5 => ['title' => 'Menjelajah Internet', 'slug' => 'menjelajah-internet', 'video_note' => '', 'description' => 'Risiko Wi-Fi publik, ciri situs aman (https:// dan ikon gembok), VPN, dan batasan transaksi finansial saat online.'],
-        6 => ['title' => 'Apa yang Harus Dilakukan Setelahnya', 'slug' => 'apa-yang-harus-dilakukan-setelahnya', 'video_note' => '', 'description' => 'Tanggap insiden keamanan: isolasi, rotasi kredensial, remediasi, serta melapor dan mendokumentasikan kejadian.'],
+        1 => ['title' => 'Kenali Online Scam', 'slug' => 'kenali-online-scam', 'video_note' => ' (opsional)', 'video' => 'https://youtu.be/Bj9ydbNhB8Y', 'description' => 'Pola penipuan online, tanda bahaya promo dan hadiah palsu, verifikasi URL dan reputasi toko, serta prinsip menelepon langsung bila ada permintaan uang.'],
+        2 => ['title' => 'Lindungi Device', 'slug' => 'lindungi-device', 'video_note' => '', 'video' => 'https://youtu.be/qfmfIStxJKs', 'description' => 'Bahaya file APK dari luar toko resmi, Guest Mode/Multi-User, antivirus, dan pembaruan sistem untuk melindungi perangkat.'],
+        3 => ['title' => 'Mengenali Informasi Palsu', 'slug' => 'mengenali-informasi-palsu', 'video_note' => '', 'video' => 'https://youtu.be/jepbIt7NHPM', 'description' => 'Ciri hoaks, alasan hoaks mudah menyebar, serta langkah verifikasi sumber, konteks, waktu, dan dokumentasi sebelum membagikan informasi.'],
+        4 => ['title' => 'Peretas Media Sosial', 'slug' => 'peretas-media-sosial', 'video_note' => '', 'video' => 'https://youtu.be/JVt_vUtuWq4', 'description' => 'Penyebab akun media sosial dibajak, bahaya password reuse, dan perlindungan dengan MFA/2FA.'],
+        5 => ['title' => 'Menjelajah Internet', 'slug' => 'menjelajah-internet', 'video_note' => '', 'video' => 'https://youtu.be/D3KyQ4ZFW2g', 'description' => 'Risiko Wi-Fi publik, ciri situs aman (https:// dan ikon gembok), VPN, dan batasan transaksi finansial saat online.'],
+        6 => ['title' => 'Apa yang Harus Dilakukan Setelahnya', 'slug' => 'apa-yang-harus-dilakukan-setelahnya', 'video_note' => '', 'video' => 'https://youtu.be/3NxnUN9Di0c', 'description' => 'Tanggap insiden keamanan: isolasi, rotasi kredensial, remediasi, serta melapor dan mendokumentasikan kejadian.'],
     ];
 
     public function run(): void
@@ -51,6 +52,36 @@ class MateriSeeder extends Seeder
             'Materi ToT tutor: 6 modul yang sama dengan materi siswa (slide dan video) yang dibawakan di kelas. Tutor menyelesaikan Pre-Test dan Post-Test ToT.', $siswa);
     }
 
+    /**
+     * Samakan video materi yang sudah ada (template siswa dan salinannya di setiap event) dengan link YouTube terbaru.
+     * Materi ToT tutor mengikuti otomatis lewat TutorMaterialMirror.
+     */
+    private function syncVideos(ModuleTemplate $template): void
+    {
+        $meetings = LearningMeeting::query()
+            ->where(fn ($query) => $query
+                ->where('module_template_id', $template->id)
+                ->orWhereIn('learning_event_id', LearningEvent::query()->where('module_template_id', $template->id)->select('id')))
+            ->with('materials')
+            ->get();
+
+        foreach ($meetings as $meeting) {
+            if (! preg_match('/^Modul (\d+):/', $meeting->title, $match) || ! isset(self::MODULES[(int) $match[1]])) {
+                continue;
+            }
+
+            $number = (int) $match[1];
+
+            foreach ($meeting->materials->where('type', 'video') as $material) {
+                $url = str_starts_with($material->title, 'Video Cybersecurity') ? self::VIDEO_WAJIB : (str_starts_with($material->title, "Video Ajar Modul {$number}") ? self::MODULES[$number]['video'] : null);
+
+                if ($url && ($material->external_url !== $url || $material->file_path !== null)) {
+                    $material->update(['external_url' => $url, 'file_path' => null]);
+                }
+            }
+        }
+    }
+
     /** $source diisi untuk materi tutor: pertemuannya auto-generated dari materi siswa, hanya tes ToT yang berbeda. */
     private function material(string $name, string $audience, User $creator, array $pre, array $post, int $passingScore, string $description, ?ModuleTemplate $source = null): ModuleTemplate
     {
@@ -58,7 +89,13 @@ class MateriSeeder extends Seeder
 
         if ($existing) {
             $existing->update(['description' => $description, 'source_template_id' => $source?->id]);
-            $source ? app(TutorMaterialMirror::class)->ensureFor($source) : $this->buildMeetings($existing);
+
+            if (! $source) {
+                $this->buildMeetings($existing);
+                $this->syncVideos($existing);
+            }
+
+            $source && app(TutorMaterialMirror::class)->ensureFor($source);
 
             return $existing;
         }
@@ -143,7 +180,7 @@ class MateriSeeder extends Seeder
                 'order' => $materialOrder,
                 'title' => "Video Ajar Modul {$number} - {$module['title']}{$module['video_note']}",
                 'type' => 'video',
-                'file_path' => self::DIR . "video-{$number}-{$module['slug']}.mp4",
+                'external_url' => $module['video'],
                 'duration_minutes' => 15,
                 'is_published' => true,
             ]);
@@ -168,7 +205,7 @@ class MateriSeeder extends Seeder
     private function warnMissingFiles(): void
     {
         foreach (self::MODULES as $number => $module) {
-            foreach (["modul-{$number}-{$module['slug']}.pdf", "video-{$number}-{$module['slug']}.mp4"] as $file) {
+            foreach (["modul-{$number}-{$module['slug']}.pdf"] as $file) {
                 if (! Storage::disk('public')->exists(self::DIR . $file)) {
                     $this->command?->warn('File materi belum ada di storage/app/public/' . self::DIR . $file);
                 }

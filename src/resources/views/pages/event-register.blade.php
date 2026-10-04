@@ -74,7 +74,7 @@
                         return { pelajar: 'NISN', mahasiswa: 'NIM' }[this.category] || 'Nomor Identitas';
                     },
                     identityPlaceholder() {
-                        return { pelajar: 'Nomor Induk Siswa Nasional', mahasiswa: 'Nomor Induk Mahasiswa' }[this.category] || 'Nomor Identitas';
+                        return { pelajar: '10-11 digit Nomor Induk Siswa Nasional', mahasiswa: 'Nomor Induk Mahasiswa' }[this.category] || 'Nomor Identitas';
                     },
                     needsIdentity() {
                         return ['pelajar', 'mahasiswa'].includes(this.category);
@@ -83,7 +83,8 @@
                         return this.category === 'pelajar';
                     },
                     needsOrganization() {
-                        return true;
+                        // Pelajar: asal sekolah otomatis dari lokasi event.
+                        return this.category !== 'pelajar';
                     },
                     organizationLabel() {
                         return this.category === 'pelajar' ? 'Nama Sekolah' : 'Organisasi / Instansi';
@@ -156,7 +157,11 @@
                             name="nik"
                             type="text"
                             value="{{ old('nik') }}"
-                            placeholder="{{ __('Nomor Induk Kependudukan') }}"
+                            placeholder="{{ __('16 digit Nomor Induk Kependudukan') }}"
+                            inputmode="numeric"
+                            pattern="\d{16}"
+                            maxlength="16"
+                            title="{{ __('NIK harus 16 digit angka.') }}"
                         />
                         @error('nik')
                             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
@@ -172,6 +177,10 @@
                             value="{{ old('nis') }}"
                             :placeholder="identityPlaceholder()"
                             :disabled="! needsIdentity()"
+                            inputmode="numeric"
+                            :pattern="category === 'pelajar' ? '\\d{10,11}' : null"
+                            :maxlength="category === 'pelajar' ? 11 : 30"
+                            :title="category === 'pelajar' ? 'NISN harus 10-11 digit angka.' : ''"
                         />
                         @error('nis')
                             <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
@@ -189,9 +198,16 @@
                             @endforeach
                         </select>
                     </div>
+                    @if($event->location && $event->location_type !== 'webinar')
+                    <div x-show="!needsOrganization()" x-cloak>
+                        <span class="block text-sm font-semibold text-navy mb-2">{{ __('Sekolah') }}</span>
+                        <p class="w-full px-4 py-3 rounded-xl border border-grey-200 bg-grey-50 text-sm text-navy">{{ $event->location }}</p>
+                        <p class="text-xs text-grey-500 mt-1">{{ __('Otomatis dari lokasi event.') }}</p>
+                    </div>
+                    @endif
                     <div x-show="needsOrganization()" x-cloak>
-                        <label class="block text-sm font-semibold text-navy mb-2" for="organization"><span x-text="organizationLabel()"></span> <span x-show="requiresSchool()" class="text-red-500">*</span></label>
-                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="organization" name="organization" type="text" value="{{ old('organization') }}" :required="requiresSchool()" :placeholder="organizationPlaceholder()"/>
+                        <label class="block text-sm font-semibold text-navy mb-2" for="organization"><span x-text="organizationLabel()"></span></label>
+                        <input class="w-full px-4 py-3 rounded-xl border border-grey-200 focus:border-blue focus:ring-2 focus:ring-blue/20 outline-none transition text-sm" id="organization" name="organization" type="text" value="{{ old('organization') }}" :placeholder="organizationPlaceholder()"/>
                     </div>
                     <div x-show="needsOrganization()" x-cloak>
                         <label class="block text-sm font-semibold text-navy mb-2" for="position">{{ __('Jabatan / Peran') }}</label>

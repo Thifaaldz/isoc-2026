@@ -256,7 +256,7 @@ class LearningEventProvisioner
                 'Daftar hadir registrasi / absensi',
                 'Video slogan ISOC',
                 'Bukti praktik microsite s.id',
-                'Checklist Termin-2 lengkap: honor tutor, administrasi dan operasional RTIK Pusat',
+                'Checklist Termin-2 lengkap: foto a-g, daftar hadir, nilai pre/post-test, microsite & ranking peserta, administrasi RTIK Pusat',
                 'Laporan kegiatan per lokasi disubmit',
                 'Laporan kegiatan disetujui Admin RTIK Pusat',
             ], fn (string $label) => ['label' => $label, 'done' => false]),

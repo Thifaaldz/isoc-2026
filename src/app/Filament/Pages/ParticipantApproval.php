@@ -30,6 +30,12 @@ class ParticipantApproval extends Page
     #[Url(as: 'event')]
     public ?int $selectedEventId = null;
 
+    /** Tidak termasuk menu Admin RTIK Daerah (hanya Kelola Event, Presensi, dan Peserta Lengkap). */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->role !== UserRole::Admin;
+    }
+
     public static function canAccess(): bool
     {
         return in_array(auth()->user()?->role, [UserRole::Admin, UserRole::Tutor], true);

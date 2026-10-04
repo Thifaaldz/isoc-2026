@@ -15,6 +15,9 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Tombol "New Event" (LearningEventResource::canCreate); event lokus disiapkan RTIK Pusat lewat seeder.
+    'event_creation_enabled' => (bool) env('EVENT_CREATION_ENABLED', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

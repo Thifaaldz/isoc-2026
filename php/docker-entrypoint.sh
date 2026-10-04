@@ -11,86 +11,29 @@ else
   echo "✅ Laravel project already exists. Skipping create-project."
 fi
 
-# Step 2: If .env file doesn't exist, create and add necessary environment variables
-# Check if the .env file exists
-if [ ! -f /var/www/html/.env ]; then
-  echo "📄 Creating .env file with environment variables..."
+# Step 2: Buat .env dari .env.example proyek (sekali saja), lalu sesuaikan untuk Docker.
+ENV_FILE=/var/www/html/.env
+set_env() {
+  # set_env KEY VALUE: ganti baris KEY=... atau tambahkan bila belum ada.
+  if grep -q "^$1=" "$ENV_FILE"; then
+    sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+  else
+    echo "$1=$2" >> "$ENV_FILE"
+  fi
+}
 
-  # Create .env file with the required values
-  cat <<EOF > /var/www/html/.env
-APP_NAME="${PROJECT_NAME}"
-APP_ENV=local
-APP_KEY=base64:jU6xg8sp9ia37ypFlTVk1CAFx6MmeXRukO1W987uUzI=
-APP_DEBUG=true
-APP_TIMEZONE='Asia/Jakarta'
-APP_URL="https://${PROJECT_NAME}.test"
-ASSET_URL="https://${PROJECT_NAME}.test"
-DEBUGBAR_ENABLED=false
-ASSET_PREFIX=
-# ASSET_PREFIX=/dev/kit/public example in case deployed inside a folder
-
-APP_LOCALE=en
-APP_FALLBACK_LOCALE=en
-APP_FAKER_LOCALE=en_US
-
-APP_MAINTENANCE_DRIVER=file
-# APP_MAINTENANCE_STORE=database
-
-PHP_CLI_SERVER_WORKERS=4
-
-BCRYPT_ROUNDS=12
-
-LOG_CHANNEL=stack
-LOG_STACK=single
-LOG_DEPRECATIONS_CHANNEL=null
-LOG_LEVEL=debug
-
-DB_CONNECTION=mariadb
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE="${PROJECT_NAME}"
-DB_USERNAME=root
-DB_PASSWORD=p455w0rd
-
-SESSION_DRIVER=redis
-SESSION_LIFETIME=120
-SESSION_ENCRYPT=true
-SESSION_PATH=/
-SESSION_DOMAIN=null
-
-BROADCAST_CONNECTION=log
-FILESYSTEM_DISK=local
-QUEUE_CONNECTION=database
-
-CACHE_STORE=redis
-# CACHE_PREFIX=
-
-MEMCACHED_HOST=127.0.0.1
-
-REDIS_CLIENT=phpredis
-REDIS_HOST=redis
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-MAIL_MAILER=log
-MAIL_SCHEME=null
-MAIL_HOST=127.0.0.1
-MAIL_PORT=2525
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_FROM_ADDRESS="hello@example.com"
-MAIL_FROM_NAME="${APP_NAME}"
-
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=
-AWS_USE_PATH_STYLE_ENDPOINT=false
-
-VITE_APP_NAME="${APP_NAME}"
-EOF
+if [ ! -f "$ENV_FILE" ]; then
+  echo "📄 Creating .env from .env.example..."
+  cp /var/www/html/.env.example "$ENV_FILE"
+  set_env APP_NAME "\"${PROJECT_NAME}\""
+  set_env APP_URL "https://${PROJECT_NAME}.test"
+  set_env DB_HOST db
+  set_env DB_DATABASE "${PROJECT_NAME}"
+  set_env REDIS_HOST redis
+  set_env CACHE_STORE redis
+  set_env SESSION_DRIVER redis
 else
-  # .env yang sudah ada (mis. pengaturan produksi) tidak lagi ditimpa setiap container start.
+  # .env yang sudah ada (mis. pengaturan produksi) tidak ditimpa.
   echo "📄 .env file already exists, keeping it."
 fi
 
@@ -117,31 +60,45 @@ done
 
 echo "✅ Database is ready!"
 
-# Step 4: Install dependencies if not already installed
-if [ ! -d /var/www/html/vendor ]; then
+# Step 4: composer install bila vendor belum ada atau composer.lock berubah sejak instalasi terakhir.
+LOCK_HASH_FILE=/var/www/html/vendor/.composer-lock.md5
+LOCK_HASH=$(md5sum /var/www/html/composer.lock 2>/dev/null | cut -d ' ' -f1)
+if [ ! -f /var/www/html/vendor/autoload.php ] || [ "$LOCK_HASH" != "$(cat "$LOCK_HASH_FILE" 2>/dev/null)" ]; then
   echo "📦 Installing composer dependencies..."
   composer install --no-interaction --prefer-dist --optimize-autoloader
+  echo "$LOCK_HASH" > "$LOCK_HASH_FILE"
+else
+  echo "✅ Composer dependencies up to date."
 fi
 
-# Step 5: Generate app key if not already present
-if [ ! -f /var/www/html/storage/oauth-private.key ]; then
+# Step 5: Generate APP_KEY hanya bila masih kosong (key yang berganti membuat sesi & data terenkripsi tidak terbaca).
+if ! grep -q "^APP_KEY=base64:" "$ENV_FILE"; then
   echo "🔐 Generating Laravel app key..."
   php artisan key:generate --force
 fi
 
 # Step 6: Create necessary folders and set permissions
 echo "🔧 Fixing permissions..."
-mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache
+mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache \
+  /var/www/html/storage/app/public/evidences /var/www/html/storage/app/public/learning-materials
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Step 7: Run database migrations
+# Step 7 & 8: migrasi lalu seeder awal.
+#  SEED_ON_START=auto   (default) seeder hanya dijalankan saat database masih kosong (belum ada user).
+#  SEED_ON_START=always seeder dijalankan setiap container start (semua seeder aman diulang).
+#  SEED_ON_START=never  seeder tidak dijalankan otomatis.
+SEED_ON_START=${SEED_ON_START:-auto}
 echo "🗃️ Running migrations..."
 php artisan migrate --force
 
-# Step 8: Run custom project init command
-echo "🚀 Running project:init..."
-php artisan project:init || true
+if [ "$SEED_ON_START" = "always" ]; then
+  echo "🌱 Running database seeders (SEED_ON_START=always)..."
+  php artisan db:seed --force || echo "❌ Seeder gagal, cek log di atas."
+elif [ "$SEED_ON_START" != "never" ]; then
+  echo "🌱 Seeding database bila masih kosong (project:init)..."
+  php artisan project:init || echo "❌ project:init gagal, cek log di atas. Jalankan ulang: docker compose exec php php artisan project:init"
+fi
 
 # Step 8b: Produksi: cache config, route, view, event, dan komponen Filament untuk respons lebih cepat.
 if grep -q "^APP_ENV=production" /var/www/html/.env; then
@@ -152,7 +109,7 @@ fi
 
 # Step 9: Create storage symbolic link
 echo "🔗 Creating storage link..."
-php artisan storage:link || true
+[ -L /var/www/html/public/storage ] || php artisan storage:link || true
 
 # Step 10: Start cron
 echo "🕒 Starting cron service..."

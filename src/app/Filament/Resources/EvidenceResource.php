@@ -21,6 +21,23 @@ class EvidenceResource extends Resource
 
     protected static ?string $model = Evidence::class;
 
+    /** Admin RTIK Pusat: jumlah bukti dukung yang menunggu verifikasi. */
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->role !== UserRole::SuperAdmin) {
+            return null;
+        }
+
+        $count = Evidence::query()->where('status', 'pending')->where('type', '!=', 'follow_ig')->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?string $navigationGroup = 'Validasi & Sertifikat';

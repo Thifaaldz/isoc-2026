@@ -2,6 +2,8 @@
 
 namespace App\Filament\Widgets;
 
+use App\Services\MicrositeLinkChecker;
+use App\Rules\ReachableMicrositeUrl;
 use App\Enums\UserRole;
 use App\Filament\Pages\EventRundown;
 use App\Filament\Pages\ParticipantLearning;
@@ -10,9 +12,11 @@ use App\Models\AssessmentAttempt;
 use App\Models\MicrositePractice;
 use App\Models\Evidence;
 use App\Models\LearningEvent;
+use App\Services\CertificateEligibilityService;
 use App\Services\EventEnrollmentService;
 use Filament\Widgets\Widget;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
 
@@ -34,6 +38,8 @@ class ParticipantDashboardOverview extends Widget
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
     public $instagramEvidence = null;
 
+    public ?string $micrositeUrl = null;
+
     public static function canView(): bool
     {
         return auth()->user()?->role === UserRole::Peserta;
@@ -42,11 +48,13 @@ class ParticipantDashboardOverview extends Widget
     public function mount(): void
     {
         $this->selectedEventId = $this->resolveSelectedEvent()?->id;
+        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->currentMicrosite()?->sid_url);
     }
 
     public function updatedSelectedEventId(): void
     {
         $this->selectedEventId = $this->resolveSelectedEvent()?->id;
+        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->currentMicrosite()?->sid_url);
     }
 
     protected function getViewData(): array
@@ -64,6 +72,7 @@ class ParticipantDashboardOverview extends Widget
                 'learningUrl' => ParticipantLearning::getUrl(),
                 'testsUrl' => ParticipantTests::getUrl(),
                 'rundownUrl' => EventRundown::getUrl(),
+                'certificateUrl' => null,
             ];
         }
 
@@ -88,6 +97,7 @@ class ParticipantDashboardOverview extends Widget
                 'learningUrl' => ParticipantLearning::getUrl(),
                 'testsUrl' => ParticipantTests::getUrl(),
                 'rundownUrl' => EventRundown::getUrl(),
+                'certificateUrl' => null,
             ];
         }
 
@@ -125,6 +135,7 @@ class ParticipantDashboardOverview extends Widget
                 'learningUrl' => '#',
                 'testsUrl' => '#',
                 'rundownUrl' => '#',
+                'certificateUrl' => null,
             ];
         }
 
@@ -141,6 +152,10 @@ class ParticipantDashboardOverview extends Widget
         $quizDone = $quizIds->intersect($attemptedAssessmentIds)->count();
         $preDone = $preIds->intersect($attemptedAssessmentIds)->isNotEmpty();
         $postDone = $postIds->intersect($attemptedAssessmentIds)->isNotEmpty();
+        $bestScore = fn ($ids) => $ids->isEmpty() ? null : AssessmentAttempt::query()
+            ->where('participant_id', $participant->id)
+            ->whereIn('assessment_id', $ids)
+            ->max('score');
         // Langkah menuju sertifikat: Pre-Test, kuis modul (bila ada), Post-Test, dan link s.id/microsite.
         $micrositeDone = MicrositePractice::query()
             ->where('participant_id', $participant->id)
@@ -150,9 +165,16 @@ class ParticipantDashboardOverview extends Widget
         $totalSteps = max(1, 1 + $quizIds->count() + 1 + 1);
         $doneSteps = ($preDone ? 1 : 0) + $quizDone + ($postDone ? 1 : 0) + ($micrositeDone ? 1 : 0);
 
-        $wag = $event->school?->wagGroups
-            ->sortByDesc(fn ($group) => $group->status === 'active')
-            ->first();
+        // Semua bukti oke (pre-test, kuis modul, post-test, microsite valid): sertifikat terbit dan tampil di dashboard.
+        $certificateUrl = null;
+
+        if ($doneSteps >= $totalSteps) {
+            $certificate = app(CertificateEligibilityService::class)->ensureCertificate($participant, $event);
+            $certificateUrl = $certificate->isIssued() ? route('certificates.preview-pdf', $certificate) : null;
+        }
+
+        // Grup WhatsApp dibuat Admin ISOC per lokasi event.
+        $wag = app(EventEnrollmentService::class)->wagGroupFor($event);
 
         return [
             'event' => $event,
@@ -166,6 +188,13 @@ class ParticipantDashboardOverview extends Widget
                 'quiz_done' => $quizDone,
                 'quiz_total' => $quizIds->count(),
                 'post_done' => $postDone,
+                'pre_available' => $preIds->isNotEmpty(),
+                'post_available' => $postIds->isNotEmpty(),
+                'pre_score' => $bestScore($preIds),
+                'post_score' => $bestScore($postIds),
+                // Post-test terbuka setelah pre-test dan semua kuis modul selesai (sama dengan halaman Tes).
+                'post_unlocked' => $preDone && $quizDone >= $quizIds->count(),
+                ...$this->postRetakeStats($event, $participant->id, $bestScore($postIds)),
                 'microsite_done' => $micrositeDone,
                 'progress' => (int) round(($doneSteps / $totalSteps) * 100),
             ],
@@ -173,6 +202,7 @@ class ParticipantDashboardOverview extends Widget
             'learningUrl' => ParticipantLearning::getUrl(['event' => $event->id]),
             'testsUrl' => ParticipantTests::getUrl(['event' => $event->id]),
             'rundownUrl' => EventRundown::getUrl(['event' => $event->id]),
+            'certificateUrl' => $certificateUrl,
         ];
     }
 
@@ -193,6 +223,21 @@ class ParticipantDashboardOverview extends Widget
         return $events->firstWhere('id', (int) $this->selectedEventId) ?? $events->first();
     }
 
+    /** Post-test boleh diulang (ParticipantLearning::POST_TEST_RETAKES kali) selama nilai terbaik belum mencapai passing score. */
+    private function postRetakeStats(LearningEvent $event, int $participantId, $bestPost): array
+    {
+        $post = $event->assessments->firstWhere('type', 'post');
+        $passing = (float) ($post?->passing_score ?: ParticipantLearning::DEFAULT_PASSING_SCORE);
+        $attempts = $post ? AssessmentAttempt::query()->where('participant_id', $participantId)->where('assessment_id', $post->id)->count() : 0;
+        $passed = $bestPost !== null && (float) $bestPost >= $passing;
+
+        return [
+            'post_passing' => $passing,
+            'post_passed' => $passed,
+            'post_retakes_left' => $attempts === 0 || $passed ? 0 : max(0, ParticipantLearning::POST_TEST_RETAKES - ($attempts - 1)),
+        ];
+    }
+
     private function emptyStats(): array
     {
         return [
@@ -202,6 +247,14 @@ class ParticipantDashboardOverview extends Widget
             'quiz_done' => 0,
             'quiz_total' => 0,
             'post_done' => false,
+            'pre_available' => false,
+            'post_available' => false,
+            'pre_score' => null,
+            'post_score' => null,
+            'post_unlocked' => false,
+            'post_passing' => null,
+            'post_passed' => false,
+            'post_retakes_left' => 0,
             'microsite_done' => false,
             'progress' => 0,
         ];
@@ -245,6 +298,48 @@ class ParticipantDashboardOverview extends Widget
         Notification::make()
             ->title('Bukti follow Instagram tersimpan')
             ->body($approved ? 'Bukti dukung lengkap. Modul, tes, dan rundown sudah terbuka.' : 'Centang join WhatsApp Group untuk membuka modul dan tes.')
+            ->success()
+            ->send();
+    }
+
+    private function currentMicrosite(): ?MicrositePractice
+    {
+        $participant = auth()->user()?->participant;
+
+        return $participant && $this->selectedEventId
+            ? MicrositePractice::query()->where('participant_id', $participant->id)->where('learning_event_id', $this->selectedEventId)->latest()->first()
+            : null;
+    }
+
+    /** Peserta menyematkan link s.id / microsite untuk event terpilih (syarat sertifikat). */
+    public function saveMicrosite(): void
+    {
+        $participant = auth()->user()?->participant;
+        $event = $this->resolveSelectedEvent();
+
+        if (! $participant || ! $event || ! $participant->isApprovedForEvent($event)) {
+            return;
+        }
+
+        // Peserta cukup mengetik s.id/...; awalan https:// selalu dibuat sistem (http:// atau https:// yang ditempel ikut dibuang).
+        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->micrositeUrl);
+        $url = $this->micrositeUrl === '' ? '' : 'https://' . $this->micrositeUrl;
+
+        Validator::make(['micrositeUrl' => $url], [
+            'micrositeUrl' => ['required', 'max:255', new ReachableMicrositeUrl()],
+        ], [
+            'micrositeUrl.required' => 'Link microsite wajib diisi, mis. s.id/ISOC_Champion.',
+        ], [
+            'micrositeUrl' => 'link microsite',
+        ])->validate();
+
+        MicrositePractice::query()->updateOrCreate(
+            ['participant_id' => $participant->id, 'learning_event_id' => $event->id],
+            ['sid_url' => $url, 'status' => 'reviewed'],
+        );
+
+        Notification::make()
+            ->title('Link microsite tersimpan')
             ->success()
             ->send();
     }

@@ -74,7 +74,9 @@
                                         <h3 class="mt-1 font-semibold text-gray-950 dark:text-white">{{ $assessment->title }}</h3>
                                         <p class="mt-1 text-sm text-gray-500">{{ $this->questionsFor($assessment)->count() }} soal pilihan ganda</p>
                                     </div>
-                                    @if($attempt)
+                                    @if($attempt && $assessment->type === 'post' && ! $this->hasPassed($assessment))
+                                        <x-filament::badge color="danger">Belum lulus</x-filament::badge>
+                                    @elseif($attempt)
                                         <x-filament::badge color="success">Selesai</x-filament::badge>
                                     @else
                                         <x-filament::badge color="warning">Belum isi</x-filament::badge>
@@ -82,10 +84,27 @@
                                 </div>
 
                                 @if($attempt)
+                                    @php
+                                        $attemptCount = $this->attemptsFor($assessment->id)->count();
+                                        $failedPost = $assessment->type === 'post' && ! $this->hasPassed($assessment);
+                                        $remaining = $this->remainingRetakes($assessment);
+                                    @endphp
                                     <div class="participant-test-result rounded-lg bg-gray-50 p-4 text-sm dark:bg-white/5">
-                                        <div class="font-semibold text-gray-950 dark:text-white">Skor: {{ $attempt->score }}</div>
+                                        <div class="font-semibold text-gray-950 dark:text-white">{{ $attemptCount > 1 ? 'Skor terbaik' : 'Skor' }}: {{ $attempt->score }}</div>
                                         <div class="mt-1 text-gray-500">Benar {{ $attempt->correct_count }}/{{ $attempt->total_questions }} soal, submit {{ $attempt->submitted_at?->format('d M Y H:i') }}</div>
+                                        @if($assessment->type === 'post')
+                                            <div class="mt-1 text-gray-500">Batas lulus {{ $this->passingScore($assessment) + 0 }} · percobaan ke-{{ $attemptCount }} dari maks. {{ \App\Filament\Pages\ParticipantLearning::POST_TEST_RETAKES + 1 }}</div>
+                                        @endif
                                     </div>
+                                    @if($failedPost && $remaining > 0)
+                                        <x-filament::button color="warning" wire:click="startAssessment({{ $assessment->id }})" icon="heroicon-o-arrow-path">
+                                            Ulangi Post-Test (sisa {{ $remaining }} kesempatan)
+                                        </x-filament::button>
+                                    @elseif($failedPost)
+                                        <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--danger-400), 0.12); color: rgb(var(--danger-700));">
+                                            Kesempatan mengulang post-test sudah habis. Nilai terbaik yang dipakai.
+                                        </div>
+                                    @endif
                                 @elseif(! $this->canStartAssessment($assessment))
                                     <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--warning-400), 0.12); color: rgb(var(--warning-700));">
                                         {{ $this->assessmentLockReason($assessment) }}

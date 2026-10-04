@@ -120,12 +120,25 @@ class TorEventTemplate
     public const TERM_CHECKLIST = [
         1 => [
             'banner' => 'Pengadaan 2 buah banner kegiatan',
-            'snack' => 'Pemesanan 25 snack',
+            'snack' => 'Pemesanan 125 snack',
             'kebersihan' => 'Dana kebersihan sekolah',
         ],
+        // Termin-2: kelengkapan laporan; key foto & video = tipe Evidence, sisanya dihitung dari data peserta.
         2 => [
-            'honor_tutor' => 'Honor tutor',
-            'administrasi' => 'Administrasi dan operasional RTIK Pusat',
+            'foto_tutor_guru' => 'Foto a. Tutor bersama guru / manajemen sekolah',
+            'foto_pembukaan_banner' => 'Foto b. Tutor & 100 peserta dengan banner',
+            'foto_tutor_mengajar' => 'Foto c. Tutor memberikan materi',
+            'foto_siswa_menyimak' => 'Foto d. Siswa menyimak materi',
+            'foto_siswa_bertanya' => 'Foto e. Siswa bertanya / beropini',
+            'foto_pemberian_hadiah' => 'Foto f. Pemberian hadiah peserta aktif',
+            'foto_tutor_peserta_aktif' => 'Foto g. Tutor bersama 10 peserta teraktif',
+            'video_slogan' => 'Video slogan',
+            'daftar_hadir' => 'Daftar hadir peserta',
+            'follow_ig_wag' => 'List peserta yang sudah follow IG ISOC dan join grup WhatsApp',
+            'daftar_nilai' => 'Daftar nilai pre-test dan post-test',
+            'microsite_peserta' => 'Link microsite peserta',
+            'ranking_peserta' => 'Ranking peserta',
+            'sertifikat_peserta' => 'List peserta yang sudah di-generate sertifikatnya',
         ],
     ];
 

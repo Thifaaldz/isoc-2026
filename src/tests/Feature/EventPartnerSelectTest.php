@@ -22,6 +22,7 @@ test('pilihan mitra di form event tidak duplikat walau mitra dipakai banyak even
     }
 
     $admin = User::query()->create(['name' => 'su', 'email' => 'su.partner@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    config(['app.event_creation_enabled' => true]);
     Filament::setCurrentPanel(Filament::getPanel('superadmin'));
     $this->actingAs($admin);
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Support\IdentityNumber;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\TutorResource\Pages;
@@ -49,7 +50,7 @@ class TutorResource extends Resource
             Forms\Components\Select::make('user_id')->label('Akun Pengguna')->options(fn () => static::scopedUserOptions(UserRole::Tutor))->searchable()->preload()->required(),
             Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required(),
             Forms\Components\TextInput::make('institution')->label('Institusi'),
-            Forms\Components\TextInput::make('nik')->label('NIK')->maxLength(50),
+            IdentityNumber::nik(Forms\Components\TextInput::make('nik')->label('NIK')),
             Forms\Components\TextInput::make('npwp')->label('NPWP')->maxLength(30),
             Forms\Components\TextInput::make('bank_name')->label('Bank')->maxLength(100),
             Forms\Components\TextInput::make('bank_account_number')->label('Nomor Rekening')->maxLength(50),

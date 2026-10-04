@@ -20,12 +20,7 @@
 @if($featuredEvent)
 <section class="py-20 lg:py-28">
     <div class="max-w-7xl mx-auto px-6 lg:px-8">
-        <div class="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-                @if($featuredEvent->image)
-                <img class="w-full rounded-2xl shadow-xl" alt="{{ $featuredEvent->title }}" src="{{ asset('storage/' . $featuredEvent->image) }}"/>
-                @endif
-            </div>
+        <div class="max-w-3xl">
             <div>
                 <div class="flex items-center gap-3 mb-4">
                     <span class="bg-teal/10 text-teal text-xs font-semibold px-3 py-1 rounded-full uppercase">{{ __('Featured Event') }}</span>
@@ -94,22 +89,15 @@
         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             @foreach($events as $event)
             <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col">
-                {{-- Image --}}
-                @if($event->image)
-                <div class="h-52 overflow-hidden relative">
-                    <img alt="{{ $event->title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="{{ asset('storage/' . $event->image) }}"/>
-                    @if($event->canRegister())
-                    <span class="absolute top-3 right-3 bg-teal text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __('Open') }}</span>
-                    @else
-                    <span class="absolute top-3 right-3 {{ $event->registrationStatus() === 'full' ? 'bg-red-500' : 'bg-grey-500' }} text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __($event->registrationStatusLabel()) }}</span>
-                    @endif
-                </div>
-                @endif
-
                 {{-- Content --}}
                 <div class="p-6 flex flex-col flex-1">
                     {{-- Badges --}}
                     <div class="flex flex-wrap items-center gap-2 mb-3">
+                        @if($event->canRegister())
+                        <span class="bg-teal text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __('Open') }}</span>
+                        @else
+                        <span class="{{ $event->registrationStatus() === 'full' ? 'bg-red-500' : 'bg-grey-500' }} text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">{{ __($event->registrationStatusLabel()) }}</span>
+                        @endif
                         @if($event->category)
                         <span class="bg-blue/10 text-blue text-xs font-semibold px-3 py-1 rounded-full">{{ $event->category }}</span>
                         @endif

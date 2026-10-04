@@ -248,6 +248,23 @@ trait RoleScoped
             ->pluck('title', 'id');
     }
 
+    /** Menu Admin RTIK Daerah dibatasi: Kelola Event dan Presensi Kehadiran (plus halaman Kode Absensi & Peserta Lengkap). */
+    public static function shouldRegisterNavigation(): bool
+    {
+        if (! static::$shouldRegisterNavigation) {
+            return false;
+        }
+
+        if (static::currentRole() === UserRole::Admin) {
+            return in_array(static::class, [
+                \App\Filament\Resources\LearningEventResource::class,
+                \App\Filament\Resources\AttendanceResource::class,
+            ], true);
+        }
+
+        return true;
+    }
+
     public static function canViewAny(): bool
     {
         if (static::tutorTrainingLocked()) {

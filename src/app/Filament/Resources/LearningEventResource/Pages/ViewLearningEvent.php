@@ -14,7 +14,15 @@ class ViewLearningEvent extends ViewRecord
 
     public function getTitle(): string
     {
-        return 'Preview: ' . $this->record->title;
+        return auth()->user()?->role === UserRole::Admin ? $this->record->title : 'Preview: ' . $this->record->title;
+    }
+
+    /** Admin RTIK Daerah melihat ringkasan event yang mudah dibaca; role lain tetap melihat wizard read-only. */
+    public function getView(): string
+    {
+        return auth()->user()?->role === UserRole::Admin
+            ? 'filament.resources.learning-event.admin-view'
+            : parent::getView();
     }
 
     protected function getHeaderActions(): array
@@ -33,6 +41,7 @@ class ViewLearningEvent extends ViewRecord
 
         return [
             ...$workflowActions,
+            LearningEventResource::submitFinalReportAction(Actions\Action::class),
             Actions\EditAction::make()
                 ->color('gray')
                 ->visible(fn () => auth()->user()?->role === UserRole::SuperAdmin

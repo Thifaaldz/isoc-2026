@@ -10,6 +10,7 @@ use App\Models\School;
 use App\Models\User;
 use App\Services\EventEnrollmentService;
 use App\Support\PublicEvent;
+use App\Support\IdentityNumber;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,19 +22,14 @@ use Illuminate\View\View;
 
 class ParticipantRegistrationController
 {
+    /** Peserta pelajar DSC hanya siswa SMA/SMK. */
     private const GRADE_OPTIONS = [
-        'SD 1' => 'SD Kelas 1',
-        'SD 2' => 'SD Kelas 2',
-        'SD 3' => 'SD Kelas 3',
-        'SD 4' => 'SD Kelas 4',
-        'SD 5' => 'SD Kelas 5',
-        'SD 6' => 'SD Kelas 6',
-        'SMP 7' => 'SMP Kelas 7',
-        'SMP 8' => 'SMP Kelas 8',
-        'SMP 9' => 'SMP Kelas 9',
-        'SMA 10' => 'SMA/SMK Kelas 10',
-        'SMA 11' => 'SMA/SMK Kelas 11',
-        'SMA 12' => 'SMA/SMK Kelas 12',
+        'SMA 10' => 'SMA Kelas 10',
+        'SMA 11' => 'SMA Kelas 11',
+        'SMA 12' => 'SMA Kelas 12',
+        'SMK 10' => 'SMK Kelas 10',
+        'SMK 11' => 'SMK Kelas 11',
+        'SMK 12' => 'SMK Kelas 12',
     ];
 
     public function create(): View
@@ -136,9 +132,12 @@ class ParticipantRegistrationController
         $isStudent = $participantCategory === 'pelajar';
         $identityLabel = $this->identityLabel($participantCategory);
         // NISN (pelajar) / NIM (mahasiswa) disimpan di kolom nis; NIK selalu di kolom nik tersendiri.
-        $identityRules = in_array($participantCategory, ['pelajar', 'mahasiswa'], true)
-            ? ['nullable', 'string', 'max:30']
-            : ['exclude'];
+        // NISN 10-11 digit; NIM mahasiswa bebas maks. 30 karakter.
+        $identityRules = match ($participantCategory) {
+            'pelajar' => ['nullable', 'regex:' . IdentityNumber::NISN_REGEX],
+            'mahasiswa' => ['nullable', 'string', 'max:30'],
+            default => ['exclude'],
+        };
         $programLocationId = $learningEvent?->school_id
             ?: $request->input('school_id')
             ?: School::query()->where('status', 'active')->orderBy('id')->value('id');
@@ -154,21 +153,28 @@ class ParticipantRegistrationController
             'phone' => ['required', 'string', 'max:30'],
             'school_id' => ['nullable', 'integer', Rule::exists('schools', 'id')->where('status', 'active')],
             'nis' => $identityRules,
-            'nik' => ['nullable', 'string', 'max:50'],
+            'nik' => ['nullable', 'regex:' . IdentityNumber::NIK_REGEX],
             'grade' => [$isStudent ? 'required' : 'nullable', Rule::in(array_keys(self::GRADE_OPTIONS))],
-            'organization' => [$isStudent ? 'required' : 'nullable', 'string', 'max:255'],
+            // Pelajar tidak mengisi asal sekolah: diambil dari lokasi event (lihat di bawah).
+            'organization' => ['nullable', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
             'gender' => ['required', Rule::in(['L', 'P'])],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'consent' => ['accepted'],
         ], [
+            'nik.regex' => IdentityNumber::NIK_MESSAGE,
+            'nis.regex' => IdentityNumber::NISN_MESSAGE,
             'email.unique' => 'Email ini sudah terdaftar. Silakan login dengan akun tersebut, lalu buka kembali halaman event ini dan klik "Ikuti Event".',
         ], [
             'nis' => $identityLabel,
             'nik' => 'NIK',
             'participant_category' => 'kategori peserta',
         ]);
+
+        if ($isStudent) {
+            $validated['organization'] = School::query()->whereKey($programLocationId)->value('name');
+        }
 
         $user = DB::transaction(function () use ($validated, $learningEvent, $programLocationId): User {
             $user = User::query()->create([

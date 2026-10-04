@@ -8,20 +8,26 @@ use App\Support\QrImage;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
 
-/** Link dan QR code landing page serta halaman pendaftaran tiap event (lokus) untuk dibagikan. */
+/** Link dan QR code halaman pendaftaran tiap event (lokus) untuk dibagikan. */
 class ShareLinks extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-link';
 
-    protected static ?string $navigationLabel = 'Link & QR Landing Page';
+    protected static ?string $navigationLabel = 'Link & QR Event';
 
-    protected static ?string $title = 'Link & QR Landing Page';
+    protected static ?string $title = 'Link & QR Event';
 
     protected static ?string $slug = 'link-qr';
 
     protected static ?int $navigationSort = 90;
 
     protected static string $view = 'filament.pages.share-links';
+
+    /** Tidak termasuk menu Admin RTIK Daerah (hanya Kelola Event, Presensi, dan Peserta Lengkap). */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->role !== UserRole::Admin;
+    }
 
     public static function canAccess(): bool
     {
@@ -31,14 +37,6 @@ class ShareLinks extends Page
     public static function getNavigationGroup(): ?string
     {
         return auth()->user()?->role === UserRole::Admin ? 'Seminar' : 'Seminar & Materi';
-    }
-
-    /** @return array{url: string, qr: ?string} */
-    public function getLandingProperty(): array
-    {
-        $url = route('home');
-
-        return ['url' => $url, 'qr' => QrImage::png($url)];
     }
 
     /** @return Collection<int, array{event: LearningEvent, url: string, qr: ?string}> */

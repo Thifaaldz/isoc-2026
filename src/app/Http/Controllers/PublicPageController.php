@@ -6,53 +6,39 @@ use App\Models\Module;
 use App\Models\LearningEvent;
 use App\Models\Participant;
 use App\Models\School;
+use App\Support\HomePageContent;
 use App\Support\PublicEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class PublicPageController extends Controller
 {
+    /** Halaman utama mengikuti https://isoc.id/; isinya dikelola Admin RTIK Pusat (Pengaturan > Halaman Utama). */
     public function home(): View
     {
+        $content = HomePageContent::get();
+        $events = collect();
+        $eventsTotal = 0;
+
+        if ($content['events']['enabled'] ?? true) {
+            $upcoming = LearningEvent::query()
+                ->where('is_published', true)
+                ->where('status', 'active')
+                ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', now()));
+            $eventsTotal = (clone $upcoming)->count();
+            $events = $upcoming
+                ->withCount('participants')
+                ->with('school')
+                ->orderBy('starts_at')
+                ->limit(max(1, (int) ($content['events']['limit'] ?? 6)))
+                ->get()
+                ->map(fn (LearningEvent $event) => $this->publicEventFromModel($event));
+        }
+
         return view('pages.home', [
-            'sections' => [
-                'hero' => $this->section(
-                    'Internet is for Everyone',
-                    config('app.name', 'sena'),
-                    'Bersama sekolah, komunitas, dan mitra strategis, kami memperkuat literasi digital, keamanan internet, dan akses yang inklusif untuk generasi muda Indonesia.',
-                    'Daftar Peserta',
-                    route('event.register', $this->event()),
-                    'Lihat Program',
-                    route('programs')
-                ),
-                'mission' => $this->section('Arah Kerja Kami', 'Misi ISOC Jakarta', 'Kami membangun ekosistem internet yang terbuka, aman, terpercaya, dan dapat diakses oleh semua orang.'),
-                'featured_programs' => $this->section('Program Utama', 'Kegiatan Berdampak', buttonText: 'Lihat Semua Program'),
-                'impact_stats' => $this->section('Dampak Program', 'Bersama Komunitas'),
-                'closing' => $this->section('Mari Terlibat', null, 'Daftar sebagai peserta dan lanjutkan perjalanan pembelajaran melalui panel peserta.'),
-            ],
-            'items' => [
-                'mission' => collect([
-                    $this->item('Konektivitas Inklusif', 'Memperluas pemahaman tentang akses internet yang merata dan berkelanjutan.', 'hub', 'blue'),
-                    $this->item('Keamanan Digital', 'Membekali peserta dengan kebiasaan aman, sadar data, dan tangguh menghadapi ancaman digital.', 'verified_user', 'teal'),
-                    $this->item('Komunitas Terbuka', 'Menghubungkan sekolah, tutor, dan komunitas untuk saling belajar.', 'groups', 'blue'),
-                ]),
-                'featured_programs' => collect([
-                    $this->item('Digital Safety Champions', 'Program literasi keamanan digital untuk siswa SMA/SMK dengan materi, asesmen, dan e-sertifikat.', 'school', 'blue', [
-                        'category' => 'Student Program',
-                        'image_url' => 'https://lh3.googleusercontent.com/aida-public/AB6AXuA-4A5LIfgFP_vHr7IR_vpgw29Ed6MgOT8gyY0WCD9eRFU_izGHuY_gBr7iTf8hAjjgzTnwuVM2l6XIb1d1PnL1xvsv3EHMvQjWwfNJ0y184NCukzVYx2dL-t-mRYnTUFbu3fft4IhTfYDRoSf6cvLFO-uG6ye2Vzmz8SXb_0tpCxNaFQem2yBo17ZQpAZPZEdCMk5dnKIEfT3jCdJ8Iw9vPIjKSFsN5PoRirhUexNTGtWGiDcQh4RFm0el1b52Z1HFkw5WfzVTO5o',
-                    ], route('event.register', $this->event())),
-                    $this->item('Training of Trainers', 'Penguatan kapasitas tutor agar sekolah dapat menjalankan pendampingan literasi digital secara mandiri.', 'workspace_premium', 'teal', [
-                        'category' => 'Tutor Program',
-                        'image_url' => 'https://lh3.googleusercontent.com/aida-public/AB6AXuCvM8eKGNLV5CzGEu2zNUbl74zHQq4O8UDeV1WoTGLh5Xdpd-NkVnPG250nSMJdl4VeCEH2dTrXDkxGyVK7XyHEP-BZPziSQzDPpJS0YgaoRC4-hZ6euzdQLa7SHnmQFCQj7f_cnniv7-OspoYEVWEsmTRlmwCIm7JaPZMwtLqo1Hko5CL4nAlu32c5O8wKRCggaz9FIdju2jBRs6Klwb8Vqn4JGPhr8HD1k35J7VDaR0Tztn0ddSINukUK5lPEVs9X9ZktahDSI7c',
-                    ], route('programs')),
-                ]),
-                'impact_stats' => collect([
-                    $this->item('Peserta', 'peserta terdaftar', extraData: ['value' => number_format(Participant::query()->count()) . '+']),
-                    $this->item('Sekolah', 'sekolah aktif', extraData: ['value' => School::query()->where('status', 'active')->count() . '+']),
-                    $this->item('Modul', 'materi pembelajaran', extraData: ['value' => Module::query()->where('is_published', true)->count()]),
-                    $this->item('Panel', 'akses peserta terpadu', extraData: ['value' => '1']),
-                ]),
-            ],
+            'content' => $content,
+            'events' => $events,
+            'eventsTotal' => $eventsTotal,
             'settings' => $this->settings(),
         ]);
     }

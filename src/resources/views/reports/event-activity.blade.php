@@ -280,9 +280,10 @@
     </table>
 
     <h2>Lampiran 3 — Rincian Berkas Bukti Dukung</h2>
+    <h3>3A. Bukti Dukung Kegiatan</h3>
     <table class="fixed">
         <tr><th style="width: 19%;">Preview</th><th style="width: 27%;">Jenis Bukti</th><th style="width: 14%;">Status</th><th style="width: 22%;">Berkas / Tautan</th><th style="width: 18%;">Catatan</th></tr>
-        @forelse($evidences as $evidence)
+        @forelse($evidences->where('type', '!=', 'follow_ig') as $evidence)
             <tr>
                 <td>
                     @if($thumb = $evidenceThumb($evidence))
@@ -297,11 +298,70 @@
                 <td class="small">{{ $evidence->review_notes ?: '-' }}</td>
             </tr>
         @empty
-            <tr><td colspan="5">Bukti dukung belum tersedia.</td></tr>
+            <tr><td colspan="5">Bukti dukung kegiatan belum tersedia.</td></tr>
         @endforelse
     </table>
 
-    <h2>Lampiran 4 — Microsite s.id Karya Peserta</h2>
+    @if($event->attendance_proof_mode === 'system')
+        <h3>Daftar Hadir Peserta (generate sistem dari kode absensi)</h3>
+        <table class="fixed compact">
+            <tr><th style="width: 6%;">No</th><th style="width: 40%;">Nama</th><th style="width: 14%;">Kelas</th><th style="width: 14%;">Mode</th><th style="width: 26%;">Waktu Absen</th></tr>
+            @forelse($checkedIn as $attendance)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td>{{ $attendance->participant?->user?->name ?? '-' }}</td>
+                    <td>{{ $attendance->participant?->grade ?: '-' }}</td>
+                    <td>{{ ucfirst((string) ($attendance->mode ?: 'offline')) }}</td>
+                    <td>{{ $attendance->checked_in_at?->locale('id')->translatedFormat('d M Y H:i') ?? '-' }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="5">Belum ada peserta yang absen.</td></tr>
+            @endforelse
+        </table>
+    @endif
+
+    <h3>3B. Bukti Dukung per Peserta</h3>
+    <p class="small">Seluruh peserta terdaftar ({{ $participantProofs->count() }} orang) beserta screenshot follow Instagram ISOC, status join WhatsApp Group, microsite, dan e-Sertifikat.</p>
+    <table class="fixed compact">
+        <tr><th style="width: 5%;">No</th><th style="width: 22%;">Nama</th><th style="width: 21%;">Screenshot Follow IG</th><th style="width: 9%;">Join WAG</th><th style="width: 31%;">Microsite</th><th style="width: 12%;">Sertifikat</th></tr>
+        @forelse($participantProofs as $proof)
+            <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>{{ $proof['name'] }}<br><span class="small">{{ $proof['grade'] }}</span></td>
+                <td>
+                    @if($proof['ig_evidence'] && ($thumb = $evidenceThumb($proof['ig_evidence'])))
+                        <img class="evidence-thumb" src="{{ $thumb }}" alt="">
+                    @else
+                        <span class="badge badge-wait">Belum upload</span>
+                    @endif
+                </td>
+                <td class="center">{!! $check($proof['joined_wag'], 'Sudah', 'Belum') !!}</td>
+                <td class="break small">{{ $proof['microsite'] ?: '-' }}</td>
+                <td class="center">{!! $check($proof['certificate'], 'Terbit', 'Belum') !!}</td>
+            </tr>
+        @empty
+            <tr><td colspan="6">Peserta belum tersedia.</td></tr>
+        @endforelse
+    </table>
+
+    <h2>Lampiran 4 — Peserta yang Sudah Join WhatsApp Group</h2>
+    <table class="fixed">
+        <tr><th style="width: 6%;">No</th><th style="width: 32%;">Nama</th><th style="width: 14%;">Kelas</th><th style="width: 24%;">No. HP</th><th style="width: 24%;">Email</th></tr>
+        @forelse($wagMembers as $member)
+            <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>{{ $member->user?->name ?? '-' }}</td>
+                <td>{{ $member->grade ?: '-' }}</td>
+                <td class="break">{{ $member->user?->phone ?: '-' }}</td>
+                <td class="break small">{{ $member->user?->email ?? '-' }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="5">Belum ada peserta yang join WhatsApp Group.</td></tr>
+        @endforelse
+        <tr><th colspan="3">Total</th><th colspan="2">{{ $wagMembers->count() }} dari {{ $participantCount }} peserta</th></tr>
+    </table>
+
+    <h2>Lampiran 5 — Microsite s.id Karya Peserta</h2>
     <table class="fixed">
         <tr><th style="width: 6%;">No</th><th style="width: 34%;">Nama</th><th style="width: 60%;">URL Microsite</th></tr>
         @forelse($microsites as $microsite)
@@ -312,7 +372,31 @@
         <tr><th colspan="2">Total</th><th>{{ $microsites->count() }} microsite</th></tr>
     </table>
 
-    <h2>Lampiran 5 — Berita Acara Serah Terima Bukti Dukung</h2>
+    <h2>Lampiran 6 — Bukti Materi Modul yang Dibawakan</h2>
+    <p class="small">Modul yang dipilih untuk event ini beserta materi ajar yang digunakan.</p>
+    @forelse($meetings as $meeting)
+        <h3>{{ $meeting->title }}{{ $meeting->duration_minutes ? ' (' . $meeting->duration_minutes . ' menit)' : '' }}</h3>
+        @if(filled($meeting->description))
+            <p>{{ trim(strip_tags((string) $meeting->description)) }}</p>
+        @endif
+        <table class="fixed compact">
+            <tr><th style="width: 6%;">No</th><th style="width: 40%;">Materi</th><th style="width: 12%;">Jenis</th><th style="width: 42%;">Berkas / Tautan</th></tr>
+            @forelse($meeting->materials->sortBy('order')->values() as $material)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td>{{ $material->title }}</td>
+                    <td>{{ strtoupper((string) $material->type) }}</td>
+                    <td class="break small">{{ $material->external_url ?: ($material->file_path ? Storage::disk('public')->url($material->file_path) : '-') }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="4">Materi belum tersedia.</td></tr>
+            @endforelse
+        </table>
+    @empty
+        <p>Modul belum dipilih.</p>
+    @endforelse
+
+    <h2>Lampiran 7 — Berita Acara Serah Terima Bukti Dukung</h2>
     <p>
         Pada hari ini, ........................ tanggal ........................, telah dilakukan serah terima bukti dukung kegiatan
         <strong>{{ $event->title }}</strong> dari Admin RTIK Daerah kepada Admin RTIK Pusat / ISOC, dengan rincian sesuai bagian 9 laporan ini.

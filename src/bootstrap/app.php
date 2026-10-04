@@ -13,7 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__ . '/../routes/api.php',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // Percayai X-Forwarded-* dari reverse proxy agar URL/redirect tetap https di server.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -22,7 +22,7 @@ class CreateSeminarShortcut extends Page
 
     public static function canAccess(): bool
     {
-        return in_array(auth()->user()?->role, [UserRole::SuperAdmin, UserRole::Admin], true);
+        return in_array(auth()->user()?->role, [UserRole::SuperAdmin, UserRole::Admin], true) && LearningEventResource::canCreate();
     }
 
     public function mount(): void

@@ -30,6 +30,11 @@ class AttendanceResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    public static function getNavigationLabel(): string
+    {
+        return auth()->user()?->role === UserRole::Admin ? 'Presensi Kehadiran' : 'Absensi';
+    }
+
     public static function viewRoles(): array
     {
         return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];

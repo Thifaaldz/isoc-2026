@@ -499,6 +499,12 @@
                     <x-heroicon-o-clock style="height: 16px; width: 16px;" />
                     Cek Rundown
                 </a>
+                @if ($certificateUrl ?? null)
+                    <a class="pd-button pd-button-success" style="margin-top: 0;" href="{{ $certificateUrl }}" target="_blank" rel="noopener">
+                        <x-heroicon-o-trophy style="height: 16px; width: 16px;" />
+                        Sertifikat
+                    </a>
+                @endif
             </div>
         </section>
 
@@ -629,6 +635,83 @@
                 </div>
             </div>
         </section>
+
+        @if ($hasEvent && $dashboardOpen)
+            @php
+                $score = fn ($value) => $value === null ? null : rtrim(rtrim(number_format((float) $value, 1, ',', ''), '0'), ',');
+                $testCards = [
+                    ['label' => 'Pre-Test', 'available' => $stats['pre_available'], 'done' => $stats['pre_done'], 'score' => $score($stats['pre_score']), 'unlocked' => true,
+                        'hint' => 'Kerjakan sebelum membuka modul.'],
+                    ['label' => 'Post-Test', 'available' => $stats['post_available'], 'done' => $stats['post_done'], 'score' => $score($stats['post_score']), 'unlocked' => $stats['post_unlocked'],
+                        'hint' => $stats['post_unlocked'] ? 'Kerjakan setelah seluruh modul selesai.' : ($hasQuiz ? 'Terbuka setelah pre-test dan semua kuis modul selesai.' : 'Terbuka setelah pre-test selesai.')],
+                ];
+            @endphp
+            <section class="pd-info-grid">
+                @php
+                    // Post-test belum lulus: tampilkan status dan tombol ulang selama kesempatan masih ada.
+                    $postFailed = $stats['post_done'] && ! $stats['post_passed'];
+                    $testCards[1]['failed'] = $postFailed;
+                    $testCards[1]['retakes'] = $stats['post_retakes_left'];
+                @endphp
+                @foreach ($testCards as $test)
+                    <div class="pd-card pd-info-card">
+                        <div class="pd-icon"><x-heroicon-o-clipboard-document-check /></div>
+                        <div>
+                            <p class="pd-card-label">{{ $test['label'] }}</p>
+                            <p class="pd-card-title">
+                                @if (! $test['available'])
+                                    Belum tersedia
+                                @elseif ($test['failed'] ?? false)
+                                    Belum lulus · Nilai {{ $test['score'] ?? '-' }}
+                                @elseif ($test['done'])
+                                    Selesai · Nilai {{ $test['score'] ?? '-' }}
+                                @else
+                                    {{ $test['unlocked'] ? 'Siap dikerjakan' : 'Terkunci' }}
+                                @endif
+                            </p>
+                            <p class="pd-card-text">
+                                @if ($test['failed'] ?? false)
+                                    Nilai minimal {{ $stats['post_passing'] + 0 }}. {{ $test['retakes'] > 0 ? 'Anda bisa mengulang, sisa ' . $test['retakes'] . ' kesempatan.' : 'Kesempatan mengulang sudah habis.' }}
+                                @else
+                                    {{ $test['done'] ? 'Terima kasih, jawaban Anda sudah tersimpan.' : $test['hint'] }}
+                                @endif
+                            </p>
+                            @if (($test['failed'] ?? false) && $test['retakes'] > 0)
+                                <a class="pd-button pd-button-primary" style="margin-top: 14px; width: fit-content;" href="{{ $testsUrl }}">
+                                    <x-heroicon-o-arrow-path style="height: 16px; width: 16px;" />
+                                    Ulangi Post-Test
+                                </a>
+                            @endif
+                            @if ($test['available'] && ! $test['done'])
+                                <a class="pd-button {{ $test['unlocked'] ? 'pd-button-primary' : 'pd-button-disabled' }}" style="margin-top: 14px; width: fit-content;" href="{{ $testsUrl }}">
+                                    <x-heroicon-o-pencil-square style="height: 16px; width: 16px;" />
+                                    Kerjakan {{ $test['label'] }}
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+
+                <div class="pd-card pd-info-card">
+                    <div class="pd-icon"><x-heroicon-o-link /></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <p class="pd-card-label">Link Microsite</p>
+                        <p class="pd-card-title">{{ $stats['microsite_done'] ? 'Sudah disematkan' : 'Sematkan link microsite' }}</p>
+                        <p class="pd-card-text">Ketik link s.id / microsite Anda tanpa https:// (mis. s.id/ISOC_Champion). Link dicek otomatis dan harus bisa dibuka.</p>
+                        <form wire:submit="saveMicrosite" class="pd-upload-form" style="margin-top: 14px;">
+                            <div style="align-items: stretch; border: 1px solid #d1d5db; border-radius: 8px; display: flex; flex: 1; min-height: 40px; min-width: 0; overflow: hidden;">
+                                <span style="align-items: center; background: #f1f5f9; border-right: 1px solid #d1d5db; color: #64748b; display: flex; font-size: 13px; font-weight: 700; padding: 0 10px;">https://</span>
+                                <input type="text" wire:model="micrositeUrl" placeholder="s.id/ISOC_Champion" aria-label="Link microsite tanpa https://"
+                                    x-on:input="$el.value = $el.value.replace(/^\s*https?:\/\//i, '')"
+                                    style="border: 0; box-shadow: none; flex: 1; font-size: 13px; min-width: 0; outline: none; padding: 0 12px;">
+                            </div>
+                            <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="saveMicrosite">Simpan</button>
+                        </form>
+                        @error('micrositeUrl') <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+            </section>
+        @endif
 
         <section class="pd-stat-grid">
             <div class="pd-card pd-stat-card">

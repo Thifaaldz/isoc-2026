@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
             CertificateTemplateSeeder::class,
             PartnerSeeder::class,
             MateriSeeder::class,
-            EventSeeder::class,
+            RtikDaerahSeeder::class,
             DummyIdentitySeeder::class,
         ]);
     }

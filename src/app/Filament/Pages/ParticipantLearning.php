@@ -34,6 +34,12 @@ class ParticipantLearning extends Page
 
     protected static string $view = 'filament.pages.participant-learning';
 
+    /** Post-test yang nilainya belum mencapai passing score boleh diulang sebanyak ini (di luar percobaan pertama). */
+    public const POST_TEST_RETAKES = 3;
+
+    /** Batas lulus bila passing score tes belum diisi. */
+    public const DEFAULT_PASSING_SCORE = 70;
+
     #[Url(as: 'event')]
     public ?int $selectedEventId = null;
 
@@ -263,18 +269,55 @@ class ParticipantLearning extends Page
         return MaterialViewer::for($material);
     }
 
-    public function attemptFor(int $assessmentId): ?AssessmentAttempt
+    /** Semua percobaan peserta untuk satu tes (post-test bisa lebih dari satu karena boleh diulang). */
+    public function attemptsFor(int $assessmentId): Collection
     {
         if (! $this->participant) {
-            return null;
+            return collect();
         }
 
         $this->memo['attempts'] ??= AssessmentAttempt::query()
             ->where('participant_id', $this->participant->id)
+            ->orderBy('id')
             ->get()
-            ->keyBy('assessment_id');
+            ->groupBy('assessment_id');
 
-        return $this->memo['attempts']->get($assessmentId);
+        return $this->memo['attempts']->get($assessmentId, collect());
+    }
+
+    /** Percobaan dengan nilai terbaik (nilai inilah yang dipakai). */
+    public function attemptFor(int $assessmentId): ?AssessmentAttempt
+    {
+        return $this->attemptsFor($assessmentId)->sortByDesc(fn (AssessmentAttempt $attempt) => [(float) $attempt->score, $attempt->id])->first();
+    }
+
+    public function passingScore(Assessment $assessment): float
+    {
+        return (float) ($assessment->passing_score ?: self::DEFAULT_PASSING_SCORE);
+    }
+
+    public function hasPassed(Assessment $assessment): bool
+    {
+        $best = $this->attemptFor($assessment->id);
+
+        return $best !== null && (float) $best->score >= $this->passingScore($assessment);
+    }
+
+    /** Sisa kesempatan mengulang post-test (0 bila bukan post-test, belum dikerjakan, atau sudah lulus). */
+    public function remainingRetakes(Assessment $assessment): int
+    {
+        $attempts = $this->attemptsFor($assessment->id)->count();
+
+        if ($assessment->type !== 'post' || $attempts === 0 || $this->hasPassed($assessment)) {
+            return 0;
+        }
+
+        return max(0, self::POST_TEST_RETAKES - ($attempts - 1));
+    }
+
+    public function canRetake(Assessment $assessment): bool
+    {
+        return $this->remainingRetakes($assessment) > 0;
     }
 
     public function startAssessment(int $assessmentId): void
@@ -295,7 +338,7 @@ class ParticipantLearning extends Page
             return;
         }
 
-        if ($this->attemptFor($assessment->id)) {
+        if ($this->attemptFor($assessment->id) && ! $this->canRetake($assessment)) {
             Notification::make()->title('Tes ini sudah pernah dikerjakan.')->warning()->send();
             return;
         }
@@ -335,7 +378,7 @@ class ParticipantLearning extends Page
             return;
         }
 
-        if ($this->attemptFor($assessment->id)) {
+        if ($this->attemptFor($assessment->id) && ! $this->canRetake($assessment)) {
             Notification::make()->title('Tes ini sudah pernah disubmit.')->warning()->send();
             $this->activeAssessmentId = null;
             $this->answers = [];
@@ -379,11 +422,25 @@ class ParticipantLearning extends Page
 
         unset($this->memo['attempts']);
 
-        Notification::make()
-            ->title('Tes berhasil disubmit')
-            ->body("Skor kamu: {$score}")
-            ->success()
-            ->send();
+        $scoreText = rtrim(rtrim(number_format($score, 2, ',', ''), '0'), ',');
+
+        if ($assessment->type === 'post' && ! $this->hasPassed($assessment)) {
+            $remaining = $this->remainingRetakes($assessment);
+
+            Notification::make()
+                ->title('Nilai post-test belum mencapai batas lulus')
+                ->body("Skor kamu: {$scoreText} (minimal " . $this->passingScore($assessment) . '). '
+                    . ($remaining > 0 ? "Kamu bisa mengulang post-test, sisa {$remaining} kesempatan." : 'Kesempatan mengulang sudah habis; nilai terbaikmu yang dipakai.'))
+                ->warning()
+                ->persistent()
+                ->send();
+        } else {
+            Notification::make()
+                ->title('Tes berhasil disubmit')
+                ->body("Skor kamu: {$scoreText}")
+                ->success()
+                ->send();
+        }
 
         $this->activeAssessmentId = null;
         $this->answers = [];
@@ -405,7 +462,7 @@ class ParticipantLearning extends Page
 
         // Urutan soal diacak stabil per peserta (tetap sama saat halaman dimuat ulang); key tetap indeks
         // soal asli agar jawaban dan penilaian merujuk soal yang benar. Bila diatur, hanya N soal yang diambil.
-        $seed = crc32('soal-' . $assessment->id . '-' . ($this->participant?->id ?? 0));
+        $seed = crc32('soal-' . $assessment->id . '-' . ($this->participant?->id ?? 0) . $this->retakeSeedSuffix($assessment));
         $order = $questions->keys()->sortBy(fn (int $index) => crc32($seed . '-' . $index));
         $limit = (int) ($assessment->questions_per_attempt ?? 0);
 
@@ -423,12 +480,20 @@ class ParticipantLearning extends Page
     public function displayOptions(Assessment $assessment, int $questionIndex, array $question): Collection
     {
         $options = collect($question['options'] ?? [])->values();
-        $seed = crc32($assessment->id . '-' . $questionIndex . '-' . ($this->participant?->id ?? 0));
+        $seed = crc32($assessment->id . '-' . $questionIndex . '-' . ($this->participant?->id ?? 0) . $this->retakeSeedSuffix($assessment));
 
         return $options
             ->keys()
             ->sortBy(fn (int $index) => crc32($seed . '-' . $index))
             ->mapWithKeys(fn (int $index) => [$index => $options->get($index)]);
+    }
+
+    /** Pengulangan post-test mendapat susunan soal & opsi acak yang baru (percobaan pertama tidak berubah). */
+    private function retakeSeedSuffix(Assessment $assessment): string
+    {
+        $round = $assessment->type === 'post' ? $this->attemptsFor($assessment->id)->count() : 0;
+
+        return $round > 0 ? '-ulang' . $round : '';
     }
 
     public function canStartAssessment(Assessment $assessment): bool

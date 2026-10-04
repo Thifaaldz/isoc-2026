@@ -28,14 +28,15 @@ class WagGroupResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
+    /** Grup WhatsApp hanya dibuat Admin ISOC (RTIK Pusat); Admin RTIK Daerah dan tutor tidak membuat link WhatsApp. */
     public static function viewRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
+        return [UserRole::SuperAdmin];
     }
 
     public static function manageRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor];
+        return [UserRole::SuperAdmin];
     }
 
     public static function scopeType(): ?string
@@ -46,7 +47,8 @@ class WagGroupResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('school_id')->label('Sekolah')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required()->default(fn () => auth()->user()?->school_id),
+            Forms\Components\Select::make('school_id')->label('Lokasi Event')->options(fn () => static::scopedSchoolOptions())->searchable()->preload()->required()
+                ->helperText('Link grup tampil di dashboard peserta event pada lokasi ini.'),
             Forms\Components\TextInput::make('name')->label('Nama grup')->required(),
             Forms\Components\TextInput::make('invite_link')->label('Tautan undangan')->url(),
             Forms\Components\TextInput::make('member_count')->label('Jumlah anggota')->numeric()->default(0),
@@ -59,7 +61,7 @@ class WagGroupResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('school.name')->label('Sekolah')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi Event')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Grup')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('invite_link')
                     ->label('Link WhatsApp')
@@ -74,7 +76,7 @@ class WagGroupResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('school_id')
-                    ->label('Sekolah')
+                    ->label('Lokasi Event')
                     ->options(fn () => static::scopedSchoolOptions())
                     ->searchable()
                     ->preload(),

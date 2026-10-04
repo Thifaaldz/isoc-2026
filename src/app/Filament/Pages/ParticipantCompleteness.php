@@ -129,7 +129,7 @@ class ParticipantCompleteness extends Page
             ->latest()
             ->first();
 
-        $wag = $event->school?->wagGroups?->sortByDesc(fn ($group) => $group->status === 'active')->first();
+        $wag = app(\App\Services\EventEnrollmentService::class)->wagGroupFor($event);
         $followComplete = filled($followEvidence?->file_path);
         $wagComplete = (bool) $participant->joined_wag;
         $initialApproved = $participant->isApprovedForEvent($event);
