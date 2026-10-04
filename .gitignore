@@ -11,3 +11,6 @@ src/node_modules/
 # Environment files
 .env
 src/.env
+
+# Dokumen proyek (TOR, modul ajar, manual guide) disimpan lokal, tidak di-push
+docs/
