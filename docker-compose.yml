@@ -13,6 +13,7 @@ services:
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - XDEBUG=${XDEBUG:-false}
+      - TZ=${TZ:-Asia/Jakarta}
     volumes:
       - ./src:/var/www/html
       # Konfigurasi PHP & PHP-FPM dibaca langsung dari repo (tanpa rebuild image).
@@ -34,6 +35,8 @@ services:
     build:
       context: ./nginx
     container_name: ${COMPOSE_PROJECT_NAME}_nginx
+    environment:
+      - TZ=${TZ:-Asia/Jakarta}
     ports:
       - "443:443"
       - "80:80"
@@ -55,6 +58,8 @@ services:
     image: redis:7-alpine
     container_name: ${COMPOSE_PROJECT_NAME}_redis
     restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Jakarta}
     # Snapshot berkala ke disk agar sesi login tetap ada setelah Redis di-restart.
     command: ["redis-server", "--save", "60", "100", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
     volumes:
@@ -79,6 +84,8 @@ services:
       # Database ini akan dibuat saat kontainer pertama kali dijalankan
       MYSQL_DATABASE: ${PROJECT_NAME}
       MYSQL_ROOT_PASSWORD: p455w0rd
+      # Zona waktu sistem kontainer (UTC+7 / WIB).
+      TZ: ${TZ:-Asia/Jakarta}
     volumes:
       - ./db/conf.d:/etc/mysql/conf.d
       - ./db/data:/var/lib/mysql
