@@ -57,11 +57,16 @@ class KpiOverview extends StatsOverviewWidget
         $tutorQuery = Tutor::query();
         $wagQuery = WagGroup::query();
 
-        if ($user?->role !== UserRole::SuperAdmin && $user?->school_id) {
-            $schoolQuery->whereKey($user->school_id);
+        // Non-Admin RTIK Pusat: selalu dibatasi ke event yang dikelola/didampingi
+        // (akun fasilitator baru tidak harus punya sekolah utama).
+        if ($user?->role !== UserRole::SuperAdmin) {
+            $schoolIds = LearningEvent::query()->where($eventScope)->whereNotNull('school_id')->pluck('school_id')
+                ->when($user?->school_id, fn ($ids) => $ids->push($user->school_id))
+                ->unique()->values();
+            $schoolQuery->whereKey($schoolIds);
             $participantQuery->whereHas('learningEvents', $eventScope);
             $tutorQuery->whereHas('learningEvents', $eventScope);
-            $wagQuery->where('school_id', $user->school_id);
+            $wagQuery->whereIn('school_id', $schoolIds);
         }
 
         $avg = fn (string $type, string $col) => round(

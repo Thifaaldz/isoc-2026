@@ -71,7 +71,14 @@ class TorEventTemplate
 
     public static function title(?string $location): string
     {
-        return self::TITLE_PREFIX . trim((string) $location);
+        $location = trim((string) $location);
+
+        // Nama wilayah dari API berhuruf kapital semua ("KOTA BEKASI") -> "Kota Bekasi".
+        if ($location !== '' && mb_strtoupper($location) === $location) {
+            $location = mb_convert_case(mb_strtolower($location), MB_CASE_TITLE);
+        }
+
+        return self::TITLE_PREFIX . $location;
     }
 
     /**
@@ -90,7 +97,9 @@ class TorEventTemplate
             [$minutes, $activity, $pic, $notes] = $row;
 
             if ($activity === null) {
-                $activity = 'Materi ' . ($materi + 1) . ': ' . ($moduleTitles[$materi] ?? 'Pilih modul ajar kepada siswa');
+                // Judul modul "Modul 1: Kenali Online Scam" -> "Materi 1: Kenali Online Scam" (tanpa awalan ganda).
+                $moduleTitle = preg_replace('/^Modul\s+\d+\s*[:\-]\s*/i', '', (string) ($moduleTitles[$materi] ?? ''));
+                $activity = 'Materi ' . ($materi + 1) . ': ' . ($moduleTitle !== '' ? $moduleTitle : 'Pilih modul ajar kepada siswa');
                 $materi++;
             }
 

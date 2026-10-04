@@ -7,6 +7,7 @@ use App\Filament\Pages\EventRundown;
 use App\Filament\Pages\ParticipantLearning;
 use App\Filament\Pages\ParticipantTests;
 use App\Models\AssessmentAttempt;
+use App\Models\MicrositePractice;
 use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Services\EventEnrollmentService;
@@ -140,8 +141,14 @@ class ParticipantDashboardOverview extends Widget
         $quizDone = $quizIds->intersect($attemptedAssessmentIds)->count();
         $preDone = $preIds->intersect($attemptedAssessmentIds)->isNotEmpty();
         $postDone = $postIds->intersect($attemptedAssessmentIds)->isNotEmpty();
-        $totalSteps = max(1, 1 + $quizIds->count() + 1);
-        $doneSteps = ($preDone ? 1 : 0) + $quizDone + ($postDone ? 1 : 0);
+        // Langkah menuju sertifikat: Pre-Test, kuis modul (bila ada), Post-Test, dan link s.id/microsite.
+        $micrositeDone = MicrositePractice::query()
+            ->where('participant_id', $participant->id)
+            ->where('learning_event_id', $event->id)
+            ->whereNotNull('sid_url')
+            ->exists();
+        $totalSteps = max(1, 1 + $quizIds->count() + 1 + 1);
+        $doneSteps = ($preDone ? 1 : 0) + $quizDone + ($postDone ? 1 : 0) + ($micrositeDone ? 1 : 0);
 
         $wag = $event->school?->wagGroups
             ->sortByDesc(fn ($group) => $group->status === 'active')
@@ -159,6 +166,7 @@ class ParticipantDashboardOverview extends Widget
                 'quiz_done' => $quizDone,
                 'quiz_total' => $quizIds->count(),
                 'post_done' => $postDone,
+                'microsite_done' => $micrositeDone,
                 'progress' => (int) round(($doneSteps / $totalSteps) * 100),
             ],
             'approval' => $approval,
@@ -194,6 +202,7 @@ class ParticipantDashboardOverview extends Widget
             'quiz_done' => 0,
             'quiz_total' => 0,
             'post_done' => false,
+            'microsite_done' => false,
             'progress' => 0,
         ];
     }

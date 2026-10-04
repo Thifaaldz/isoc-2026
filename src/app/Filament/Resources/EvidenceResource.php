@@ -68,11 +68,10 @@ class EvidenceResource extends Resource
                             ->live()
                             ->afterStateUpdated(fn ($state, Set $set) => $set('school_id', LearningEvent::query()->find($state)?->school_id))
                             ->required(),
+                        // Select biasa (bukan searchable): nilainya diisi otomatis dari event dan field-nya terkunci.
                         Forms\Components\Select::make('school_id')
                             ->label('Lokasi')
                             ->options(fn () => static::scopedSchoolOptions())
-                            ->searchable()
-                            ->preload()
                             ->disabled()
                             ->dehydrated()
                             ->helperText('Opsional untuk event umum.'),
@@ -190,6 +189,20 @@ class EvidenceResource extends Resource
                     ->visible(fn (Evidence $record) => auth()->user()?->role !== UserRole::Tutor || $record->status !== 'approved'),
             ])
             ->bulkActions([
+                // Verifikasi massal untuk Admin RTIK Pusat (satu lokus berisi belasan bukti).
+                Tables\Actions\BulkAction::make('approveSelected')
+                    ->label('Setujui terpilih')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalDescription('Semua bukti dukung yang dipilih akan ditandai Disetujui.')
+                    ->visible(fn () => static::canVerify())
+                    ->deselectRecordsAfterCompletion()
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        $records->each(fn (Evidence $record) => $record->update(['status' => 'approved', 'verified_by' => auth()->id(), 'verified_at' => now()]));
+
+                        \Filament\Notifications\Notification::make()->title($records->count() . ' bukti dukung disetujui')->success()->send();
+                    }),
                 Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()]),
             ]);
     }

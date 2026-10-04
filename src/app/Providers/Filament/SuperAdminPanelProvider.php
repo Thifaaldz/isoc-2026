@@ -31,7 +31,7 @@ class SuperAdminPanelProvider extends PanelProvider
         return $panel
             ->id('superadmin')
             ->path('superadmin')
-            ->brandName('sena - Super Admin')
+            ->brandName('sena - Admin RTIK Pusat')
             ->brandLogo(asset('images/sena-symbol.png'))
             ->brandLogoHeight('2.25rem')
             ->login(fn () => redirect('/login'))

@@ -29,6 +29,8 @@ class AuthPanelProvider extends PanelProvider
             ->brandLogoHeight('2.5rem')
             ->login(RoleLogin::class)
             ->colors(['primary' => Color::Amber])
+            // Halaman login berlatar terang; mode gelap membuat teks input tidak terbaca.
+            ->darkMode(false)
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

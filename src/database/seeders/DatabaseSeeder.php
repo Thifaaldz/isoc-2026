@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             PartnerSeeder::class,
             MateriSeeder::class,
             EventSeeder::class,
+            DummyIdentitySeeder::class,
         ]);
     }
 }

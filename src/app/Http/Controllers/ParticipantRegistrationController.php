@@ -48,9 +48,12 @@ class ParticipantRegistrationController
             ->with('school')
             ->where('is_published', true)
             ->where('status', 'active')
-            ->when($event, fn ($query) => $query->where('slug', $event))
+            ->when($event, fn ($query) => $this->whereEventKey($query, $event))
             ->orderBy('starts_at')
             ->first();
+
+        // Link event yang tidak dikenal tidak boleh jatuh ke event/lokasi lain.
+        abort_if($event && ! $learningEvent && $event !== 'digital-safety-champions', 404);
 
         $registrationEvent = $learningEvent
             ? $this->publicEventFromModel($learningEvent)
@@ -122,12 +125,13 @@ class ParticipantRegistrationController
     {
         $eventSlug = $request->route('event') ?: 'digital-safety-champions';
         $learningEvent = Schema::hasTable('learning_events')
-            ? LearningEvent::query()
-                ->where('slug', $eventSlug)
+            ? $this->whereEventKey(LearningEvent::query(), $eventSlug)
                 ->where('is_published', true)
                 ->where('status', 'active')
                 ->first()
             : null;
+
+        abort_if($request->route('event') && ! $learningEvent && $eventSlug !== 'digital-safety-champions', 404);
         $participantCategory = $request->input('participant_category', (($learningEvent?->audience_type ?? 'school') === 'general' ? 'umum' : 'pelajar'));
         $isStudent = $participantCategory === 'pelajar';
         $identityLabel = $this->identityLabel($participantCategory);
@@ -215,8 +219,7 @@ class ParticipantRegistrationController
 
         abort_unless($user?->role === UserRole::Peserta && $participant, 403, 'Hanya akun peserta yang dapat mengikuti event.');
 
-        $learningEvent = LearningEvent::query()
-            ->where('slug', $event)
+        $learningEvent = $this->whereEventKey(LearningEvent::query(), $event)
             ->where('is_published', true)
             ->where('status', 'active')
             ->firstOrFail();
@@ -276,7 +279,15 @@ class ParticipantRegistrationController
         );
     }
 
-    private function identityLabel(string $category): string
+    /** Event dicari dari slug; ID numerik juga diterima (link lama/QR). */
+    private function whereEventKey(\Illuminate\Database\Eloquent\Builder $query, string $key): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where(fn ($inner) => $inner
+            ->where('slug', $key)
+            ->when(ctype_digit($key), fn ($byId) => $byId->orWhere('id', (int) $key)));
+    }
+
+        private function identityLabel(string $category): string
     {
         return match ($category) {
             'pelajar' => 'NISN',

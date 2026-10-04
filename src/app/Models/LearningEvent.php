@@ -131,4 +131,9 @@ class LearningEvent extends Model
     {
         return $this->hasMany(TotAssessment::class);
     }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
 }

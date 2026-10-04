@@ -4,6 +4,8 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\MaterialPreview;
 use App\Filament\Pages\CreateSeminarShortcut;
+use App\Filament\Pages\EventAttendanceCode;
+use App\Filament\Pages\ShareLinks;
 use App\Filament\Pages\ParticipantApproval;
 use App\Filament\Pages\Profile;
 use App\Filament\Widgets\KpiOverview;
@@ -30,7 +32,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->id('admin')
             ->path('admin')
-            ->brandName('sena - Admin')
+            ->brandName('sena - Fasilitator')
             ->brandLogo(asset('images/sena-symbol.png'))
             ->brandLogoHeight('2.25rem')
             ->login(fn () => redirect('/login'))
@@ -46,7 +48,7 @@ class AdminPanelProvider extends PanelProvider
                 'Administrasi',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, MaterialPreview::class, Profile::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, EventAttendanceCode::class, ShareLinks::class, MaterialPreview::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

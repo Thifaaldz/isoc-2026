@@ -53,12 +53,18 @@ class MicrositePracticeResource extends Resource
             Forms\Components\Select::make('learning_event_id')
                 ->label('Event')
                 ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
+                // Peserta: otomatis event terbaru yang diikuti.
+                ->default(fn () => auth()->user()?->role === UserRole::Peserta
+                    ? static::scopeLearningEventBuilder(LearningEvent::query())->latest('starts_at')->value('id')
+                    : null)
                 ->searchable()
                 ->preload()
                 ->required(),
             Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->url(),
             Forms\Components\Textarea::make('notes')->label('Catatan'),
-            Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default(fn () => auth()->user()?->role === UserRole::Peserta ? 'reviewed' : 'submitted'),
+            // Peserta hanya mengumpulkan link; status tinjauan diisi admin/tutor.
+            Forms\Components\Select::make('status')->label('Status')->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau'])->default('submitted')
+                ->hidden(fn () => auth()->user()?->role === UserRole::Peserta)->dehydratedWhenHidden(),
         ]);
     }
 

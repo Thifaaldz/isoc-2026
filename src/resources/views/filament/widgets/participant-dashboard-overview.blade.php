@@ -4,11 +4,14 @@
     $isWebinarEvent = $event?->event_type === 'webinar';
     $approval = $approval ?? ['approved' => true, 'requires_approval' => false, 'status' => 'approved', 'notes' => null];
     $dashboardOpen = (bool) ($approval['approved'] ?? true);
-    $statusItems = [
+    $hasQuiz = ($stats['quiz_total'] ?? 0) > 0;
+    // Urutan sesuai syarat sertifikat; Kuis Modul hanya tampil bila event memiliki kuis.
+    $statusItems = array_values(array_filter([
         ['label' => 'Pre-Test', 'done' => (bool) ($stats['pre_done'] ?? false)],
-        ['label' => 'Kuis Modul', 'done' => ($stats['quiz_total'] ?? 0) > 0 && ($stats['quiz_done'] ?? 0) >= ($stats['quiz_total'] ?? 0)],
+        $hasQuiz ? ['label' => 'Kuis Modul', 'done' => ($stats['quiz_done'] ?? 0) >= ($stats['quiz_total'] ?? 0)] : null,
         ['label' => 'Post-Test', 'done' => (bool) ($stats['post_done'] ?? false)],
-    ];
+        ['label' => 'Link s.id / Microsite', 'done' => (bool) ($stats['microsite_done'] ?? false)],
+    ]));
 @endphp
 
 <x-filament-widgets::widget>
@@ -637,8 +640,13 @@
                 <div class="pd-stat-value">{{ $stats['materials'] }}</div>
             </div>
             <div class="pd-card pd-stat-card">
-                <p class="pd-card-label">Kuis Modul</p>
-                <div class="pd-stat-value">{{ $stats['quiz_done'] }}/{{ $stats['quiz_total'] }}</div>
+                @if ($hasQuiz)
+                    <p class="pd-card-label">Kuis Modul</p>
+                    <div class="pd-stat-value">{{ $stats['quiz_done'] }}/{{ $stats['quiz_total'] }}</div>
+                @else
+                    <p class="pd-card-label">Pre &amp; Post-Test</p>
+                    <div class="pd-stat-value">{{ (int) ($stats['pre_done'] ?? false) + (int) ($stats['post_done'] ?? false) }}/2</div>
+                @endif
             </div>
             <div class="pd-card pd-stat-card">
                 <p class="pd-card-label">Progress</p>

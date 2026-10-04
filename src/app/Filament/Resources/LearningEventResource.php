@@ -15,6 +15,7 @@ use App\Support\TorEventTemplate;
 use App\Models\ModuleTemplate;
 use App\Models\Partner;
 use App\Models\School;
+use App\Services\EventAttendanceService;
 use App\Services\ImportSpreadsheetParser;
 use App\Services\LearningEventProvisioner;
 use Filament\Forms;
@@ -129,7 +130,8 @@ class LearningEventResource extends Resource
                                 : 'Wajib untuk event khusus lokasi.')
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')->label('Nama lokasi')->required(),
-                                Forms\Components\TextInput::make('npsn')->label('NPSN')->maxLength(20),
+                                Forms\Components\TextInput::make('npsn')->label('NPSN')->maxLength(20)->unique(School::class, 'npsn')
+                                    ->validationMessages(['unique' => 'NPSN ini sudah terdaftar. Pilih lokasi tersebut dari daftar Lokasi Event.']),
                                 Forms\Components\Select::make('type')->label('Tipe')->options(['SMA' => 'SMA', 'SMK' => 'SMK', 'Tempat' => 'Tempat Event'])->default('SMA')->required(),
                                 ...SchoolLocationFields::schema(),
                                 Forms\Components\Textarea::make('address')->label('Alamat')->columnSpanFull(),
@@ -818,8 +820,7 @@ class LearningEventResource extends Resource
                         ->label('Kode Absensi')
                         ->icon('heroicon-o-qr-code')
                         ->action(function (LearningEvent $record): void {
-                            $code = strtoupper(Str::random(6));
-                            $record->update(['attendance_code' => $code]);
+                            $code = app(EventAttendanceService::class)->generateCode($record);
                             Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
                         }),
                     Tables\Actions\Action::make('previewFinalReport')

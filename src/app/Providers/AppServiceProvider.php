@@ -33,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Tanggal (sertifikat, absensi, dashboard) berbahasa Indonesia: "04 Oktober 2026".
+        \Carbon\Carbon::setLocale('id');
+
         Page::formActionsAlignment(Alignment::Right);
         Notifications::alignment(Alignment::End);
         Notifications::verticalAlignment(VerticalAlignment::End);
