@@ -40,7 +40,9 @@ class AttendanceTemplateController
             ->get();
 
         return view('attendance.template', [
-            'session' => $session,
+            'sheetTitle' => $session->title,
+            'locationName' => $session->school?->name,
+            'dateText' => ($session->date?->translatedFormat('l, d F Y') ?? '-') . ' | ' . $session->start_time . ' - ' . $session->end_time . ' WIB',
             'participants' => $participants,
             'tutors' => $tutors,
             'tutorRows' => max(\App\Support\TorEventTemplate::DEFAULT_TUTORS, $tutors->count()),

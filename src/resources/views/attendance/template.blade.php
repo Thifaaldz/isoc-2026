@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Daftar Hadir - {{ $session->title }}</title>
+    <title>Absensi Basah - {{ $sheetTitle }}</title>
     <style>
         body { font-family: Arial, sans-serif; color: #111; margin: 24px; }
         h1 { font-size: 18px; margin: 0 0 4px; text-align: center; text-transform: uppercase; }
@@ -19,12 +19,12 @@
 </head>
 <body>
     <button class="no-print" onclick="window.print()">Print / Save PDF</button>
-    <h1>Daftar Hadir Kegiatan Literasi Digital</h1>
+    <h1>Daftar Hadir (Absensi Basah) Kegiatan Literasi Digital</h1>
     <div class="subtitle">Program "Digital Safety Champions: Membangun Literasi Online Trust and Safety di Kalangan Pelajar di Indonesia"</div>
     <div class="meta">
-        <div><strong>Sesi:</strong> {{ $session->title }}</div>
-        <div><strong>Lokasi:</strong> {{ $session->school?->name ?? '-' }}</div>
-        <div><strong>Tanggal:</strong> {{ $session->date?->locale('id')->translatedFormat('l, d F Y') ?? '-' }} | {{ $session->start_time }} - {{ $session->end_time }} WIB</div>
+        <div><strong>Kegiatan:</strong> {{ $sheetTitle }}</div>
+        <div><strong>Lokasi:</strong> {{ $locationName ?? '-' }}</div>
+        <div><strong>Tanggal:</strong> {{ $dateText }}</div>
     </div>
     <div class="note">Sesuai TOR: absensi dengan nama dan tanda tangan basah terdiri dari {{ \App\Support\TorEventTemplate::DEFAULT_TUTORS }} orang tutor dan {{ \App\Support\TorEventTemplate::DEFAULT_PARTICIPANTS }} orang peserta.</div>
 

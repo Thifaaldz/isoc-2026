@@ -7,11 +7,7 @@
     $check = fn (bool $ok, string $yes = 'Lengkap', string $no = 'Belum lengkap') => '<span class="badge ' . ($ok ? 'badge-ok' : 'badge-wait') . '">' . ($ok ? $yes : $no) . '</span>';
     $reached = fn (?float $value, float $target) => $value !== null && $value >= $target;
     $rundownItems = collect($event->rundown_items ?? []);
-    $budgetItems = collect($event->budget_items ?? []);
-    $budgetTotal = $budgetItems->sum(fn ($item) => (float) ($item['amount'] ?? 0));
-    $budgetByTerm = fn (int $term) => $budgetItems->filter(fn ($item) => (int) ($item['term'] ?? 0) === $term);
-    $budgetCategories = LearningEventResource::budgetCategoryOptions();
-    $categoryLabel = fn (array $item) => $budgetCategories[$item['category'] ?? ''] ?? \Illuminate\Support\Str::headline((string) ($item['category'] ?? '-'));
+    $termChecked = fn (int $term) => TorEventTemplate::checkedKeys($event->budget_items, $term);
     $evidenceStatuses = ['approved' => 'Disetujui', 'pending' => 'Menunggu', 'needs_revision' => 'Perlu revisi', 'rejected' => 'Ditolak'];
     $participantCount = $participants->count();
     $durationMinutes = $event->starts_at && $event->ends_at ? (int) $event->starts_at->diffInMinutes($event->ends_at) : null;
@@ -219,30 +215,18 @@
         @endforeach
     </table>
 
-    <h2>11. Anggaran (RAB)</h2>
-    @foreach([1 => 'Termin-1 (diberikan sebelum kegiatan)', 2 => 'Termin-2 (setelah semua bukti dukung lokasi lengkap)', 0 => 'Item tanpa termin'] as $term => $termLabel)
-        @php $items = $term === 0 ? $budgetItems->filter(fn ($item) => blank($item['term'] ?? null)) : $budgetByTerm($term); @endphp
-        @if($items->isNotEmpty())
-            <h3>{{ $termLabel }}</h3>
-            <table class="fixed">
-                <tr><th style="width: 24%;">Kategori</th><th style="width: 28%;">Uraian</th><th style="width: 12%;">Qty</th><th style="width: 18%;">Harga Satuan</th><th style="width: 18%;">Jumlah</th></tr>
-                @foreach($items as $item)
-                    <tr>
-                        <td>{{ $categoryLabel($item) }}</td>
-                        <td>{{ $item['description'] ?? '-' }}</td>
-                        <td>{{ $item['quantity'] ?? '-' }} {{ $item['unit'] ?? '' }}</td>
-                        <td class="num">Rp {{ number_format((float) ($item['unit_price'] ?? 0), 0, ',', '.') }}</td>
-                        <td class="num">Rp {{ number_format((float) ($item['amount'] ?? 0), 0, ',', '.') }}</td>
-                    </tr>
-                @endforeach
-                <tr><th colspan="4">Subtotal</th><th class="num">Rp {{ number_format($items->sum(fn ($item) => (float) ($item['amount'] ?? 0)), 0, ',', '.') }}</th></tr>
-            </table>
-        @endif
+    <h2>11. Anggaran (Checklist Termin)</h2>
+    <p>Sesuai TOR, anggaran ditransfer ke rekening RTIK Pusat dalam dua termin. Checklist keperluan diisi Fasilitator pada wizard event.</p>
+    @foreach(TorEventTemplate::TERM_CHECKLIST as $term => $list)
+        @php $checked = $termChecked($term); @endphp
+        <h3>Termin-{{ $term }} ({{ TorEventTemplate::TERM_NOTES[$term] }})</h3>
+        <table class="fixed">
+            <tr><th style="width: 8%;">No</th><th style="width: 62%;">Keperluan</th><th style="width: 30%;">Status</th></tr>
+            @foreach($list as $key => $label)
+                <tr><td>{{ $loop->iteration }}</td><td>{{ $label }}</td><td>{!! $check(in_array($key, $checked, true), 'Terpenuhi', 'Belum') !!}</td></tr>
+            @endforeach
+        </table>
     @endforeach
-    @if($budgetItems->isEmpty())
-        <p>RAB belum tersedia.</p>
-    @endif
-    <div class="summary"><strong>Total RAB:</strong> Rp {{ number_format($budgetTotal, 0, ',', '.') }}</div>
 
     <h2>12. Kesimpulan & Rekomendasi</h2>
     <h3>Kesimpulan</h3>

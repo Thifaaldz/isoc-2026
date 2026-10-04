@@ -116,57 +116,55 @@ class TorEventTemplate
         }, self::RUNDOWN);
     }
 
-    /**
-     * Komponen anggaran sesuai TOR. Harga satuan tidak diatur TOR, jadi diisi oleh admin.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public static function budgetItems(int $participants = self::DEFAULT_PARTICIPANTS, int $tutors = self::DEFAULT_TUTORS): array
-    {
-        $item = fn (string $key, int $term, string $category, string $description, int $quantity, string $unit, string $notes) => [
-            'key' => $key,
-            'term' => $term,
-            'category' => $category,
-            'description' => $description,
-            'quantity' => $quantity,
-            'unit' => $unit,
-            'unit_price' => 0,
-            'amount' => 0,
-            'vendor' => null,
-            'receipt_number' => null,
-            'notes' => $notes,
-        ];
+    /** Keperluan anggaran per termin sesuai TOR bagian 8 (Anggaran); hanya checklist, tanpa nominal. */
+    public const TERM_CHECKLIST = [
+        1 => [
+            'banner' => 'Pengadaan 2 buah banner kegiatan',
+            'snack' => 'Pemesanan 25 snack',
+            'kebersihan' => 'Dana kebersihan sekolah',
+        ],
+        2 => [
+            'honor_tutor' => 'Honor tutor',
+            'administrasi' => 'Administrasi dan operasional RTIK Pusat',
+        ],
+    ];
 
-        return [
-            $item('banner', 1, 'banner_publikasi', 'Pengadaan banner kegiatan', 2, 'pcs', 'Termin-1, diberikan sebelum kegiatan.'),
-            $item('snack', 1, 'konsumsi', 'Pemesanan snack peserta dan tutor', $participants + $tutors, 'paket', 'Termin-1, diberikan sebelum kegiatan.'),
-            $item('kebersihan', 1, 'kebersihan', 'Dana kebersihan sekolah', 1, 'paket', 'Termin-1, diberikan sebelum kegiatan.'),
-            $item('honor_tutor', 2, 'honor_narasumber', 'Honor tutor', $tutors, 'orang', 'Termin-2, setelah semua bukti dukung lokasi lengkap.'),
-            $item('administrasi', 2, 'administrasi_operasional', 'Administrasi dan operasional RTIK Pusat', 1, 'paket', 'Termin-2, setelah semua bukti dukung lokasi lengkap.'),
-        ];
+    public const TERM_NOTES = [
+        1 => 'Diberikan sebelum kegiatan.',
+        2 => 'Diberikan setelah semua Bukti Dukung setiap lokasi dipenuhi dan lokasi dinyatakan lengkap administrasi.',
+    ];
+
+    /**
+     * Item checklist termin yang disimpan di kolom budget_items.
+     *
+     * @param  array<int, string>  $checkedKeys
+     * @return array<int, array{key: string, term: int, description: string, done: bool}>
+     */
+    public static function termChecklist(array $checkedKeys = []): array
+    {
+        $items = [];
+
+        foreach (self::TERM_CHECKLIST as $term => $list) {
+            foreach ($list as $key => $description) {
+                $items[] = ['key' => $key, 'term' => $term, 'description' => $description, 'done' => in_array($key, $checkedKeys, true)];
+            }
+        }
+
+        return $items;
     }
 
     /**
-     * Sesuaikan qty item yang bergantung pada jumlah peserta/tutor tanpa mengubah harga yang sudah diisi.
+     * Key item yang sudah dicentang untuk satu termin (data RAB lama tanpa "done" dianggap belum).
      *
-     * @param  array<int|string, array<string, mixed>>  $items
-     * @return array<int|string, array<string, mixed>>
+     * @return array<int, string>
      */
-    public static function syncBudgetQuantities(array $items, int $participants, int $tutors): array
+    public static function checkedKeys(?array $items, int $term): array
     {
-        return array_map(function (array $item) use ($participants, $tutors): array {
-            $quantity = match ($item['key'] ?? null) {
-                'snack' => $participants + $tutors,
-                'honor_tutor' => $tutors,
-                default => null,
-            };
-
-            if ($quantity !== null) {
-                $item['quantity'] = $quantity;
-                $item['amount'] = $quantity * (float) ($item['unit_price'] ?? 0);
-            }
-
-            return $item;
-        }, $items);
+        return collect($items ?? [])
+            ->filter(fn ($item) => is_array($item) && (int) ($item['term'] ?? 0) === $term && ! empty($item['done']))
+            ->pluck('key')
+            ->filter(fn ($key) => isset(self::TERM_CHECKLIST[$term][$key]))
+            ->values()
+            ->all();
     }
 }

@@ -137,7 +137,7 @@ class EventSeeder extends Seeder
                 'tutor_rows' => [],
                 'selected_tutor_ids' => [$tutor->id],
                 'rundown_items' => TorEventTemplate::rundown(),
-                'budget_items' => TorEventTemplate::budgetItems(),
+                'budget_items' => TorEventTemplate::termChecklist(),
                 'local_admin_notes' => "Pengajuan pelatihan Digital Safety Champions di {$kota}, {$provinsi}.",
             ]));
 

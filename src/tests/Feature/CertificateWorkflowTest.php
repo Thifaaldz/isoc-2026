@@ -525,6 +525,8 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
         ->assertSet('data.starts_at', now()->addDays(10)->format('Y-m-d 09:00:00'))
         ->assertSet('data.ends_at', now()->addDays(10)->format('Y-m-d 12:00:00'))
         ->set('data.certificate_partner_ids', array_values(array_diff($defaultPartners, [$hidden])))
+        ->set('data.term_checklist_1', ['banner', 'snack'])
+        ->set('data.term_checklist_2', ['honor_tutor'])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -538,19 +540,23 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
         ->and(collect($event->rundown_items)->last()['end_time'])->toBe('12:00')
         ->and($event->starts_at->format('H:i'))->toBe('09:00')
         ->and($event->ends_at->format('H:i'))->toBe('12:00')
-        ->and(collect($event->budget_items)->pluck('key')->all())->toBe(['banner', 'snack', 'kebersihan', 'honor_tutor', 'administrasi']);
+        ->and(collect($event->budget_items)->pluck('key')->all())->toBe(['banner', 'snack', 'kebersihan', 'honor_tutor', 'administrasi'])
+        // Langkah Checklist Termin: hanya centang, tanpa nominal.
+        ->and(collect($event->budget_items)->where('done', true)->pluck('key')->all())->toBe(['banner', 'snack', 'honor_tutor'])
+        ->and(\App\Support\TorEventTemplate::checkedKeys($event->budget_items, 1))->toBe(['banner', 'snack'])
+        ->and(collect($event->budget_items)->first())->not->toHaveKey('amount');
 });
 
 test('admin pusat dapat membuka preview event dalam bentuk wizard baca saja', function () {
     $owner = makeUser(UserRole::Admin, 'daerah.preview.event@isoc.id');
-    $event = makeEvent(['title' => 'Digital Safety Champions - Preview', 'created_by' => $owner->id, 'rundown_items' => \App\Support\TorEventTemplate::rundown(), 'budget_items' => \App\Support\TorEventTemplate::budgetItems()]);
+    $event = makeEvent(['title' => 'Digital Safety Champions - Preview', 'created_by' => $owner->id, 'rundown_items' => \App\Support\TorEventTemplate::rundown(), 'budget_items' => \App\Support\TorEventTemplate::termChecklist(['banner'])]);
 
     $this->actingAs(makeUser(UserRole::SuperAdmin, 'pusat.preview.event@isoc.id'))
         ->get(\App\Filament\Resources\LearningEventResource::getUrl('view', ['record' => $event], panel: 'superadmin'))
         ->assertOk()
         ->assertSee('Preview: Digital Safety Champions - Preview')
         ->assertSee('Rundown Acara')
-        ->assertSee('RAB &amp; Submit', false);
+        ->assertSee('Checklist Termin', false);
 
     \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
     \Livewire\Livewire::test(\App\Filament\Resources\LearningEventResource\Pages\ViewLearningEvent::class, ['record' => $event->getRouteKey()])

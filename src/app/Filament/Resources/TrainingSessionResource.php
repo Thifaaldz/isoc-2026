@@ -78,7 +78,7 @@ class TrainingSessionResource extends Resource
             ->defaultSort('date')
             ->actions([
                 Tables\Actions\Action::make('template')
-                    ->label('Absensi Kering')
+                    ->label('Template Absensi Basah')
                     ->icon('heroicon-o-printer')
                     ->url(fn (TrainingSession $record) => route('attendance.template', $record))
                     ->openUrlInNewTab(),

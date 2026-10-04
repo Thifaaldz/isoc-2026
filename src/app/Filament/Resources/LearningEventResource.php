@@ -294,17 +294,16 @@ class LearningEventResource extends Resource
                             ->required(),
                         Forms\Components\Hidden::make('training_start_time')->default('09:00'),
                         Forms\Components\Hidden::make('training_end_time')->default('12:00'),
-                        Forms\Components\TextInput::make('target_participants')->label('Target Peserta')->numeric()->default(TorEventTemplate::DEFAULT_PARTICIPANTS)->required()
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Get $get, Set $set) => static::refreshTorBudgetQuantities($get, $set)),
-                        Forms\Components\TextInput::make('target_tutors')->label('Target Tutor')->numeric()->default(TorEventTemplate::DEFAULT_TUTORS)->required()
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Get $get, Set $set) => static::refreshTorBudgetQuantities($get, $set)),
+                        Forms\Components\TextInput::make('target_participants')->label('Target Peserta')->numeric()->default(TorEventTemplate::DEFAULT_PARTICIPANTS)->required(),
+                        Forms\Components\TextInput::make('target_tutors')->label('Target Tutor')->numeric()->default(TorEventTemplate::DEFAULT_TUTORS)->required(),
                         Forms\Components\FileUpload::make('preparation_document')
                             ->acceptedFileTypes(UploadTypes::documents())
                             ->label('Surat/MoU/Berita Acara Persiapan')
                             ->disk('public')
                             ->directory('event-documents'),
+                        Forms\Components\Textarea::make('local_admin_notes')
+                            ->label('Catatan Fasilitator')
+                            ->rows(3),
                         Forms\Components\Select::make('workflow_status')
                             ->label('Status Workflow')
                             ->options(static::workflowStatusOptions())
@@ -508,50 +507,26 @@ class LearningEventResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
-                Forms\Components\Wizard\Step::make('RAB & Submit')
-                    ->description('Upload dokumen dan input rancangan biaya secara manual.')
-                    ->icon('heroicon-o-banknotes')
+                Forms\Components\Wizard\Step::make('Checklist Termin')
+                    ->description('Checklist keperluan anggaran Termin-1 dan Termin-2 sesuai TOR.')
+                    ->icon('heroicon-o-clipboard-document-check')
                     ->schema([
-                        Forms\Components\Section::make('Dokumen RAB')
+                        ...collect(TorEventTemplate::TERM_CHECKLIST)->map(fn (array $options, int $term) => Forms\Components\Section::make("Termin-{$term}")
+                            ->description(TorEventTemplate::TERM_NOTES[$term])
                             ->schema([
-                                Forms\Components\FileUpload::make('rab_file')
-                                    ->acceptedFileTypes(UploadTypes::documents())
-                                    ->label('Upload RAB Awal')
-                                    ->hintAction(
-                                        Forms\Components\Actions\Action::make('downloadRabTemplate')
-                                            ->label('Download template RAB')
-                                            ->icon('heroicon-o-arrow-down-tray')
-                                            ->url(fn () => route('import-templates.rab'))
-                                            ->openUrlInNewTab(),
-                                    )
-                                    ->disk('public')
-                                    ->directory('event-documents'),
-                                Forms\Components\Textarea::make('local_admin_notes')
-                                    ->label('Catatan Admin RTIK Local')
-                                    ->rows(3),
-                            ])
-                            ->columns(2),
-                        Forms\Components\Section::make('Input Manual RAB')
-                            ->description('Komponen biaya otomatis sesuai TOR (Termin-1: banner, snack, kebersihan sekolah; Termin-2: honor tutor, administrasi & operasional RTIK Pusat). Lengkapi harga satuan; total per termin dipakai untuk termin pembayaran.')
-                            ->schema([
-                                Forms\Components\Repeater::make('budget_items')
-                                    ->hiddenLabel()
-                                    ->schema(static::budgetItemSchema())
-                                    ->columns(12)
-                                    ->default(fn () => static::keyedItems(TorEventTemplate::budgetItems()))
-                                    ->addActionLabel('Tambah item biaya')
-                                    ->reorderableWithButtons()
-                                    ->collapsible()
-                                    ->itemLabel(fn (array $state): ?string => filled($state['description'] ?? null)
-                                        ? ($state['description'] . ' - Rp ' . number_format((float) ($state['amount'] ?? 0), 0, ',', '.'))
-                                        : 'Item biaya')
-                                    ->columnSpanFull(),
-                                Forms\Components\Placeholder::make('budget_total_preview')
-                                    ->label('Total RAB Manual')
-                                    ->content(fn (Get $get) => 'Rp ' . number_format(collect($get('budget_items') ?? [])->sum(fn ($item) => (float) ($item['amount'] ?? 0)), 0, ',', '.')),
-                            ])
-                            ->columns(1)
-                            ->columnSpanFull(),
+                                Forms\Components\CheckboxList::make("term_checklist_{$term}")
+                                    ->label("Keperluan Termin-{$term}")
+                                    ->options($options)
+                                    ->bulkToggleable()
+                                    ->afterStateHydrated(fn (Forms\Components\CheckboxList $component, ?LearningEvent $record) => $component->state(TorEventTemplate::checkedKeys($record?->budget_items, $term)))
+                                    ->dehydrated(false),
+                            ]))->values()->all(),
+                        // Checklist kedua termin disimpan di kolom budget_items.
+                        Forms\Components\Hidden::make('budget_items')
+                            ->dehydrateStateUsing(fn (Get $get) => TorEventTemplate::termChecklist(array_merge(
+                                (array) ($get('term_checklist_1') ?? []),
+                                (array) ($get('term_checklist_2') ?? []),
+                            ))),
                     ])
                     ->columns(1),
             ])
@@ -615,11 +590,11 @@ class LearningEventResource extends Resource
                     ->color(fn (LearningEvent $record): string => $record->tutors_count > 0 && $record->tot_passed_count >= $record->tutors_count ? 'success' : 'warning')
                     ->tooltip('Jumlah tutor yang sudah lulus ToT sempurna.'),
                 Tables\Columns\TextColumn::make('meetings_count')->counts('meetings')->label('Pertemuan')->sortable()->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('budget_total')
-                    ->label('Total RAB')
-                    ->state(fn (LearningEvent $record) => collect($record->budget_items ?? [])->sum(fn ($item) => (float) ($item['amount'] ?? 0)))
-                    ->money('IDR')
-                    ->sortable(query: fn ($query, string $direction) => $query->orderBy('id', $direction))
+                Tables\Columns\TextColumn::make('term_checklist')
+                    ->label('Checklist Termin')
+                    ->state(fn (LearningEvent $record): string => collect(TorEventTemplate::TERM_CHECKLIST)
+                        ->map(fn (array $options, int $term) => "T{$term} " . count(TorEventTemplate::checkedKeys($record->budget_items, $term)) . '/' . count($options))
+                        ->implode(' · '))
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('workflow_status')->label('Workflow')->badge(),
                 Tables\Columns\TextColumn::make('publish_approval_status')
@@ -654,7 +629,7 @@ class LearningEventResource extends Resource
                     ->tooltip(fn (LearningEvent $record) => $record->central_admin_notes)
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('local_admin_notes')
-                    ->label('Catatan Daerah')
+                    ->label('Catatan Fasilitator')
                     ->limit(45)
                     ->tooltip(fn (LearningEvent $record) => $record->local_admin_notes)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -823,6 +798,16 @@ class LearningEventResource extends Resource
                             $code = app(EventAttendanceService::class)->generateCode($record);
                             Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
                         }),
+                    Tables\Actions\Action::make('printWetAttendance')
+                        ->label('Template Absensi Basah')
+                        ->icon('heroicon-o-printer')
+                        ->url(fn (LearningEvent $record) => route('events.attendance.wet', $record))
+                        ->openUrlInNewTab(),
+                    Tables\Actions\Action::make('printDigitalAttendance')
+                        ->label('Cetak Absensi Online')
+                        ->icon('heroicon-o-clipboard-document-list')
+                        ->url(fn (LearningEvent $record) => route('events.attendance.digital', $record))
+                        ->openUrlInNewTab(),
                     Tables\Actions\Action::make('previewFinalReport')
                         ->label('Preview Laporan')
                         ->icon('heroicon-o-document-magnifying-glass')
@@ -1225,15 +1210,6 @@ class LearningEventResource extends Resource
         )));
     }
 
-    public static function refreshTorBudgetQuantities(Get $get, Set $set): void
-    {
-        $set('budget_items', TorEventTemplate::syncBudgetQuantities(
-            (array) ($get('budget_items') ?? []),
-            (int) ($get('target_participants') ?: TorEventTemplate::DEFAULT_PARTICIPANTS),
-            (int) ($get('target_tutors') ?: TorEventTemplate::DEFAULT_TUTORS),
-        ));
-    }
-
     /** Item repeater Filament memakai key unik per baris. */
     private static function keyedItems(array $items): array
     {
@@ -1261,22 +1237,6 @@ class LearningEventResource extends Resource
         return min(LearningEvent::MODULES_PER_EVENT, max(1, count(static::templateModuleOptions($templateId))));
     }
 
-    public static function budgetCategoryOptions(): array
-    {
-        return [
-            'konsumsi' => 'Konsumsi',
-            'transportasi' => 'Transportasi',
-            'atk' => 'ATK',
-            'banner_publikasi' => 'Banner / Publikasi',
-            'dokumentasi' => 'Dokumentasi',
-            'honor_narasumber' => 'Honor / Narasumber',
-            'sewa_perlengkapan' => 'Sewa / Perlengkapan',
-            'kebersihan' => 'Dana Kebersihan Sekolah',
-            'administrasi_operasional' => 'Administrasi & Operasional RTIK Pusat',
-            'lain_lain' => 'Lain-lain',
-        ];
-    }
-
     public static function normalizeEventScheduleData(array $data): array
     {
         $data['training_start_time'] = static::timeFromDateTime($data['starts_at'] ?? null, $data['training_start_time'] ?? '09:00');
@@ -1296,72 +1256,6 @@ class LearningEventResource extends Resource
         } catch (\Throwable) {
             return $fallback;
         }
-    }
-
-    public static function budgetItemSchema(): array
-    {
-        $recalculateAmount = function (Get $get, Set $set): void {
-            $quantity = (float) ($get('quantity') ?: 0);
-            $unitPrice = (float) ($get('unit_price') ?: 0);
-
-            if ($quantity > 0 && $unitPrice > 0) {
-                $set('amount', $quantity * $unitPrice);
-            }
-        };
-
-        return [
-            Forms\Components\Hidden::make('key'),
-            Forms\Components\Select::make('term')
-                ->label('Termin')
-                ->options([1 => 'Termin-1', 2 => 'Termin-2'])
-                ->default(1)
-                ->columnSpan(2),
-            Forms\Components\Select::make('category')
-                ->label('Kategori')
-                ->options(static::budgetCategoryOptions())
-                ->required()
-                ->columnSpan(3),
-            Forms\Components\TextInput::make('description')
-                ->label('Keperluan')
-                ->placeholder('Contoh: Banner kegiatan')
-                ->required()
-                ->columnSpan(3),
-            Forms\Components\TextInput::make('quantity')
-                ->label('Qty')
-                ->numeric()
-                ->default(1)
-                ->live(onBlur: true)
-                ->afterStateUpdated($recalculateAmount)
-                ->columnSpan(2),
-            Forms\Components\TextInput::make('unit')
-                ->label('Satuan')
-                ->placeholder('pcs, paket, orang')
-                ->columnSpan(2),
-            Forms\Components\TextInput::make('unit_price')
-                ->label('Harga Satuan')
-                ->numeric()
-                ->prefix('Rp')
-                ->live(onBlur: true)
-                ->afterStateUpdated($recalculateAmount)
-                ->columnSpan(3),
-            Forms\Components\TextInput::make('amount')
-                ->label('Total')
-                ->numeric()
-                ->prefix('Rp')
-                ->required()
-                ->helperText('Otomatis dari Qty x Harga Satuan, tetap bisa disesuaikan manual.')
-                ->columnSpan(3),
-            Forms\Components\TextInput::make('vendor')
-                ->label('Vendor / Toko')
-                ->columnSpan(3),
-            Forms\Components\TextInput::make('receipt_number')
-                ->label('No. Kwitansi / Invoice')
-                ->columnSpan(3),
-            Forms\Components\Textarea::make('notes')
-                ->label('Catatan')
-                ->rows(2)
-                ->columnSpanFull(),
-        ];
     }
 
     public static function rundownItemSchema(): array

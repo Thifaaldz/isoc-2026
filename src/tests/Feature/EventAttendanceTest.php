@@ -130,3 +130,28 @@ test('fasilitator (admin RTIK daerah) hanya mengelola kode absensi event yang di
     expect($own->refresh()->attendance_code)->toMatch('/^[A-Z2-9]{6}$/')
         ->and($other->refresh()->attendance_code)->toBe('LAMA22');
 });
+
+test('absensi basah dan rekap absensi online bisa dicetak oleh tutor event dan ditolak untuk peserta', function () {
+    $school = School::query()->create(['name' => 'SMA Cetak']);
+    $event = attEvent($school, ['event_type' => 'hybrid', 'title' => 'Event Cetak Absensi']);
+    $nadia = attParticipant($school, $event, 'cetak.online@isoc.id');
+    $budi = attParticipant($school, $event, 'cetak.offline@isoc.id');
+    $belum = attParticipant($school, $event, 'cetak.belum@isoc.id');
+    app(\App\Services\EventAttendanceService::class)->checkIn($nadia->participant, $event, 'ABC234', 'online');
+    app(\App\Services\EventAttendanceService::class)->checkIn($budi->participant, $event, 'ABC234', 'offline');
+
+    $tutorUser = attUser(UserRole::Tutor, 'cetak.tutor@isoc.id', $school->id);
+    $tutor = Tutor::query()->create(['user_id' => $tutorUser->id, 'school_id' => $school->id, 'tot_completed' => true]);
+    $tutor->learningEvents()->attach($event->id, ['status' => 'assigned', 'assigned_at' => now()]);
+
+    $this->actingAs($tutorUser)->get(route('events.attendance.wet', $event))
+        ->assertOk()->assertSee('Absensi Basah')->assertSee($nadia->name)->assertSee('Tanda Tangan');
+
+    $this->actingAs($tutorUser)->get(route('events.attendance.digital', [$event, 'mode' => 'online']))
+        ->assertOk()->assertSee($nadia->name)->assertDontSee($budi->name);
+
+    $this->actingAs($tutorUser)->get(route('events.attendance.digital', $event))
+        ->assertOk()->assertSee($budi->name)->assertSee('Peserta belum absen')->assertSee($belum->name);
+
+    $this->actingAs($nadia)->get(route('events.attendance.digital', $event))->assertForbidden();
+});

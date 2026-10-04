@@ -5,6 +5,7 @@ use App\Http\Controllers\AttendanceTemplateController;
 use App\Http\Controllers\CertificatePdfController;
 use App\Http\Controllers\CertificateTemplatePreviewController;
 use App\Http\Controllers\EventActivityReportController;
+use App\Http\Controllers\EventAttendancePrintController;
 use App\Http\Controllers\ImportTemplateController;
 use App\Http\Controllers\ParticipantRegistrationController;
 use App\Http\Controllers\PublicPageController;
@@ -89,6 +90,14 @@ Route::get('/dashboard', function () {
 Route::get('/attendance-template/{session}', [AttendanceTemplateController::class, 'show'])
     ->middleware('auth')
     ->name('attendance.template');
+
+// Cetak absensi per event: template absensi basah (TOR) dan rekap absensi online lewat kode.
+Route::middleware('auth')->group(function () {
+    Route::get('/events/{learningEvent}/attendance/absensi-basah', [EventAttendancePrintController::class, 'wet'])
+        ->name('events.attendance.wet');
+    Route::get('/events/{learningEvent}/attendance/rekap', [EventAttendancePrintController::class, 'digital'])
+        ->name('events.attendance.digital');
+});
 
 Route::get('/templates/import/participants.xlsx', [ImportTemplateController::class, 'participants'])
     ->middleware('auth')

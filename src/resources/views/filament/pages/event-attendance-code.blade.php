@@ -61,6 +61,12 @@
 
         @if ($selected)
             <x-filament::section :heading="'Daftar hadir: ' . $selected->title" icon="heroicon-o-users">
+                <x-slot name="headerEnd">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <x-filament::button size="sm" color="gray" tag="a" :href="route('events.attendance.wet', $selected)" target="_blank" icon="heroicon-o-printer">Template Absensi Basah</x-filament::button>
+                        <x-filament::button size="sm" tag="a" :href="route('events.attendance.digital', $selected)" target="_blank" icon="heroicon-o-clipboard-document-list">Cetak Absensi Online</x-filament::button>
+                    </div>
+                </x-slot>
                 @if ($checkIns->isEmpty())
                     <p class="ac-meta">Belum ada peserta yang absen dengan kode.</p>
                 @else
