@@ -13,6 +13,9 @@ use App\Filament\Resources\ParticipantResource;
 use App\Models\LearningEvent;
 use App\Support\EventOverview;
 use App\Support\TorEventTemplate;
+use App\Services\ReportRecalculator;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Livewire\Attributes\Url;
 
@@ -40,6 +43,32 @@ class EventProgress extends Page
     public function mount(): void
     {
         abort_unless($this->event, 404);
+    }
+
+    /** Tombol "Hitung ulang laporan": perbarui indikator, sertifikat, dan PDF bukti sistem lalu tawarkan preview. */
+    public function recalculate(): void
+    {
+        $event = $this->event;
+
+        if (! $event) {
+            return;
+        }
+
+        $result = app(ReportRecalculator::class)->recalculate($event);
+
+        Notification::make()
+            ->title('Laporan dihitung ulang')
+            ->body(collect([
+                $result['indicators'] . ' nilai indikator diperbarui',
+                $result['certificates_issued'] . ' sertifikat baru terbit (total ' . $result['certificates_total'] . ')',
+                $result['proofs'] ? 'PDF dibuat ulang: ' . implode(', ', $result['proofs']) : null,
+            ])->filter()->implode(' · ') . '.')
+            ->success()
+            ->actions([
+                NotificationAction::make('preview')->label('Buka preview laporan')->url(route('reports.events.activity.preview', $event), shouldOpenInNewTab: true)->button(),
+            ])
+            ->persistent()
+            ->send();
     }
 
     public function getEventProperty(): ?LearningEvent

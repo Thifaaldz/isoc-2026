@@ -47,6 +47,12 @@
                 <div class="eo-row">
                     <a class="eo-btn" href="{{ \Filament\Pages\Dashboard::getUrl() }}"><x-heroicon-o-arrow-left /> Dashboard</a>
                     <a class="eo-btn primary" href="{{ \App\Filament\Resources\LearningEventResource::getUrl('view', ['record' => $event]) }}"><x-heroicon-o-eye /> Detail event</a>
+                    <button type="button" class="eo-btn" wire:click="recalculate" wire:loading.attr="disabled" wire:target="recalculate"
+                        wire:confirm="Hitung ulang laporan event ini? Nilai indikator yang kosong diisi, sertifikat peserta yang memenuhi syarat diterbitkan, dan PDF bukti sistem dibuat ulang.">
+                        <x-heroicon-o-arrow-path wire:loading.class="animate-spin" wire:target="recalculate" />
+                        <span wire:loading.remove wire:target="recalculate">Hitung ulang laporan</span>
+                        <span wire:loading wire:target="recalculate">Menghitung…</span>
+                    </button>
                     <a class="eo-btn" href="{{ route('reports.events.activity.preview', $event) }}" target="_blank" rel="noopener"><x-heroicon-o-document-magnifying-glass /> Preview laporan</a>
                 </div>
             </div>

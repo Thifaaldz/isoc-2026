@@ -14,3 +14,6 @@ src/.env
 
 # Dokumen proyek (TOR, modul ajar, manual guide) disimpan lokal, tidak di-push
 docs/
+
+# Backup database (berisi data peserta) - jangan di-commit
+backups/
