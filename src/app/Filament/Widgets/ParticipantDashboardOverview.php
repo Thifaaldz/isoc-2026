@@ -48,13 +48,13 @@ class ParticipantDashboardOverview extends Widget
     public function mount(): void
     {
         $this->selectedEventId = $this->resolveSelectedEvent()?->id;
-        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->currentMicrosite()?->sid_url);
+        $this->micrositeUrl = MicrositeLinkChecker::sidPath($this->currentMicrosite()?->sid_url);
     }
 
     public function updatedSelectedEventId(): void
     {
         $this->selectedEventId = $this->resolveSelectedEvent()?->id;
-        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->currentMicrosite()?->sid_url);
+        $this->micrositeUrl = MicrositeLinkChecker::sidPath($this->currentMicrosite()?->sid_url);
     }
 
     protected function getViewData(): array
@@ -321,14 +321,14 @@ class ParticipantDashboardOverview extends Widget
             return;
         }
 
-        // Peserta cukup mengetik s.id/...; awalan https:// selalu dibuat sistem (http:// atau https:// yang ditempel ikut dibuang).
-        $this->micrositeUrl = MicrositeLinkChecker::withoutScheme($this->micrositeUrl);
-        $url = $this->micrositeUrl === '' ? '' : 'https://' . $this->micrositeUrl;
+        // Peserta cukup mengetik bagian setelah s.id/; awalan https://s.id/ selalu dibuat sistem (awalan yang ikut ditempel dibuang).
+        $this->micrositeUrl = MicrositeLinkChecker::sidPath($this->micrositeUrl);
+        $url = $this->micrositeUrl === '' ? '' : 'https://s.id/' . $this->micrositeUrl;
 
         Validator::make(['micrositeUrl' => $url], [
             'micrositeUrl' => ['required', 'max:255', new ReachableMicrositeUrl()],
         ], [
-            'micrositeUrl.required' => 'Link microsite wajib diisi, mis. s.id/ISOC_Champion.',
+            'micrositeUrl.required' => 'Link microsite wajib diisi, mis. ISOC_Champion.',
         ], [
             'micrositeUrl' => 'link microsite',
         ])->validate();

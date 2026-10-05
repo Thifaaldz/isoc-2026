@@ -29,6 +29,12 @@ class MicrositeLinkChecker
         return ltrim((string) preg_replace('#^\s*https?://#i', '', trim((string) $url)), '/');
     }
 
+    /** Bagian setelah s.id/ untuk kolom input yang awalan https://s.id/-nya dibuat sistem. */
+    public static function sidPath(?string $url): string
+    {
+        return ltrim((string) preg_replace('#^(www\.)?s\.id/#i', '', self::withoutScheme($url)), '/');
+    }
+
     /** @return array{ok: bool, url: string, reason: ?string} */
     public function check(?string $url): array
     {

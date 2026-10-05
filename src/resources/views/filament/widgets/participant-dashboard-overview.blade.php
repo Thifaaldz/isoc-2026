@@ -167,6 +167,14 @@
         padding: 22px;
     }
 
+    .pd-info-grid-microsite {
+        grid-template-columns: 2fr 1fr 1fr;
+    }
+
+    .pd-microsite-card .pd-upload-form > div {
+        flex-basis: 260px;
+    }
+
     .pd-icon {
         align-items: center;
         background: #fff7ed;
@@ -429,6 +437,10 @@
             grid-template-columns: 1fr 1fr;
         }
 
+        .pd-info-grid-microsite {
+            grid-template-columns: 1fr;
+        }
+
         .pd-hero {
             align-items: flex-start;
             flex-direction: column;
@@ -646,13 +658,31 @@
                         'hint' => $stats['post_unlocked'] ? 'Kerjakan setelah seluruh modul selesai.' : ($hasQuiz ? 'Terbuka setelah pre-test dan semua kuis modul selesai.' : 'Terbuka setelah pre-test selesai.')],
                 ];
             @endphp
-            <section class="pd-info-grid">
+            <section class="pd-info-grid pd-info-grid-microsite">
                 @php
                     // Post-test belum lulus: tampilkan status dan tombol ulang selama kesempatan masih ada.
                     $postFailed = $stats['post_done'] && ! $stats['post_passed'];
                     $testCards[1]['failed'] = $postFailed;
                     $testCards[1]['retakes'] = $stats['post_retakes_left'];
                 @endphp
+                <div class="pd-card pd-info-card pd-microsite-card">
+                    <div class="pd-icon"><x-heroicon-o-link /></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <p class="pd-card-label">Link Microsite</p>
+                        <p class="pd-card-title">{{ $stats['microsite_done'] ? 'Sudah disematkan' : 'Sematkan link microsite' }}</p>
+                        <p class="pd-card-text">Ketik nama link s.id Anda setelah https://s.id/ (mis. ISOC_Champion). Link dicek otomatis dan harus bisa dibuka.</p>
+                        <form wire:submit="saveMicrosite" class="pd-upload-form" style="margin-top: 14px;">
+                            <div style="align-items: stretch; border: 1px solid #d1d5db; border-radius: 8px; display: flex; flex: 1; min-height: 40px; min-width: 0; overflow: hidden;">
+                                <span style="align-items: center; background: #f1f5f9; border-right: 1px solid #d1d5db; color: #64748b; display: flex; font-size: 13px; font-weight: 700; padding: 0 10px; white-space: nowrap;">https://s.id/</span>
+                                <input type="text" wire:model="micrositeUrl" placeholder="ISOC_Champion" aria-label="Nama link setelah https://s.id/"
+                                    x-on:input="$el.value = $el.value.replace(/^\s*(https?:\/\/)?(www\.)?s\.id\//i, '')"
+                                    style="border: 0; box-shadow: none; flex: 1; font-size: 13px; min-width: 0; outline: none; padding: 0 12px;">
+                            </div>
+                            <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="saveMicrosite">Simpan</button>
+                        </form>
+                        @error('micrositeUrl') <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p> @enderror
+                    </div>
+                </div>
                 @foreach ($testCards as $test)
                     <div class="pd-card pd-info-card">
                         <div class="pd-icon"><x-heroicon-o-clipboard-document-check /></div>
@@ -692,24 +722,6 @@
                     </div>
                 @endforeach
 
-                <div class="pd-card pd-info-card">
-                    <div class="pd-icon"><x-heroicon-o-link /></div>
-                    <div style="flex: 1; min-width: 0;">
-                        <p class="pd-card-label">Link Microsite</p>
-                        <p class="pd-card-title">{{ $stats['microsite_done'] ? 'Sudah disematkan' : 'Sematkan link microsite' }}</p>
-                        <p class="pd-card-text">Ketik link s.id / microsite Anda tanpa https:// (mis. s.id/ISOC_Champion). Link dicek otomatis dan harus bisa dibuka.</p>
-                        <form wire:submit="saveMicrosite" class="pd-upload-form" style="margin-top: 14px;">
-                            <div style="align-items: stretch; border: 1px solid #d1d5db; border-radius: 8px; display: flex; flex: 1; min-height: 40px; min-width: 0; overflow: hidden;">
-                                <span style="align-items: center; background: #f1f5f9; border-right: 1px solid #d1d5db; color: #64748b; display: flex; font-size: 13px; font-weight: 700; padding: 0 10px;">https://</span>
-                                <input type="text" wire:model="micrositeUrl" placeholder="s.id/ISOC_Champion" aria-label="Link microsite tanpa https://"
-                                    x-on:input="$el.value = $el.value.replace(/^\s*https?:\/\//i, '')"
-                                    style="border: 0; box-shadow: none; flex: 1; font-size: 13px; min-width: 0; outline: none; padding: 0 12px;">
-                            </div>
-                            <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="saveMicrosite">Simpan</button>
-                        </form>
-                        @error('micrositeUrl') <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p> @enderror
-                    </div>
-                </div>
             </section>
         @endif
 
