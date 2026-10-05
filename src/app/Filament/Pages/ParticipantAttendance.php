@@ -10,7 +10,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
-/** Peserta mengisi absensi event dengan kode dari tutor/fasilitator. */
+/** Peserta absen di event dengan kode hari H yang dibuat otomatis oleh sistem. */
 class ParticipantAttendance extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
@@ -30,8 +30,6 @@ class ParticipantAttendance extends Page
     public ?int $eventId = null;
 
     public ?string $mode = null;
-
-    public string $code = '';
 
     public static function canAccess(): bool
     {
@@ -97,6 +95,11 @@ class ParticipantAttendance extends Page
         return app(EventAttendanceService::class)->isOpen($event);
     }
 
+    public function codeForSelected(): ?string
+    {
+        return $this->selectedEvent ? app(EventAttendanceService::class)->codeFor($this->selectedEvent) : null;
+    }
+
     public function attendanceForSelected(): ?Attendance
     {
         $participant = auth()->user()?->participant;
@@ -111,8 +114,7 @@ class ParticipantAttendance extends Page
         $this->validate([
             'eventId' => ['required', 'integer'],
             'mode' => ['required', 'string'],
-            'code' => ['required', 'string', 'max:20'],
-        ], [], ['eventId' => 'event', 'mode' => 'jenis kehadiran', 'code' => 'kode absensi']);
+        ], [], ['eventId' => 'event', 'mode' => 'jenis kehadiran']);
 
         $participant = auth()->user()?->participant;
         $event = $this->selectedEvent;
@@ -123,9 +125,7 @@ class ParticipantAttendance extends Page
             return;
         }
 
-        $attendance = app(EventAttendanceService::class)->checkIn($participant, $event, $this->code, $this->mode);
-
-        $this->code = '';
+        $attendance = app(EventAttendanceService::class)->checkIn($participant, $event, $this->mode);
 
         Notification::make()
             ->title('Absensi tercatat')

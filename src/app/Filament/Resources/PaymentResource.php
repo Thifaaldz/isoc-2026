@@ -50,6 +50,7 @@ class PaymentResource extends Resource
         return $form->schema([
             Forms\Components\Select::make('learning_event_id')
                 ->label('Event / Lokus')
+                ->default(fn ($livewire) => $livewire->eventId ?? null)
                 ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
                 ->searchable()
                 ->preload()
@@ -111,9 +112,6 @@ class PaymentResource extends Resource
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id')),
                 Tables\Filters\SelectFilter::make('term')
                     ->label('Termin')
                     ->options([1 => 'Termin-1', 2 => 'Termin-2']),

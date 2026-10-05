@@ -69,6 +69,7 @@ class AttendanceResource extends Resource
     {
         return $form->schema([
             Forms\Components\Select::make('learning_event_id')->label('Event')->options(fn () => static::scopedLearningEventOptions(\App\Models\LearningEvent::query())->pluck('title', 'id'))->searchable()
+                ->default(fn ($livewire) => $livewire->eventId ?? null)
                 ->requiredWithout('training_session_id'),
             Forms\Components\Select::make('training_session_id')->label('Sesi')->options(fn () => static::scopedTrainingSessionOptions())->searchable()
                 ->requiredWithout('learning_event_id'),
@@ -97,10 +98,6 @@ class AttendanceResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(\App\Models\LearningEvent::query())->pluck('title', 'id'))
-                    ->searchable(),
                 Tables\Filters\SelectFilter::make('mode')
                     ->label('Kehadiran')
                     ->options(['offline' => 'Offline', 'online' => 'Online']),

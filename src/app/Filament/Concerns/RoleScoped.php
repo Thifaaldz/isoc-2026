@@ -72,6 +72,12 @@ trait RoleScoped
             && static::scopeType() !== 'tot_assessment';
     }
 
+    /** Event yang boleh dilihat role ini (dipakai halaman card per event). */
+    public static function scopedEventsQuery(): Builder
+    {
+        return static::scopeLearningEventBuilder(LearningEvent::query());
+    }
+
     protected static function scopeLearningEventBuilder(Builder $query): Builder
     {
         $user = auth()->user();

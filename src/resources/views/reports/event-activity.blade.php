@@ -13,13 +13,16 @@
     $durationMinutes = $event->starts_at && $event->ends_at ? (int) $event->starts_at->diffInMinutes($event->ends_at) : null;
     $partnerNames = $event->orderedPartners->pluck('name');
     $evidenceComplete = collect($torEvidence)->every(fn ($row) => $row[3]);
+    // Anggota WAG Mentoring: minimal 70% dari peserta terdaftar (mis. 50 peserta = 100%, minimal 35 join WAG).
+    $wagTarget = (int) ceil($participantCount * 0.7);
+    $wagPercent = $participantCount > 0 ? round($joinedWag / $participantCount * 100, 1) : 0;
     $kpis = [
         ['Siswa terlatih', $targetParticipants . ' siswa', $participantCount . ' siswa', $participantCount >= $targetParticipants],
         ['Tutor terlibat', $targetTutors . ' tutor', $tutors->count() . ' tutor', $tutors->count() >= $targetTutors],
         ['Skor rata-rata Post-Test', '≥ 85', $formatScore($postAverage), $reached($postAverage, 85)],
         ['Identifikasi ancaman digital', '≥ 82%', $threatAverage === null ? '-' : $formatScore($threatAverage) . '%', $reached($threatAverage, 82)],
         ['Self-efficacy setelah pelatihan', '≥ 70', $formatScore($selfEfficacyPost), $reached($selfEfficacyPost, 70)],
-        ['Anggota WAG Mentoring', '70 per lokasi', $joinedWag . ' peserta', $joinedWag >= 70],
+        ['Anggota WAG Mentoring', '≥ 70% peserta terdaftar (min. ' . $wagTarget . ' dari ' . $participantCount . ')', $joinedWag . ' peserta (' . str_replace('.', ',', (string) $wagPercent) . '%)', $participantCount > 0 && $joinedWag >= $wagTarget],
         ['Microsite s.id peserta', $participantCount . ' peserta', $microsites->count() . ' microsite', $participantCount > 0 && $microsites->count() >= $participantCount],
     ];
     $evidenceThumb = function ($evidence): ?string {
@@ -271,9 +274,21 @@
 
     <h2>Lampiran 2 — Daftar Tutor</h2>
     <table class="fixed">
-        <tr><th style="width: 6%;">No</th><th style="width: 34%;">Nama</th><th style="width: 40%;">Instansi</th><th style="width: 20%;">Tanda Tangan</th></tr>
+        <tr><th style="width: 6%;">No</th><th style="width: 34%;">Nama</th><th style="width: 36%;">Instansi</th><th style="width: 24%;">Tanda Tangan</th></tr>
         @forelse($tutors as $tutor)
-            <tr><td>{{ $loop->iteration }}</td><td>{{ $tutor->user?->name ?? '-' }}</td><td>{{ $tutor->institution ?: '-' }}</td><td></td></tr>
+            {{-- Tanda tangan elektronik: QR berisi link verifikasi bertanda tangan sistem. --}}
+            @php $signatureQr = \App\Http\Controllers\TutorSignatureVerificationController::qr($event, $tutor); @endphp
+            <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>{{ $tutor->user?->name ?? '-' }}</td>
+                <td>{{ $tutor->institution ?: '-' }}</td>
+                <td class="center">
+                    @if ($signatureQr)
+                        <img src="{{ $signatureQr }}" alt="QR tanda tangan {{ $tutor->user?->name }}" style="width: 22mm; height: 22mm;"><br>
+                        <span style="font-size: 7pt; color: #64748b;">Tanda tangan elektronik</span>
+                    @endif
+                </td>
+            </tr>
         @empty
             <tr><td colspan="4">Tutor belum tersedia.</td></tr>
         @endforelse
@@ -397,14 +412,16 @@
     @endforelse
 
     <h2>Lampiran 7 — Berita Acara Serah Terima Bukti Dukung</h2>
+    {{-- Hari & tanggal diisi otomatis saat Admin RTIK Daerah menekan "Submit Laporan Final"; sebelum itu masih titik-titik. --}}
+    @php $handoverAt = $event->final_report_submitted_at; @endphp
     <p>
-        Pada hari ini, ........................ tanggal ........................, telah dilakukan serah terima bukti dukung kegiatan
+        Pada hari ini, <strong>{{ $handoverAt?->translatedFormat('l') ?? '........................' }}</strong> tanggal <strong>{{ $handoverAt?->translatedFormat('d F Y') ?? '........................' }}</strong>, telah dilakukan serah terima bukti dukung kegiatan
         <strong>{{ $event->title }}</strong> dari Admin RTIK Daerah kepada Admin RTIK Pusat / ISOC, dengan rincian sesuai bagian 9 laporan ini.
     </p>
     <p><strong>Status:</strong> {{ $evidenceComplete ? 'LENGKAP dan siap diverifikasi untuk Termin-2.' : 'BELUM LENGKAP, perlu dilengkapi sebelum verifikasi Termin-2.' }}</p>
     <table class="signature">
         <tr><td>Pihak yang Menyerahkan<br>Admin RTIK Daerah</td><td>Pihak yang Menerima<br>Admin RTIK Pusat / ISOC</td></tr>
-        <tr><td style="padding-top: 18mm;">( {{ $event->creator?->name ?? '..............................' }} )</td><td style="padding-top: 18mm;">( .............................. )</td></tr>
+        <tr><td style="padding-top: 18mm;">( {{ $event->creator?->name ?? '..............................' }} )</td><td style="padding-top: 18mm;">( {{ config('app.rtik_pusat_signatory') ?: '..............................' }} )</td></tr>
     </table>
 </body>
 </html>

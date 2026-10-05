@@ -6,7 +6,6 @@ use App\Support\IdentityNumber;
 use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\ParticipantResource\Pages;
-use App\Models\LearningEvent;
 use App\Models\Participant;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -100,12 +99,6 @@ class ParticipantResource extends Resource
                 Tables\Columns\IconColumn::make('joined_wag')->label('WAG')->boolean(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
-                        ? $query->whereHas('learningEvents', fn ($eventQuery) => $eventQuery->where('learning_events.id', $data['value']))
-                        : $query),
                 Tables\Filters\SelectFilter::make('school_id')
                     ->label('Sekolah')
                     ->options(fn () => static::scopedSchoolOptions())

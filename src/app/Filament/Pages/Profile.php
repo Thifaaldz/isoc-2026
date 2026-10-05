@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Services\MicrositeLinkChecker;
-use App\Rules\ReachableMicrositeUrl;
 use App\Support\IdentityNumber;
 use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
@@ -12,6 +11,7 @@ use App\Models\MicrositePractice;
 use App\Models\School;
 use App\Models\User;
 use Filament\Forms;
+use Illuminate\Support\HtmlString;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -79,7 +79,7 @@ class Profile extends Page implements HasForms
 
         $this->micrositeForm->fill([
             'learning_event_id' => $event?->id,
-            'sid_url' => $practice?->sid_url,
+            'sid_url' => MicrositeLinkChecker::sidPath($practice?->sid_url),
             'notes' => $practice?->notes,
         ]);
 
@@ -260,17 +260,40 @@ class Profile extends Page implements HasForms
                                         ->first()
                                     : null;
 
-                                $set('sid_url', $practice?->sid_url);
+                                $set('sid_url', MicrositeLinkChecker::sidPath($practice?->sid_url));
                                 $set('notes', $practice?->notes);
                             }),
+                        // Sama dengan kartu Link Microsite di dashboard: peserta cukup mengetik bagian setelah https://s.id/.
                         Forms\Components\TextInput::make('sid_url')
                             ->label('Link s.id')
-                            ->placeholder('s.id/ISOC_Champion')
-                            ->helperText('Link dicek otomatis: harus bisa dibuka, bukan halaman "Tidak Ditemukan".')
+                            ->prefix('https://s.id/')
+                            ->placeholder('Daftar_Peserta')
+                            ->helperText(function (Forms\Get $get): HtmlString {
+                                $text = e('Ketik nama link s.id Anda setelah https://s.id/ (mis. Daftar_Peserta). Link dicek otomatis dan harus bisa dibuka.');
+                                $saved = auth()->user()?->participant?->micrositePractices()
+                                    ->where('learning_event_id', $get('learning_event_id'))
+                                    ->whereNotNull('sid_url')
+                                    ->latest()
+                                    ->value('sid_url');
+
+                                // Sama dengan dashboard: link yang sudah tersimpan tampil hijau di bawah input.
+                                return new HtmlString($saved
+                                    ? $text . '<br><span style="color: #16a34a;">Link tersimpan: <a href="' . e($saved) . '" target="_blank" rel="noopener" style="font-weight: 600; text-decoration: underline; word-break: break-all;">' . e($saved) . '</a></span>'
+                                    : $text);
+                            })
+                            ->extraInputAttributes(['x-on:input' => "\$el.value = \$el.value.replace(/^\\s*(https?:\\/\\/)?(www\\.)?s\\.id\\//i, '')"])
+                            ->formatStateUsing(fn (?string $state) => MicrositeLinkChecker::sidPath($state))
                             ->required()
-                            ->maxLength(255)
-                            ->rule(new ReachableMicrositeUrl())
-                            ->dehydrateStateUsing(fn (?string $state) => MicrositeLinkChecker::normalize($state)),
+                            ->validationMessages(['required' => 'Link microsite wajib diisi, mis. Daftar_Peserta.'])
+                            ->maxLength(240)
+                            ->rule(fn () => function (string $attribute, mixed $value, \Closure $fail): void {
+                                $result = app(MicrositeLinkChecker::class)->check(static::sidUrl($value));
+
+                                if (! $result['ok']) {
+                                    $fail($result['reason']);
+                                }
+                            })
+                            ->dehydrateStateUsing(fn (?string $state) => static::sidUrl($state)),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan')
                             ->placeholder('Opsional, jelaskan isi microsite atau tugas yang dikumpulkan.')
@@ -375,12 +398,25 @@ class Profile extends Page implements HasForms
 
     public function updateMicrosite(): void
     {
-        $data = $this->micrositeForm->getState();
         $participant = auth()->user()?->participant;
+        $event = LearningEvent::query()->find($this->micrositeData['learning_event_id'] ?? null);
 
-        if (! $participant) {
+        // Sama dengan dashboard: hanya event yang diikuti dan bukti dukungnya (follow IG & join WAG) sudah lengkap.
+        if (! $participant || ! $event || ! $participant->learningEvents()->whereKey($event->id)->exists()) {
             return;
         }
+
+        if (! $participant->isApprovedForEvent($event)) {
+            Notification::make()
+                ->title('Link s.id belum bisa disimpan')
+                ->body('Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $data = $this->micrositeForm->getState();
 
         MicrositePractice::query()->updateOrCreate(
             [
@@ -395,10 +431,18 @@ class Profile extends Page implements HasForms
         );
 
         Notification::make()
-            ->title('Link s.id berhasil disimpan')
-            ->body('Bukti akhir s.id sudah dianggap lengkap untuk event yang dipilih.')
+            ->title(MicrositeLinkChecker::SAVED_TITLE)
+            ->body(MicrositeLinkChecker::savedMessage($data['sid_url'], $event->title))
             ->success()
             ->send();
+    }
+
+    /** Awalan https://s.id/ selalu dibuat sistem; awalan yang ikut ditempel peserta dibuang. */
+    protected static function sidUrl(?string $state): string
+    {
+        $path = MicrositeLinkChecker::sidPath($state);
+
+        return $path === '' ? '' : 'https://s.id/' . $path;
     }
 
     public function updatePassword(): void

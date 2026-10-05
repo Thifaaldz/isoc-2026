@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\MaterialPreview;
 use App\Filament\Pages\CertificateDesignStudio;
 use App\Filament\Pages\CreateSeminarShortcut;
+use App\Filament\Pages\EventProgress;
 use App\Filament\Pages\ManageHomePage;
 use App\Filament\Pages\Profile;
 use App\Filament\Resources;
@@ -99,7 +100,7 @@ class SuperAdminPanelProvider extends PanelProvider
                     ->values()
                     ->all()))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, ManageHomePage::class, CreateSeminarShortcut::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
+            ->pages([Pages\Dashboard::class, ManageHomePage::class, CreateSeminarShortcut::class, EventProgress::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
             // KPI di atas, lalu Update (kiri) & Reminder (kanan). Sign out tersedia di menu profil.
             ->widgets([ControlCenter::class, KpiOverview::class, LocationProgress::class, EventApprovalUpdates::class, EventApprovalReminders::class])
             ->middleware([

@@ -39,7 +39,8 @@ class MicrositePracticeResource extends Resource
 
     public static function manageRoles(): array
     {
-        return [UserRole::SuperAdmin, UserRole::Admin, UserRole::Peserta];
+        // Peserta memakai halaman ParticipantMicrosite (input https://s.id/ seperti di dashboard).
+        return [UserRole::SuperAdmin, UserRole::Admin];
     }
 
     public static function scopeType(): ?string
@@ -56,15 +57,13 @@ class MicrositePracticeResource extends Resource
             Forms\Components\Select::make('learning_event_id')
                 ->label('Event')
                 ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                // Peserta: otomatis event terbaru yang diikuti.
-                ->default(fn () => auth()->user()?->role === UserRole::Peserta
-                    ? static::scopeLearningEventBuilder(LearningEvent::query())->latest('starts_at')->value('id')
-                    : null)
+                // Event yang sedang dibuka di halaman card event langsung terpilih.
+                ->default(fn ($livewire) => $livewire->eventId ?? null)
                 ->searchable()
                 ->preload()
                 ->required(),
             Forms\Components\TextInput::make('sid_url')->label('Tautan s.id / microsite')->required()->maxLength(255)
-                ->placeholder('s.id/ISOC_Champion')
+                ->placeholder('s.id/Daftar_Peserta')
                 ->helperText('Link dicek otomatis: harus bisa dibuka, bukan halaman "Tidak Ditemukan".')
                 ->rule(new ReachableMicrositeUrl())
                 ->dehydrateStateUsing(fn (?string $state) => MicrositeLinkChecker::normalize($state)),
@@ -85,10 +84,6 @@ class MicrositePracticeResource extends Resource
                 Tables\Columns\TextColumn::make('status')->label('Status')->badge(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                    ->query(fn ($query, array $data) => filled($data['value'] ?? null) ? $query->where('learning_event_id', $data['value']) : $query),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options(['submitted' => 'Dikumpulkan', 'reviewed' => 'Ditinjau']),

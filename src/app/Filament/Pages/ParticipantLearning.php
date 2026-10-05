@@ -11,6 +11,7 @@ use App\Models\LearningMaterial;
 use App\Models\LearningMeeting;
 use App\Models\Participant;
 use App\Services\CertificateEligibilityService;
+use App\Services\EventAttendanceService;
 use App\Support\MaterialViewer;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -503,7 +504,7 @@ class ParticipantLearning extends Page
         }
 
         if ($assessment->type === 'post') {
-            return $this->hasCompletedType('pre') && $this->allQuizCompleted();
+            return $this->hasCompletedType('pre') && $this->allQuizCompleted() && $this->hasCheckedIn();
         }
 
         if ($assessment->type === 'quiz') {
@@ -531,7 +532,21 @@ class ParticipantLearning extends Page
             return 'Semua kuis modul harus selesai sebelum mengerjakan post-test.';
         }
 
+        if ($assessment->type === 'post' && ! $this->hasCheckedIn()) {
+            return 'Anda belum absen. Klik "Absen Sekarang" di kartu Absensi Kegiatan pada Dashboard sebelum mengerjakan post-test.';
+        }
+
         return '';
+    }
+
+    /** Peserta wajib absen di event terpilih sebelum mengerjakan post-test. */
+    public function hasCheckedIn(): bool
+    {
+        if (! $this->participant || ! $this->selectedEvent) {
+            return false;
+        }
+
+        return $this->memo['checked_in.' . $this->selectedEventId] ??= app(EventAttendanceService::class)->hasCheckedIn($this->participant, $this->selectedEvent);
     }
 
     public function hasCompletedType(string $type): bool

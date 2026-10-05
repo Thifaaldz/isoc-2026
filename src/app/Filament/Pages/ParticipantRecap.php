@@ -6,7 +6,7 @@ use App\Enums\UserRole;
 use App\Filament\Widgets\ParticipantRecapTable;
 use Filament\Pages\Page;
 
-/** Admin RTIK Daerah: daftar peserta yang sudah pre-test, post-test, join WhatsApp Group, dan follow Instagram ISOC. */
+/** Admin RTIK Daerah: rekap kehadiran, nilai pre/post-test, microsite, join WhatsApp Group, dan follow Instagram peserta. */
 class ParticipantRecap extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-user-group';

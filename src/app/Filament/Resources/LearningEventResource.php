@@ -16,7 +16,6 @@ use App\Support\TorEventTemplate;
 use App\Models\ModuleTemplate;
 use App\Models\Partner;
 use App\Models\School;
-use App\Services\EventAttendanceService;
 use App\Services\ImportSpreadsheetParser;
 use App\Services\LearningEventProvisioner;
 use Filament\Forms;
@@ -568,6 +567,16 @@ class LearningEventResource extends Resource
 
     public static function table(Table $table): Table
     {
+        // RTIK Pusat (Super Admin) melihat event sebagai card per lokasi; klik card membuka popup detail event.
+        if (auth()->user()?->role === UserRole::SuperAdmin) {
+            $table = $table
+                ->contentGrid(['md' => 2, 'xl' => 3])
+                ->paginated([12, 24, 48, 'all'])
+                ->defaultPaginationPageOption(12)
+                ->recordUrl(null)
+                ->recordAction('detail');
+        }
+
         return $table
             // Hitung tutor & tutor lulus ToT sekali di query (bukan per baris).
             ->modifyQueryUsing(fn ($query) => $query
@@ -575,7 +584,7 @@ class LearningEventResource extends Resource
                 ->withCount(['totAssessments as tot_passed_count' => fn ($totQuery) => $totQuery
                     ->where('is_perfect', true)
                     ->select(\Illuminate\Support\Facades\DB::raw('count(distinct tutor_id)'))]))
-            ->columns([
+            ->columns(auth()->user()?->role === UserRole::SuperAdmin ? static::cardColumns() : [
                 Tables\Columns\TextColumn::make('title')->label('Event')->searchable()->sortable(),
                 // Nama event sudah memuat kota lokasi, jadi kolom lokasi disembunyikan default agar status tidak terpotong.
                 Tables\Columns\TextColumn::make('school.name')->label('Lokasi')->searchable()->sortable()->toggleable(isToggledHiddenByDefault: true),
@@ -704,7 +713,18 @@ class LearningEventResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_published')
                     ->label('Publish'),
             ])
-            ->actions([
+            ->actions(static::cardActions([
+                Tables\Actions\Action::make('detail')
+                    ->label('Detail')
+                    ->icon('heroicon-o-information-circle')
+                    ->color('gray')
+                    ->visible(fn () => auth()->user()?->role === UserRole::SuperAdmin)
+                    ->modalHeading(fn (LearningEvent $record) => $record->title)
+                    ->modalDescription(fn (LearningEvent $record) => $record->school?->name)
+                    ->modalContent(fn (LearningEvent $record) => view('filament.resources.learning-event.detail-modal', ['event' => $record]))
+                    ->modalWidth('5xl')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup'),
                 Tables\Actions\ViewAction::make()
                     ->label('Preview')
                     ->icon('heroicon-o-eye'),
@@ -792,13 +812,6 @@ class LearningEventResource extends Resource
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\Action::make('generateAttendanceCode')
-                        ->label('Kode Absensi')
-                        ->icon('heroicon-o-qr-code')
-                        ->action(function (LearningEvent $record): void {
-                            $code = app(EventAttendanceService::class)->generateCode($record);
-                            Notification::make()->title('Kode absensi dibuat')->body($code)->success()->send();
-                        }),
                     Tables\Actions\Action::make('printWetAttendance')
                         ->label('Template Absensi Basah')
                         ->icon('heroicon-o-printer')
@@ -827,7 +840,7 @@ class LearningEventResource extends Resource
                 ])
                     ->label('Lainnya')
                     ->tooltip('Aksi lainnya'),
-            ])
+            ]))
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
@@ -1092,6 +1105,84 @@ class LearningEventResource extends Resource
                             ->danger()
                             ->send();
                     }),
+        ];
+    }
+
+    /**
+     * Card Super Admin: tombol Detail tetap terlihat, aksi lain dirangkum ke dropdown "Aksi" agar tidak keluar dari card.
+     * Role lain tetap memakai deretan aksi tabel seperti biasa.
+     */
+    protected static function cardActions(array $actions): array
+    {
+        if (auth()->user()?->role !== UserRole::SuperAdmin) {
+            return $actions;
+        }
+
+        [$detail, $others] = collect($actions)->partition(fn ($action) => $action instanceof Tables\Actions\Action && $action->getName() === 'detail');
+
+        return [
+            ...$detail->all(),
+            Tables\Actions\ActionGroup::make($others
+                ->map(fn ($action) => $action instanceof Tables\Actions\ActionGroup ? $action->dropdown(false) : $action)
+                ->values()
+                ->all())
+                ->label('Aksi')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->button()
+                ->size('sm')
+                ->color('gray'),
+        ];
+    }
+
+    /** Isi card event per lokasi (tampilan Super Admin). */
+    protected static function cardColumns(): array
+    {
+        $overview = fn (LearningEvent $record) => new \App\Support\EventOverview($record);
+
+        return [
+            Tables\Columns\Layout\Stack::make([
+                Tables\Columns\TextColumn::make('workflow_status')
+                    ->badge()
+                    ->formatStateUsing(fn (LearningEvent $record) => $overview($record)->status()['label'])
+                    ->color(fn (LearningEvent $record) => $overview($record)->status()['color']),
+                Tables\Columns\TextColumn::make('school.name')
+                    ->icon('heroicon-m-map-pin')
+                    ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                    ->size(Tables\Columns\TextColumn\TextColumnSize::Large)
+                    ->placeholder('Lokasi belum diatur')
+                    ->wrap()
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('title')->color('gray')->wrap()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('starts_at')
+                    ->icon('heroicon-m-calendar-days')
+                    ->dateTime('d M Y, H:i')
+                    ->placeholder('Jadwal belum diatur')
+                    ->sortable(),
+                Tables\Columns\Layout\Split::make([
+                    Tables\Columns\TextColumn::make('participants_count')
+                        ->counts('participants')
+                        ->icon('heroicon-m-user-group')
+                        ->formatStateUsing(fn ($state) => "{$state} peserta")
+                        ->sortable(),
+                    Tables\Columns\TextColumn::make('tot_progress')
+                        ->icon('heroicon-m-academic-cap')
+                        ->state(fn (LearningEvent $record): string => 'ToT ' . (int) $record->tot_passed_count . '/' . (int) $record->tutors_count),
+                    Tables\Columns\IconColumn::make('is_published')
+                        ->boolean()
+                        ->tooltip(fn (LearningEvent $record) => $record->is_published ? 'Sudah publish' : 'Belum publish')
+                        ->grow(false),
+                ]),
+                Tables\Columns\TextColumn::make('final_report_status')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state) => 'Laporan: ' . (static::finalReportStatusOptions()[$state ?: 'draft'] ?? $state))
+                    ->color(fn (?string $state) => match ($state) {
+                        'approved' => 'success',
+                        'submitted' => 'warning',
+                        'revision' => 'danger',
+                        default => 'gray',
+                    }),
+            ])->space(2),
         ];
     }
 

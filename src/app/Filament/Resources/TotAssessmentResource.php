@@ -50,6 +50,7 @@ class TotAssessmentResource extends Resource
         return $form->schema([
             Forms\Components\Select::make('learning_event_id')
                 ->label('Event')
+                ->default(fn ($livewire) => $livewire->eventId ?? null)
                 ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
                 ->searchable()
                 ->preload()
@@ -79,9 +80,6 @@ class TotAssessmentResource extends Resource
                 Tables\Columns\TextColumn::make('completed_at')->label('Selesai')->dateTime()->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id')),
                 Tables\Filters\TernaryFilter::make('is_perfect')->label('Lulus sempurna'),
             ])
             ->actions([

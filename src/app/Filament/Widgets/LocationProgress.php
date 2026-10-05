@@ -42,7 +42,8 @@ class LocationProgress extends Widget
                     'proof_done' => $checklist->where('done', true)->count(),
                     'proof_total' => $checklist->count(),
                     'report' => $overview->finalReportStatus(),
-                    'url' => LearningEventResource::getUrl('view', ['record' => $event]),
+                    // Klik lokasi membuka halaman progres: checklist terpenuhi & belum terpenuhi.
+                    'url' => \App\Filament\Pages\EventProgress::getUrl(['event' => $event->id]),
                     'needs_action' => $event->final_report_status === 'submitted' || $event->workflow_status === 'submitted' || $event->publish_approval_status === 'pending',
                 ];
             });

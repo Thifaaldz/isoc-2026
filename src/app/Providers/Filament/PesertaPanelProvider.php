@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\EventCatalog;
 use App\Filament\Pages\ParticipantLearning;
 use App\Filament\Pages\ParticipantCompleteness;
+use App\Filament\Pages\ParticipantMicrosite;
 use App\Filament\Pages\ParticipantTests;
 use App\Filament\Pages\EventRundown;
 use App\Filament\Pages\ParticipantAttendance;
@@ -45,7 +46,7 @@ class PesertaPanelProvider extends PanelProvider
                 'Validasi & Sertifikat',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, EventCatalog::class, ParticipantLearning::class, ParticipantTests::class, EventRundown::class, ParticipantAttendance::class, ParticipantCompleteness::class, Profile::class])
+            ->pages([Pages\Dashboard::class, EventCatalog::class, ParticipantLearning::class, ParticipantTests::class, EventRundown::class, ParticipantAttendance::class, ParticipantMicrosite::class, ParticipantCompleteness::class, Profile::class])
             ->widgets([ParticipantDashboardOverview::class, KpiOverview::class])
             ->middleware([
                 EncryptCookies::class,

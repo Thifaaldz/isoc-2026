@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Evidence extends Model
 {
@@ -160,4 +161,42 @@ class Evidence extends Model
 
     public function learningEvent(): BelongsTo { return $this->belongsTo(LearningEvent::class); }
 
+    public function uploader(): BelongsTo { return $this->belongsTo(User::class, 'uploaded_by'); }
+
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+    private const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'ogv', 'mov'];
+
+    public function fileUrl(): ?string
+    {
+        return $this->file_path ? Storage::disk('public')->url($this->file_path) : null;
+    }
+
+    /** Jenis pratinjau bukti: image, video, pdf, file (dokumen lain), youtube, link, atau none. */
+    public function mediaKind(): string
+    {
+        if ($this->file_path) {
+            $extension = strtolower(pathinfo($this->file_path, PATHINFO_EXTENSION));
+
+            return match (true) {
+                in_array($extension, self::IMAGE_EXTENSIONS, true) => 'image',
+                in_array($extension, self::VIDEO_EXTENSIONS, true) => 'video',
+                $extension === 'pdf' => 'pdf',
+                default => 'file',
+            };
+        }
+
+        if ($this->link) {
+            return $this->youtubeId() ? 'youtube' : 'link';
+        }
+
+        return 'none';
+    }
+
+    public function youtubeId(): ?string
+    {
+        return $this->link && preg_match('~(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/))([A-Za-z0-9_-]{11})~', $this->link, $match)
+            ? $match[1]
+            : null;
+    }
 }

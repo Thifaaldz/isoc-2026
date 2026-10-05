@@ -75,6 +75,11 @@ Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview'
     ->name('reports.events.activity.preview');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/download', [EventActivityReportController::class, 'download'])
     ->name('reports.events.activity.download');
+// QR tanda tangan elektronik tutor di laporan kegiatan (signed URL, publik).
+Route::get('/signatures/tutor/{event}/{tutor}', [\App\Http\Controllers\TutorSignatureVerificationController::class, 'show'])
+    ->whereNumber(['event', 'tutor'])
+    ->middleware('throttle:30,1')
+    ->name('signatures.tutor.verify');
 Route::get('/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
     ->middleware('throttle:30,1')

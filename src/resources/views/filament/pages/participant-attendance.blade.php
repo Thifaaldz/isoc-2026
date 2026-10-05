@@ -4,6 +4,7 @@
         $event = $this->selectedEvent;
         $modeOptions = $this->modeOptions;
         $attendance = $this->attendanceForSelected();
+        $code = $this->codeForSelected();
         $history = $this->history;
         $typeLabels = ['offline' => 'Offline', 'webinar' => 'Online / Webinar', 'hybrid' => 'Hybrid (Offline & Online)'];
     @endphp
@@ -14,7 +15,7 @@
         .att-label { font-size: 13px; font-weight: 600; }
         .att-help { color: #64748b; font-size: 12px; }
         .att-error { color: #dc2626; font-size: 12px; }
-        .att-code input { font-size: 22px !important; font-weight: 700; letter-spacing: .35em; text-transform: uppercase; }
+        .att-code-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 26px; font-weight: 800; letter-spacing: .35em; text-align: center; padding: 10px; border-radius: 10px; background: rgba(var(--primary-500), .08); color: rgb(var(--primary-600)); }
         .att-info { display: grid; gap: 10px; }
         .att-row { display: flex; gap: 10px; justify-content: space-between; font-size: 13px; border-bottom: 1px dashed rgba(148, 163, 184, .35); padding-bottom: 8px; }
         .att-row span:first-child { color: #64748b; }
@@ -31,7 +32,7 @@
         </x-filament::section>
     @else
         <div class="att-grid">
-            <x-filament::section icon="heroicon-o-clipboard-document-check" heading="Form Absensi" description="Masukkan kode absensi yang dibagikan tutor/fasilitator saat kegiatan berlangsung.">
+            <x-filament::section icon="heroicon-o-clipboard-document-check" heading="Form Absensi" description="Kode absensi dibuat otomatis pada hari pelaksanaan. Absensi wajib diisi sebelum mengerjakan post-test.">
                 <form wire:submit="submit">
                     <div class="att-field">
                         <label class="att-label" for="att-event">Event</label>
@@ -50,6 +51,12 @@
                             <strong>Anda sudah absen di event ini.</strong><br>
                             Hadir {{ $attendance->mode === 'online' ? 'online' : 'offline' }} pada {{ $attendance->checked_in_at?->translatedFormat('d F Y, H:i') }} WIB.
                         </div>
+                    @elseif (! $code)
+                        <p class="att-help">
+                            {{ $event?->starts_at?->isFuture()
+                                ? 'Kode absensi muncul otomatis pada hari pelaksanaan (' . $event->starts_at->translatedFormat('d F Y') . ').'
+                                : 'Absensi untuk event ini sudah ditutup.' }}
+                        </p>
                     @else
                         <div class="att-field">
                             <label class="att-label" for="att-mode">Jenis Kehadiran</label>
@@ -64,16 +71,13 @@
                             @error('mode') <span class="att-error">{{ $message }}</span> @enderror
                         </div>
 
-                        <div class="att-field att-code">
-                            <label class="att-label" for="att-code">Kode Absensi</label>
-                            <x-filament::input.wrapper :valid="! $errors->has('code')">
-                                <x-filament::input id="att-code" type="text" wire:model="code" maxlength="20" autocomplete="off" placeholder="XXXXXX" />
-                            </x-filament::input.wrapper>
-                            @error('code') <span class="att-error">{{ $message }}</span> @enderror
+                        <div class="att-field">
+                            <span class="att-label">Kode Absensi</span>
+                            <div class="att-code-value">{{ $code }}</div>
                         </div>
 
                         <x-filament::button type="submit" icon="heroicon-o-check-circle" wire:loading.attr="disabled">
-                            Kirim Absensi
+                            Absen Sekarang
                         </x-filament::button>
                     @endif
                 </form>

@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\AssessmentAttemptResource\Pages;
 use App\Models\AssessmentAttempt;
-use App\Models\LearningEvent;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -75,12 +74,6 @@ class AssessmentAttemptResource extends Resource
                 Tables\Columns\TextColumn::make('submitted_at')->label('Submit')->searchable()->sortable()->dateTime(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('learning_event_id')
-                    ->label('Event')
-                    ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
-                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
-                        ? $query->whereHas('assessment', fn ($assessmentQuery) => $assessmentQuery->where('learning_event_id', $data['value']))
-                        : $query),
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis Tes')
                     ->options(['pre' => 'Pre-Test', 'quiz' => 'Kuis Modul', 'post' => 'Post-Test'])

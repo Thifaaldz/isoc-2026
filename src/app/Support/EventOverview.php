@@ -144,6 +144,13 @@ class EventOverview
             'participants' => $participantIds->count(),
             'target' => (int) ($event->target_participants ?: 0),
             'attended' => DB::table('attendances')->where('learning_event_id', $event->id)->where('status', 'hadir')->distinct()->count('participant_id'),
+            'microsite' => DB::table('microsite_practices')
+                ->where('learning_event_id', $event->id)
+                ->whereIn('participant_id', $participantIds)
+                ->whereNotNull('sid_url')
+                ->where('sid_url', '!=', '')
+                ->distinct()
+                ->count('participant_id'),
             'pre' => $participantIds->intersect($pre)->count(),
             'post' => $participantIds->intersect($post)->count(),
             'complete' => $complete,

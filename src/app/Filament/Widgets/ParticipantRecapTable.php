@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\UserRole;
+use App\Filament\Support\MarkAttendanceActions;
 use App\Models\EventParticipant;
 use App\Models\LearningEvent;
 use Filament\Tables;
@@ -12,9 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Rekap peserta per event:
- *  - Admin RTIK Daerah: pre-test, post-test, join WhatsApp Group, follow Instagram ISOC (default hanya yang sudah lengkap).
- *  - Tutor: absensi, join WhatsApp Group, nilai, ranking (post-test lalu pre-test), dan microsite.
+ * Rekap peserta per event untuk Admin RTIK Daerah dan Tutor: ranking (post-test lalu pre-test), kehadiran,
+ * nilai pre/post-test, praktik microsite, join WhatsApp Group, dan follow Instagram ISOC.
  */
 class ParticipantRecapTable extends TableWidget
 {
@@ -93,44 +93,59 @@ class ParticipantRecapTable extends TableWidget
 
         $tutor = $this->isTutor();
         $check = fn (string $name, string $label) => Tables\Columns\IconColumn::make($name)->label($label)->boolean()->sortable();
+        $hasTest = fn (string $type) => Tables\Filters\TernaryFilter::make("has_{$type}")->label($type === 'pre' ? 'Pre-Test' : 'Post-Test')
+            ->trueLabel('Sudah')->falseLabel('Belum')
+            ->queries(true: fn (Builder $q) => $q->whereExists($hasAttempt($type)), false: fn (Builder $q) => $q->whereNotExists($hasAttempt($type)));
 
+        // Kolom & filter sama untuk Admin RTIK Daerah dan Tutor; semua peserta tampil (filter "lengkap" opsional).
         return $table
             ->heading($tutor ? 'Rekap & Ranking Peserta' : 'Peserta Lengkap')
-            ->description($tutor
-                ? 'Absensi, join WhatsApp Group, nilai pre/post-test, ranking, dan microsite peserta di event Anda.'
-                : 'Peserta yang sudah mengerjakan pre-test dan post-test, join WhatsApp Group, dan follow Instagram ISOC.')
+            ->description('Kehadiran, nilai pre/post-test, ranking, praktik microsite, join WhatsApp Group, dan follow Instagram peserta di event Anda.')
             ->query($query)
-            ->defaultSort($tutor ? 'post_score' : 'learning_event_participant.created_at', 'desc')
-            ->columns(array_values(array_filter([
-                $tutor ? Tables\Columns\TextColumn::make('rank')->label('Rank')->badge()->color('warning')
-                    ->state(fn (EventParticipant $record) => $this->rankFor($record)) : null,
+            ->defaultSort('post_score', 'desc')
+            ->columns([
+                Tables\Columns\TextColumn::make('rank')->label('Rank')->badge()->color('warning')->placeholder('-')
+                    ->state(fn (EventParticipant $record) => $this->rankFor($record)),
                 Tables\Columns\TextColumn::make('participant.user.name')->label('Nama')->searchable()
                     ->description(fn (EventParticipant $record) => $record->participant?->user?->email),
                 Tables\Columns\TextColumn::make('learningEvent.title')->label('Event')->toggleable(),
-                $tutor ? $check('attended', 'Hadir') : null,
+                $check('attended', 'Hadir'),
                 Tables\Columns\TextColumn::make('pre_score')->label('Pre-Test')->numeric(1)->placeholder('-')->sortable(),
                 Tables\Columns\TextColumn::make('post_score')->label('Post-Test')->numeric(1)->placeholder('-')->sortable(),
+                Tables\Columns\TextColumn::make('microsite_url')->label('Microsite')->placeholder('Belum')
+                    ->formatStateUsing(fn () => 'Buka')->url(fn (EventParticipant $record) => $record->microsite_url, true)->color('success'),
                 $check('joined_wag', 'Join WAG'),
-                $tutor ? null : $check('followed_instagram', 'Follow IG'),
-                $tutor ? Tables\Columns\TextColumn::make('microsite_url')->label('Microsite')->placeholder('Belum')
-                    ->formatStateUsing(fn () => 'Buka')->url(fn (EventParticipant $record) => $record->microsite_url, true)->color('success') : null,
-            ])))
-            ->filters(array_values(array_filter([
+                $check('followed_instagram', 'Follow IG'),
+            ])
+            ->filters([
                 Tables\Filters\SelectFilter::make('learning_event_id')->label('Event')
                     ->options(fn () => $this->eventQuery()->orderBy('title')->pluck('title', 'id')),
-                $tutor ? null : Tables\Filters\Filter::make('complete')->label('Hanya yang lengkap')->default()
+                Tables\Filters\Filter::make('complete')->label('Hanya yang lengkap (hadir, pre & post-test, microsite, WAG, IG)')
                     ->query(fn (Builder $query) => $query
+                        ->whereExists($attendedQuery)
                         ->whereExists($hasAttempt('pre'))
                         ->whereExists($hasAttempt('post'))
+                        ->whereExists($micrositeQuery)
                         ->where('participants.joined_wag', true)
                         ->where('participants.followed_instagram', true)),
-                $tutor ? Tables\Filters\TernaryFilter::make('attended')->label('Hadir')
-                    ->queries(true: fn (Builder $q) => $q->whereExists($attendedQuery), false: fn (Builder $q) => $q->whereNotExists($attendedQuery)) : null,
+                Tables\Filters\TernaryFilter::make('attended')->label('Hadir')
+                    ->queries(true: fn (Builder $q) => $q->whereExists($attendedQuery), false: fn (Builder $q) => $q->whereNotExists($attendedQuery)),
+                $hasTest('pre'),
+                $hasTest('post'),
+                Tables\Filters\TernaryFilter::make('microsite')->label('Praktik microsite')
+                    ->queries(true: fn (Builder $q) => $q->whereExists($micrositeQuery), false: fn (Builder $q) => $q->whereNotExists($micrositeQuery)),
                 Tables\Filters\TernaryFilter::make('joined_wag')->label('Join WAG')
                     ->queries(true: fn (Builder $q) => $q->where('participants.joined_wag', true), false: fn (Builder $q) => $q->where('participants.joined_wag', false)),
-                $tutor ? Tables\Filters\TernaryFilter::make('microsite')->label('Daftar microsite')
-                    ->queries(true: fn (Builder $q) => $q->whereExists($micrositeQuery), false: fn (Builder $q) => $q->whereNotExists($micrositeQuery)) : null,
-            ])))
+                Tables\Filters\TernaryFilter::make('followed_instagram')->label('Follow IG')
+                    ->queries(true: fn (Builder $q) => $q->where('participants.followed_instagram', true), false: fn (Builder $q) => $q->where('participants.followed_instagram', false)),
+            ])
+            // Absensi massal: semua peserta satu event, atau peserta yang dicentang.
+            ->headerActions([
+                MarkAttendanceActions::markAll(Tables\Actions\Action::class, fn () => $this->eventQuery()->orderBy('title')->pluck('title', 'id')),
+            ])
+            ->bulkActions([
+                MarkAttendanceActions::markSelected(fn (EventParticipant $record) => $record->learning_event_id, fn (EventParticipant $record) => $record->participant_id),
+            ])
             ->paginated([10, 25, 50, 100]);
     }
 

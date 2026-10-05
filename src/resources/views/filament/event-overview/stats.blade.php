@@ -19,6 +19,11 @@
         <div class="eo-bar"><span style="background: var(--eo-warning); width: {{ $pct($s['post'], $s['participants']) }}%;"></span></div>
     </div>
     <div class="eo-stat">
+        <div class="eo-stat-label">Praktik microsite</div>
+        <div class="eo-stat-value">{{ $s['microsite'] }}<small>/{{ $s['participants'] }}</small></div>
+        <div class="eo-bar"><span style="background: var(--eo-info); width: {{ $pct($s['microsite'], $s['participants']) }}%;"></span></div>
+    </div>
+    <div class="eo-stat">
         <div class="eo-stat-label">Peserta lengkap</div>
         <div class="eo-stat-value">{{ $s['complete'] }}<small>/{{ $s['participants'] }}</small></div>
         <div class="eo-bar"><span style="background: var(--eo-success); width: {{ $pct($s['complete'], $s['participants']) }}%;"></span></div>

@@ -26,7 +26,7 @@
             <p class="ac-meta">Belum ada event untuk Anda.</p>
         </x-filament::section>
     @else
-        <x-filament::section :heading="auth()->user()?->role === \App\Enums\UserRole::Admin ? 'Event yang Anda kelola' : 'Event yang Anda dampingi'" description="Generate kode lalu bagikan ke peserta (tampilkan di layar untuk offline, kirim di chat Zoom/WAG untuk online). Peserta memasukkan kode di menu Absensi pada panel peserta." icon="heroicon-o-qr-code">
+        <x-filament::section :heading="auth()->user()?->role === \App\Enums\UserRole::Admin ? 'Event yang Anda kelola' : 'Event yang Anda dampingi'" description="Kode absensi dibuat otomatis oleh sistem pada hari pelaksanaan dan langsung tampil di dashboard peserta. Peserta wajib absen sebelum mengerjakan post-test." icon="heroicon-o-qr-code">
             <div class="ac-list">
                 @foreach ($events as $event)
                     <div wire:key="ac-{{ $event->id }}" wire:click="selectEvent({{ $event->id }})" class="ac-card {{ $selected?->id === $event->id ? 'is-active' : '' }}">
@@ -44,15 +44,12 @@
                                 <x-filament::badge color="danger">Selesai</x-filament::badge>
                             @endif
                         </div>
-                        <div class="ac-code {{ $event->attendance_code ? '' : 'is-empty' }}">
-                            {{ $event->attendance_code ?: 'Kode belum dibuat' }}
+                        @php $code = $this->codeFor($event) ?? $event->attendance_code; @endphp
+                        <div class="ac-code {{ $code ? '' : 'is-empty' }}">
+                            {{ $code ?: 'Kode dibuat otomatis pada hari H' }}
                         </div>
                         <div class="ac-foot">
                             <span class="ac-count"><strong>{{ $event->checked_in_count }}</strong> / {{ $event->participants_count }} peserta hadir</span>
-                            <x-filament::button size="sm" icon="heroicon-o-arrow-path" wire:click.stop="generate({{ $event->id }})"
-                                wire:confirm="{{ $event->attendance_code ? 'Buat kode baru? Kode lama tidak bisa dipakai lagi.' : 'Buat kode absensi untuk event ini?' }}">
-                                {{ $event->attendance_code ? 'Generate Ulang' : 'Generate Kode' }}
-                            </x-filament::button>
                         </div>
                     </div>
                 @endforeach

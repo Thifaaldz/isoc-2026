@@ -6,12 +6,11 @@ use App\Enums\UserRole;
 use App\Models\Attendance;
 use App\Models\LearningEvent;
 use App\Services\EventAttendanceService;
-use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Livewire\Attributes\Url;
 
-/** Tutor dan fasilitator (Admin RTIK Daerah) membuat kode absensi event dan memantau peserta yang sudah absen. */
+/** Tutor dan fasilitator (Admin RTIK Daerah) melihat kode absensi otomatis event dan memantau peserta yang sudah absen. */
 class EventAttendanceCode extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-qr-code';
@@ -99,29 +98,14 @@ class EventAttendanceCode extends Page
         return app(EventAttendanceService::class)->isOpen($event);
     }
 
+    /** Kode dibuat otomatis oleh sistem pada hari pelaksanaan. */
+    public function codeFor(LearningEvent $event): ?string
+    {
+        return app(EventAttendanceService::class)->codeFor($event);
+    }
+
     public function selectEvent(int $eventId): void
     {
         $this->selectedEventId = $eventId;
-    }
-
-    public function generate(int $eventId): void
-    {
-        // Hanya event milik tutor/fasilitator ini.
-        $event = $this->events->firstWhere('id', $eventId);
-
-        if (! $event) {
-            Notification::make()->title('Event tidak ditemukan')->danger()->send();
-
-            return;
-        }
-
-        $code = app(EventAttendanceService::class)->generateCode($event);
-        $this->selectedEventId = $event->id;
-
-        Notification::make()
-            ->title('Kode absensi dibuat')
-            ->body("{$code} — bagikan ke peserta {$event->title}. Kode lama tidak berlaku lagi.")
-            ->success()
-            ->send();
     }
 }

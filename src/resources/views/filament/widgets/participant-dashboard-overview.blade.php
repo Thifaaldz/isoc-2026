@@ -175,6 +175,32 @@
         flex-basis: 260px;
     }
 
+    .pd-attendance-card {
+        min-height: 0;
+    }
+
+    .pd-attendance-mode {
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        min-height: 40px;
+        padding: 0 12px;
+    }
+
+    .pd-attendance-code {
+        align-items: center;
+        background: #f1f5f9;
+        border: 1px dashed #94a3b8;
+        border-radius: 8px;
+        display: inline-flex;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: .3em;
+        min-height: 40px;
+        padding: 0 14px;
+    }
+
     .pd-icon {
         align-items: center;
         background: #fff7ed;
@@ -520,6 +546,42 @@
             </div>
         </section>
 
+        @if ($hasEvent && $dashboardOpen && ($attendance ?? null))
+            @php $attendanceRecord = $attendance['record']; @endphp
+            <section class="pd-card pd-info-card pd-attendance-card">
+                <div class="pd-icon"><x-heroicon-o-finger-print /></div>
+                <div style="flex: 1; min-width: 0;">
+                    <p class="pd-card-label">Absensi Kegiatan</p>
+                    @if ($attendanceRecord)
+                        <p class="pd-card-title">Anda sudah absen</p>
+                        <p class="pd-card-text">Hadir {{ $attendanceRecord->mode === 'online' ? 'online' : 'offline' }} pada {{ $attendanceRecord->checked_in_at?->translatedFormat('d F Y, H:i') }} WIB.</p>
+                    @elseif (! $attendance['open'])
+                        <p class="pd-card-title">Absensi belum dibuka</p>
+                        <p class="pd-card-text">
+                            {{ $event->starts_at?->isFuture()
+                                ? 'Kode absensi muncul otomatis di sini pada hari pelaksanaan (' . $event->starts_at->translatedFormat('d F Y') . ').'
+                                : 'Absensi untuk event ini sudah ditutup.' }}
+                        </p>
+                    @else
+                        <p class="pd-card-title">Absen kegiatan hari ini</p>
+                        <p class="pd-card-text">Kode absensi Anda sudah dibuat otomatis. Klik <strong>Absen Sekarang</strong> untuk mencatat kehadiran{{ $stats['post_available'] ? ' — wajib sebelum mengerjakan post-test' : '' }}.</p>
+                        <form wire:submit="submitAttendance" class="pd-upload-form" style="margin-top: 14px;">
+                            <span class="pd-attendance-code" aria-label="Kode absensi">{{ $attendance['code'] }}</span>
+                            @if (count($attendance['modes']) > 1)
+                                <select wire:model="attendanceMode" aria-label="Jenis kehadiran" class="pd-attendance-mode">
+                                    @foreach ($attendance['modes'] as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            @endif
+                            <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="submitAttendance">Absen Sekarang</button>
+                        </form>
+                        @error('attendanceMode') <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p> @enderror
+                    @endif
+                </div>
+            </section>
+        @endif
+
         <section class="pd-info-grid">
             @if (($approval['requires_approval'] ?? false) && ! $dashboardOpen)
                 @php
@@ -655,7 +717,12 @@
                     ['label' => 'Pre-Test', 'available' => $stats['pre_available'], 'done' => $stats['pre_done'], 'score' => $score($stats['pre_score']), 'unlocked' => true,
                         'hint' => 'Kerjakan sebelum membuka modul.'],
                     ['label' => 'Post-Test', 'available' => $stats['post_available'], 'done' => $stats['post_done'], 'score' => $score($stats['post_score']), 'unlocked' => $stats['post_unlocked'],
-                        'hint' => $stats['post_unlocked'] ? 'Kerjakan setelah seluruh modul selesai.' : ($hasQuiz ? 'Terbuka setelah pre-test dan semua kuis modul selesai.' : 'Terbuka setelah pre-test selesai.')],
+                        'hint' => match (true) {
+                            $stats['post_unlocked'] => 'Kerjakan setelah seluruh modul selesai.',
+                            $stats['pre_done'] && $stats['quiz_done'] >= $stats['quiz_total'] && ! $stats['attended'] => 'Isi absensi kegiatan terlebih dahulu (kartu Absensi Kegiatan di atas).',
+                            $hasQuiz => 'Terbuka setelah pre-test, semua kuis modul, dan absensi selesai.',
+                            default => 'Terbuka setelah pre-test dan absensi selesai.',
+                        }],
                 ];
             @endphp
             <section class="pd-info-grid pd-info-grid-microsite">
@@ -670,17 +737,23 @@
                     <div style="flex: 1; min-width: 0;">
                         <p class="pd-card-label">Link Microsite</p>
                         <p class="pd-card-title">{{ $stats['microsite_done'] ? 'Sudah disematkan' : 'Sematkan link microsite' }}</p>
-                        <p class="pd-card-text">Ketik nama link s.id Anda setelah https://s.id/ (mis. ISOC_Champion). Link dicek otomatis dan harus bisa dibuka.</p>
+                        <p class="pd-card-text">Ketik nama link s.id Anda setelah https://s.id/ (mis. Daftar_Peserta). Link dicek otomatis dan harus bisa dibuka.</p>
                         <form wire:submit="saveMicrosite" class="pd-upload-form" style="margin-top: 14px;">
                             <div style="align-items: stretch; border: 1px solid #d1d5db; border-radius: 8px; display: flex; flex: 1; min-height: 40px; min-width: 0; overflow: hidden;">
                                 <span style="align-items: center; background: #f1f5f9; border-right: 1px solid #d1d5db; color: #64748b; display: flex; font-size: 13px; font-weight: 700; padding: 0 10px; white-space: nowrap;">https://s.id/</span>
-                                <input type="text" wire:model="micrositeUrl" placeholder="ISOC_Champion" aria-label="Nama link setelah https://s.id/"
+                                <input type="text" wire:model="micrositeUrl" placeholder="Daftar_Peserta" aria-label="Nama link setelah https://s.id/"
                                     x-on:input="$el.value = $el.value.replace(/^\s*(https?:\/\/)?(www\.)?s\.id\//i, '')"
                                     style="border: 0; box-shadow: none; flex: 1; font-size: 13px; min-width: 0; outline: none; padding: 0 12px;">
                             </div>
                             <button type="submit" class="pd-button pd-button-primary" wire:loading.attr="disabled" wire:target="saveMicrosite">Simpan</button>
                         </form>
-                        @error('micrositeUrl') <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p> @enderror
+                        @error('micrositeUrl')
+                            <p class="pd-card-text" style="color: #dc2626;">{{ $message }}</p>
+                        @else
+                            @if ($stats['microsite_done'] && $this->micrositeUrl)
+                                <p class="pd-card-text" style="color: #16a34a; margin-top: 8px;">Link tersimpan: <a href="https://s.id/{{ $this->micrositeUrl }}" target="_blank" rel="noopener" style="font-weight: 600; text-decoration: underline; word-break: break-all;">https://s.id/{{ $this->micrositeUrl }}</a></p>
+                            @endif
+                        @enderror
                     </div>
                 </div>
                 @foreach ($testCards as $test)

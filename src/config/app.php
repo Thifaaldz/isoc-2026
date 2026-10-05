@@ -18,6 +18,9 @@ return [
     // Tombol "New Event" (LearningEventResource::canCreate); event lokus disiapkan RTIK Pusat lewat seeder.
     'event_creation_enabled' => (bool) env('EVENT_CREATION_ENABLED', false),
 
+    // Penanda tangan "Pihak yang Menerima" (Admin RTIK Pusat / ISOC) di Berita Acara Serah Terima laporan kegiatan.
+    'rtik_pusat_signatory' => env('RTIK_PUSAT_SIGNATORY', 'Bayu Sulistiyanto Ipung Sutejo, S.Kom., M.Kom.'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

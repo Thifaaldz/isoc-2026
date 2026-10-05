@@ -13,7 +13,7 @@ class LearningEvent extends Model
     protected $guarded = [];
 
     /** Jumlah modul (pertemuan) dari Materi Event yang dibawakan dalam satu event. */
-    public const MODULES_PER_EVENT = 2;
+    public const MODULES_PER_EVENT = 6;
 
     protected function casts(): array
     {

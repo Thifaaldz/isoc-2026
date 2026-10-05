@@ -13,10 +13,12 @@ use App\Models\MicrositePractice;
 use App\Models\Evidence;
 use App\Models\LearningEvent;
 use App\Services\CertificateEligibilityService;
+use App\Services\EventAttendanceService;
 use App\Services\EventEnrollmentService;
 use Filament\Widgets\Widget;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
 
@@ -40,6 +42,8 @@ class ParticipantDashboardOverview extends Widget
 
     public ?string $micrositeUrl = null;
 
+    public ?string $attendanceMode = null;
+
     public static function canView(): bool
     {
         return auth()->user()?->role === UserRole::Peserta;
@@ -55,6 +59,8 @@ class ParticipantDashboardOverview extends Widget
     {
         $this->selectedEventId = $this->resolveSelectedEvent()?->id;
         $this->micrositeUrl = MicrositeLinkChecker::sidPath($this->currentMicrosite()?->sid_url);
+        $this->attendanceMode = null;
+        $this->resetErrorBag();
     }
 
     protected function getViewData(): array
@@ -175,6 +181,8 @@ class ParticipantDashboardOverview extends Widget
 
         // Grup WhatsApp dibuat Admin ISOC per lokasi event.
         $wag = app(EventEnrollmentService::class)->wagGroupFor($event);
+        $attendance = $this->attendanceCard($event, $participant);
+        $attended = $attendance['record']?->status === 'hadir';
 
         return [
             'event' => $event,
@@ -192,8 +200,9 @@ class ParticipantDashboardOverview extends Widget
                 'post_available' => $postIds->isNotEmpty(),
                 'pre_score' => $bestScore($preIds),
                 'post_score' => $bestScore($postIds),
-                // Post-test terbuka setelah pre-test dan semua kuis modul selesai (sama dengan halaman Tes).
-                'post_unlocked' => $preDone && $quizDone >= $quizIds->count(),
+                // Post-test terbuka setelah pre-test, semua kuis modul, dan absensi selesai (sama dengan halaman Tes).
+                'post_unlocked' => $preDone && $quizDone >= $quizIds->count() && $attended,
+                'attended' => $attended,
                 ...$this->postRetakeStats($event, $participant->id, $bestScore($postIds)),
                 'microsite_done' => $micrositeDone,
                 'progress' => (int) round(($doneSteps / $totalSteps) * 100),
@@ -203,7 +212,54 @@ class ParticipantDashboardOverview extends Widget
             'testsUrl' => ParticipantTests::getUrl(['event' => $event->id]),
             'rundownUrl' => EventRundown::getUrl(['event' => $event->id]),
             'certificateUrl' => $certificateUrl,
+            'attendance' => $attendance,
         ];
+    }
+
+    /** Data kartu absensi kode di dashboard (sama dengan halaman Absensi). */
+    private function attendanceCard(LearningEvent $event, $participant): array
+    {
+        $service = app(EventAttendanceService::class);
+        $modes = $service->modesFor($event);
+
+        if (! array_key_exists((string) $this->attendanceMode, $modes)) {
+            $this->attendanceMode = array_key_first($modes);
+        }
+
+        return [
+            'record' => $service->attendanceFor($participant, $event),
+            'open' => $service->isOpen($event),
+            'code' => $service->codeFor($event),
+            'modes' => $modes,
+        ];
+    }
+
+    /** Peserta absen langsung di dashboard dengan kode hari H yang dibuat otomatis oleh sistem. */
+    public function submitAttendance(): void
+    {
+        $participant = auth()->user()?->participant;
+        $event = $this->resolveSelectedEvent();
+
+        if (! $participant || ! $event) {
+            return;
+        }
+
+        $this->validate([
+            'attendanceMode' => ['required', 'string'],
+        ], [], ['attendanceMode' => 'jenis kehadiran']);
+
+        try {
+            $attendance = app(EventAttendanceService::class)->checkIn($participant, $event, $this->attendanceMode);
+        } catch (ValidationException $exception) {
+            // Error field event/mode dari service ditampilkan di bawah tombol absen dashboard.
+            throw ValidationException::withMessages(['attendanceMode' => collect($exception->errors())->flatten()->first()]);
+        }
+
+        Notification::make()
+            ->title('Absensi tercatat')
+            ->body('Hadir ' . ($attendance->mode === 'online' ? 'online' : 'offline') . ' pada ' . $attendance->checked_in_at?->format('H:i') . ' WIB.')
+            ->success()
+            ->send();
     }
 
     private function resolveSelectedEvent(): ?LearningEvent
@@ -252,6 +308,7 @@ class ParticipantDashboardOverview extends Widget
             'pre_score' => null,
             'post_score' => null,
             'post_unlocked' => false,
+            'attended' => false,
             'post_passing' => null,
             'post_passed' => false,
             'post_retakes_left' => 0,
@@ -321,6 +378,8 @@ class ParticipantDashboardOverview extends Widget
             return;
         }
 
+        $this->resetErrorBag('micrositeUrl');
+
         // Peserta cukup mengetik bagian setelah s.id/; awalan https://s.id/ selalu dibuat sistem (awalan yang ikut ditempel dibuang).
         $this->micrositeUrl = MicrositeLinkChecker::sidPath($this->micrositeUrl);
         $url = $this->micrositeUrl === '' ? '' : 'https://s.id/' . $this->micrositeUrl;
@@ -328,7 +387,7 @@ class ParticipantDashboardOverview extends Widget
         Validator::make(['micrositeUrl' => $url], [
             'micrositeUrl' => ['required', 'max:255', new ReachableMicrositeUrl()],
         ], [
-            'micrositeUrl.required' => 'Link microsite wajib diisi, mis. ISOC_Champion.',
+            'micrositeUrl.required' => 'Link microsite wajib diisi, mis. Daftar_Peserta.',
         ], [
             'micrositeUrl' => 'link microsite',
         ])->validate();
@@ -339,7 +398,8 @@ class ParticipantDashboardOverview extends Widget
         );
 
         Notification::make()
-            ->title('Link microsite tersimpan')
+            ->title(MicrositeLinkChecker::SAVED_TITLE)
+            ->body(MicrositeLinkChecker::savedMessage($url, $event->title))
             ->success()
             ->send();
     }

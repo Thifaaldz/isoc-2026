@@ -6,7 +6,7 @@
             <div class="eo-pad eo-row eo-between" style="border-bottom: 1px solid var(--eo-border);">
                 <div>
                     <p class="eo-h3" style="margin: 0;">Progres per lokasi</p>
-                    <p class="eo-muted" style="font-size: 12px;">Klik baris untuk membuka detail event.</p>
+                    <p class="eo-muted" style="font-size: 12px;">Klik baris untuk melihat progres event: checklist yang sudah dan belum terpenuhi.</p>
                 </div>
                 <div class="eo-row" style="gap: 6px;">
                     @foreach (['all' => 'Semua', 'action' => 'Perlu tindakan', 'upcoming' => 'Akan datang', 'finished' => 'Sudah berjalan'] as $key => $label)

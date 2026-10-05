@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose exec -T -e DB_DATABASE=isoc_manual:*)",
+      "Bash(cd /home/kumadz/Documents/Project/isoc && docker compose exec -T -e DB_DATABASE=isoc_manual:*)"
+    ]
+  }
+}

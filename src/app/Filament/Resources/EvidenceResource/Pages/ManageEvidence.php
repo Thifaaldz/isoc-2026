@@ -10,11 +10,52 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRecords;
+use Filament\Tables\Table;
 use Illuminate\Support\HtmlString;
+use Livewire\Attributes\Url;
 
 class ManageEvidence extends ManageRecords
 {
     protected static string $resource = EvidenceResource::class;
+
+    protected static string $view = 'filament.resources.evidence.manage';
+
+    /** Event yang sedang dibuka; kosong = halaman awal berisi card per event. */
+    #[Url(as: 'event')]
+    public ?int $eventId = null;
+
+    public string $eventSearch = '';
+
+    public function getEventCardsProperty()
+    {
+        return EvidenceResource::eventCards(trim($this->eventSearch) ?: null);
+    }
+
+    public function getSelectedEventProperty(): ?LearningEvent
+    {
+        return $this->eventId ? $this->eventCards->firstWhere('event.id', $this->eventId)['event'] ?? null : null;
+    }
+
+    public function openEvent(int $eventId): void
+    {
+        $this->eventId = $eventId;
+        $this->resetTable();
+    }
+
+    public function closeEvent(): void
+    {
+        $this->eventId = null;
+        $this->resetTable();
+    }
+
+    /** Card bukti dukung hanya untuk event yang dibuka. */
+    public function table(Table $table): Table
+    {
+        return parent::table($table)
+            ->modifyQueryUsing(fn ($query) => $query
+                ->with(['school', 'learningEvent', 'uploader'])
+                ->where('learning_event_id', $this->eventId ?? 0));
+    }
 
     protected function getHeaderActions(): array
     {
@@ -67,6 +108,7 @@ class ManageEvidence extends ManageRecords
                         Forms\Components\Select::make('learning_event_id')
                             ->label('Event')
                             ->options(fn () => EvidenceResource::eventOptions())
+                            ->default(fn () => $this->eventId)
                             ->searchable()
                             ->preload()
                             ->live()
