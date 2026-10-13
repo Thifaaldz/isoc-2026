@@ -131,7 +131,7 @@ class EventAttendanceService
         }
 
         if (! $participant->isApprovedForEvent($event)) {
-            $fail('eventId', 'Pendaftaran Anda di event ini belum disetujui admin/tutor.');
+            $fail('eventId', 'Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu sebelum absen.');
         }
 
         if (! $this->isOpen($event)) {

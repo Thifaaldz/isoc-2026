@@ -516,6 +516,10 @@ class ParticipantLearning extends Page
 
     public function assessmentLockReason(Assessment $assessment): string
     {
+        if (! $this->selectedEventApproved()) {
+            return 'Lengkapi bukti dukung (follow Instagram dan join WAG) di Dashboard terlebih dahulu.';
+        }
+
         if ($assessment->type === 'quiz' && ! $this->hasCompletedType('pre')) {
             return 'Pre-test harus diselesaikan sebelum mengerjakan kuis modul.';
         }

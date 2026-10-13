@@ -4,6 +4,7 @@
         $event = $this->selectedEvent;
         $modeOptions = $this->modeOptions;
         $attendance = $this->attendanceForSelected();
+        $approved = $this->selectedEventApproved();
         $code = $this->codeForSelected();
         $history = $this->history;
         $typeLabels = ['offline' => 'Offline', 'webinar' => 'Online / Webinar', 'hybrid' => 'Hybrid (Offline & Online)'];
@@ -20,6 +21,8 @@
         .att-row { display: flex; gap: 10px; justify-content: space-between; font-size: 13px; border-bottom: 1px dashed rgba(148, 163, 184, .35); padding-bottom: 8px; }
         .att-row span:first-child { color: #64748b; }
         .att-done { border: 1px solid #86efac; background: rgba(34, 197, 94, .08); border-radius: 12px; padding: 14px 16px; font-size: 13px; }
+        .att-locked { border: 1px solid #fcd34d; background: rgba(245, 158, 11, .1); border-radius: 12px; padding: 14px 16px; font-size: 13px; }
+        .att-locked a { color: rgb(var(--primary-600)); font-weight: 600; text-decoration: underline; }
         .att-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .att-table th, .att-table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid rgba(148, 163, 184, .25); }
         .att-table th { color: #64748b; font-weight: 600; }
@@ -50,6 +53,12 @@
                         <div class="att-done">
                             <strong>Anda sudah absen di event ini.</strong><br>
                             Hadir {{ $attendance->mode === 'online' ? 'online' : 'offline' }} pada {{ $attendance->checked_in_at?->translatedFormat('d F Y, H:i') }} WIB.
+                        </div>
+                    @elseif (! $approved)
+                        <div class="att-locked">
+                            <strong>Absensi masih terkunci.</strong><br>
+                            Lengkapi bukti dukung (upload screenshot follow Instagram ISOC dan centang join WhatsApp Group) di
+                            <a href="{{ \Filament\Pages\Dashboard::getUrl(['event' => $event?->id]) }}">Dashboard</a> terlebih dahulu.
                         </div>
                     @elseif (! $code)
                         <p class="att-help">

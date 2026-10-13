@@ -297,7 +297,7 @@ class PublicPageController extends Controller
     {
         return [
             'footer_description' => 'Mendukung pengembangan internet yang berkelanjutan, inklusif, aman, dan mudah diakses.',
-            'social_instagram' => 'https://www.instagram.com/isoc.jkt/',
+            'social_instagram' => 'https://www.instagram.com/isoc.id.jkt/',
             'social_linkedin' => 'https://www.linkedin.com/company/internet-society-chapter-jakarta-ina/',
         ];
     }

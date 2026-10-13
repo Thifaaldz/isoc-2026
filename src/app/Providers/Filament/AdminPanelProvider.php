@@ -10,6 +10,7 @@ use App\Filament\Pages\ParticipantRecap;
 use App\Filament\Pages\ShareLinks;
 use App\Filament\Pages\ParticipantApproval;
 use App\Filament\Pages\Profile;
+use App\Filament\Pages\RegionalAccounts;
 use App\Filament\Widgets\EventMonitoring;
 use App\Filament\Widgets\KpiOverview;
 use Filament\Http\Middleware\Authenticate;
@@ -51,7 +52,7 @@ class AdminPanelProvider extends PanelProvider
                 'Administrasi',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, EventAttendanceCode::class, ParticipantRecap::class, FinalReport::class, ShareLinks::class, MaterialPreview::class, Profile::class])
+            ->pages([Pages\Dashboard::class, CreateSeminarShortcut::class, ParticipantApproval::class, EventAttendanceCode::class, ParticipantRecap::class, RegionalAccounts::class, FinalReport::class, ShareLinks::class, MaterialPreview::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class, EventMonitoring::class])
             ->middleware([
                 EncryptCookies::class,

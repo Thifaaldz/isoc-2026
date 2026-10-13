@@ -467,7 +467,11 @@
                         </article>
                     @empty
                         <div class="learning-card learning-header">
-                            <div class="learning-description">Admin belum mengatur modul untuk event ini.</div>
+                            @if (! $this->selectedEventApproved())
+                                <div class="learning-description"><strong>Modul masih terkunci.</strong> Lengkapi bukti dukung (upload screenshot follow Instagram ISOC dan centang join WhatsApp Group) di <a href="{{ \Filament\Pages\Dashboard::getUrl(['event' => $this->selectedEvent?->id]) }}" style="font-weight: 600; text-decoration: underline;">Dashboard</a> terlebih dahulu.</div>
+                            @else
+                                <div class="learning-description">Admin belum mengatur modul untuk event ini.</div>
+                            @endif
                         </div>
                     @endforelse
                 </section>

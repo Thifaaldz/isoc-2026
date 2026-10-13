@@ -95,9 +95,17 @@ class ParticipantAttendance extends Page
         return app(EventAttendanceService::class)->isOpen($event);
     }
 
+    /** Absensi baru terbuka setelah bukti dukung (follow IG + join WAG) lengkap di Dashboard. */
+    public function selectedEventApproved(): bool
+    {
+        $participant = auth()->user()?->participant;
+
+        return $participant && $this->selectedEvent && $participant->isApprovedForEvent($this->selectedEvent);
+    }
+
     public function codeForSelected(): ?string
     {
-        return $this->selectedEvent ? app(EventAttendanceService::class)->codeFor($this->selectedEvent) : null;
+        return $this->selectedEvent && $this->selectedEventApproved() ? app(EventAttendanceService::class)->codeFor($this->selectedEvent) : null;
     }
 
     public function attendanceForSelected(): ?Attendance

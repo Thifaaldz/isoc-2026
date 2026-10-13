@@ -26,7 +26,7 @@ class ParticipantDashboardOverview extends Widget
 {
     use WithFileUploads;
 
-    public const INSTAGRAM_URL = 'https://www.instagram.com/isoc.jkt/';
+    public const INSTAGRAM_URL = 'https://www.instagram.com/isoc.id.jkt/';
 
     protected static string $view = 'filament.widgets.participant-dashboard-overview';
 

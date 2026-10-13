@@ -504,7 +504,7 @@
                     <span class="pd-badge">Dashboard Peserta</span>
                     <span class="pd-badge {{ $hasEvent ? 'is-active' : '' }}">{{ $hasEvent ? 'Seminar Aktif' : 'Menunggu Seminar' }}</span>
                     @if (($approval['requires_approval'] ?? false) && ! $dashboardOpen)
-                        <span class="pd-badge">Menunggu Approval</span>
+                        <span class="pd-badge">Bukti Dukung Belum Lengkap</span>
                     @endif
                 </div>
                 <h2 class="pd-title">{{ $event?->title ?? 'Belum ada seminar aktif' }}</h2>

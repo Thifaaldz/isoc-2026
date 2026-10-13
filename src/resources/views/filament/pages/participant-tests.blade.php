@@ -59,6 +59,14 @@
                 </div>
             </x-filament::section>
 
+            @if($this->selectedEvent && ! $this->selectedEventApproved())
+                <div class="rounded-lg p-4 text-sm" style="background-color: rgba(var(--warning-400), 0.12); color: rgb(var(--warning-700));">
+                    <strong>Pre-Test dan Post-Test masih terkunci.</strong>
+                    Lengkapi bukti dukung (upload screenshot follow Instagram ISOC dan centang join WhatsApp Group) di
+                    <a href="{{ \Filament\Pages\Dashboard::getUrl(['event' => $this->selectedEvent->id]) }}" class="font-semibold underline">Dashboard</a> terlebih dahulu.
+                </div>
+            @endif
+
             @if($this->selectedEvent)
                 <div class="participant-test-grid">
                     @foreach($this->assessments as $assessment)
