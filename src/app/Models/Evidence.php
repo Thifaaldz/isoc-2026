@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\EvidenceTemplate;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -85,22 +86,58 @@ class Evidence extends Model
     ];
 
     /** @return array<string, string> */
-    public static function uploadTypes(): array
+    public static function uploadTypes(?int $eventId = null): array
     {
-        return array_diff_key(self::TYPES, array_flip(self::LEGACY_TYPES));
+        $types = array_diff_key(self::TYPES, array_flip(self::LEGACY_TYPES));
+
+        // Jenis custom dari template bukti dukung event ikut bisa diupload.
+        foreach (EvidenceTemplate::itemsForEventId($eventId) as $type => $item) {
+            $types[$type] ??= $item['title'];
+        }
+
+        return $types;
+    }
+
+    /** Semua label jenis bukti, termasuk jenis custom dari template bukti dukung. */
+    public static function labels(): array
+    {
+        return self::TYPES + EvidenceTemplate::customLabels();
+    }
+
+    public static function typeLabel(?string $type): string
+    {
+        return self::labels()[$type] ?? (string) $type;
     }
 
     /**
-     * Jumlah foto wajib per jenis untuk satu event.
+     * Foto wajib event sesuai template bukti dukungnya (default: foto wajib a-g TOR),
+     * dengan bentuk yang sama seperti REQUIRED_PHOTOS.
+     *
+     * @return array<string, array{step: string, title: string, min: int, instruction: string}>
+     */
+    public static function requiredPhotos(?int $eventId): array
+    {
+        return collect(EvidenceTemplate::itemsForEventId($eventId))->where('photo', true)->all();
+    }
+
+    /** Bukti dukung non-foto yang wajib di event (default: video slogan). */
+    public static function requiredFiles(?int $eventId): array
+    {
+        return collect(EvidenceTemplate::itemsForEventId($eventId))->where('photo', false)->all();
+    }
+
+    /**
+     * Jumlah foto wajib per jenis untuk satu event (jenis foto mengikuti template bukti dukung event).
      *
      * @return array<string, int>
      */
     public static function photoCounts(?int $eventId, bool $approvedOnly = false): array
     {
+        $photos = self::requiredPhotos($eventId);
         $counts = $eventId
             ? self::query()
                 ->where('learning_event_id', $eventId)
-                ->whereIn('type', array_keys(self::REQUIRED_PHOTOS))
+                ->whereIn('type', array_keys($photos))
                 ->when($approvedOnly, fn ($query) => $query->where('status', 'approved'))
                 ->when(! $approvedOnly, fn ($query) => $query->whereNotIn('status', ['rejected']))
                 ->selectRaw('type, count(*) as total')
@@ -113,7 +150,7 @@ class Evidence extends Model
         $driveTypes = $eventId
             ? self::query()
                 ->where('learning_event_id', $eventId)
-                ->whereIn('type', array_keys(self::REQUIRED_PHOTOS))
+                ->whereIn('type', array_keys($photos))
                 ->whereNull('file_path')
                 ->whereNotNull('link')
                 ->when($approvedOnly, fn ($query) => $query->where('status', 'approved'))
@@ -123,7 +160,7 @@ class Evidence extends Model
                 ->flip()
             : collect();
 
-        return collect(self::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => $driveTypes->has($type)
+        return collect($photos)->map(fn (array $photo, string $type) => $driveTypes->has($type)
             ? max((int) ($counts[$type] ?? 0), $photo['min'])
             : (int) ($counts[$type] ?? 0))->all();
     }
@@ -148,7 +185,7 @@ class Evidence extends Model
 
         $counts = self::photoCounts($eventId, approvedOnly: true);
 
-        return collect(self::REQUIRED_PHOTOS)
+        return collect(self::requiredPhotos($eventId))
             ->filter(fn (array $photo, string $type) => $counts[$type] < $photo['min'])
             ->map(fn (array $photo, string $type) => "foto {$photo['step']}. {$photo['title']} ({$counts[$type]}/{$photo['min']})")
             ->values()

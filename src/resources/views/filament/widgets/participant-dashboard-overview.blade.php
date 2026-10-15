@@ -171,6 +171,50 @@
         grid-template-columns: 2fr 1fr 1fr;
     }
 
+    .pd-tutor-list {
+        display: grid;
+        gap: 8px;
+        list-style: none;
+        margin: 10px 0 0;
+        padding: 0;
+    }
+
+    .pd-tutor-row {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+    }
+
+    .pd-tutor-avatar {
+        align-items: center;
+        background: #dbeafe;
+        border-radius: 9999px;
+        color: #1d4ed8;
+        display: inline-flex;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 700;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+    }
+
+    .pd-tutor-name {
+        color: #0f172a;
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .pd-tutor-meta {
+        color: #64748b;
+        display: block;
+        font-size: 12px;
+    }
+
     .pd-microsite-card .pd-upload-form > div {
         flex-basis: 260px;
     }
@@ -664,6 +708,32 @@
                         {{ $event?->starts_at?->translatedFormat('H:i') ?? '--:--' }} - {{ $event?->ends_at?->translatedFormat('H:i') ?? '--:--' }} WIB
                     </p>
                     <p class="pd-card-text">{{ strtoupper($event?->event_type ?? 'offline') }}</p>
+                </div>
+            </div>
+
+            @php $eventTutors = ($event?->tutors ?? collect())->sortBy(fn ($tutor) => $tutor->user?->name)->values(); @endphp
+            <div class="pd-card pd-info-card">
+                <div class="pd-icon"><x-heroicon-o-academic-cap /></div>
+                <div style="flex: 1; min-width: 0;">
+                    <p class="pd-card-label">Tutor Event</p>
+                    <p class="pd-card-title">{{ $eventTutors->isEmpty() ? 'Belum ditentukan' : $eventTutors->count() . ' tutor pendamping' }}</p>
+                    @if ($eventTutors->isEmpty())
+                        <p class="pd-card-text">Daftar tutor muncul setelah tutor ditugaskan ke event ini.</p>
+                    @else
+                        <ul class="pd-tutor-list">
+                            @foreach ($eventTutors as $tutor)
+                                <li class="pd-tutor-row">
+                                    <span class="pd-tutor-avatar">{{ \Illuminate\Support\Str::of($tutor->user?->name ?? 'T')->explode(' ')->filter()->take(2)->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->implode('') }}</span>
+                                    <span style="min-width: 0;">
+                                        <span class="pd-tutor-name">{{ $tutor->user?->name ?? 'Tutor' }}</span>
+                                        @if ($tutor->institution)
+                                            <span class="pd-tutor-meta">{{ $tutor->institution }}</span>
+                                        @endif
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
                 </div>
             </div>
 

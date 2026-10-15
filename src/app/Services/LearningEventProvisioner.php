@@ -7,6 +7,7 @@ use App\Models\LearningEvent;
 use App\Models\Participant;
 use App\Models\Payment;
 use App\Models\Tutor;
+use App\Models\TutorRegistration;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -103,7 +104,10 @@ class LearningEventProvisioner
             ->pluck('id');
 
         foreach ($newIds as $tutorId) {
-            $event->tutors()->attach($tutorId, ['status' => 'assigned', 'assigned_at' => now()]);
+            // Tutor yang sudah mendaftar lewat form publik cukup dinaikkan statusnya.
+            if (! TutorRegistration::promote($event->id, $tutorId)) {
+                $event->tutors()->attach($tutorId, ['status' => 'assigned', 'assigned_at' => now()]);
+            }
         }
     }
 
@@ -142,6 +146,7 @@ class LearningEventProvisioner
                 'bank_account_number' => $row['bank_account_number'] ?? $tutor->bank_account_number,
             ]);
 
+            TutorRegistration::promote($event->id, $tutor->id);
             $event->tutors()->syncWithoutDetaching([
                 $tutor->id => ['status' => 'assigned', 'assigned_at' => now()],
             ]);

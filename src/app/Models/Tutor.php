@@ -19,7 +19,14 @@ class Tutor extends Model
     {
         return $this->belongsToMany(LearningEvent::class, 'learning_event_tutor')
             ->withPivot(['status', 'assigned_at'])
+            // Pendaftaran tutor yang belum divalidasi / ditolak bukan tutor event.
+            ->wherePivotNotIn('status', TutorRegistration::UNASSIGNED)
             ->withTimestamps();
+    }
+
+    public function registrations(): HasMany
+    {
+        return $this->hasMany(TutorRegistration::class);
     }
 
     public function totAssessments(): HasMany { return $this->hasMany(TotAssessment::class); }

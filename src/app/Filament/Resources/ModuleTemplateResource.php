@@ -6,8 +6,10 @@ use App\Enums\UserRole;
 use App\Filament\Concerns\RoleScoped;
 use App\Filament\Resources\ModuleTemplateResource\Pages;
 use App\Models\ModuleTemplate;
+use App\Services\TutorMaterialMirror;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -51,8 +53,24 @@ class ModuleTemplateResource extends Resource
                 ->schema([
                     Forms\Components\Placeholder::make('generated_info')
                         ->hiddenLabel()
-                        ->content(fn (ModuleTemplate $record) => 'Materi ini dibuat otomatis dari Materi Event "' . ($record->sourceTemplate?->name ?? '-') . '". Pertemuan dan materinya selalu sama dengan materi peserta tersebut, jadi cukup isi Pre-Test dan Post-Test milik tutor.'),
+                        ->content(fn (ModuleTemplate $record) => 'Materi ini disalin otomatis dari Materi Event "' . ($record->sourceTemplate?->name ?? '-') . '" saat pertama dibuat. Pertemuan dan materinya (PPT, video, dll.) bisa diedit sendiri tanpa memengaruhi materi peserta. Isi juga Pre-Test dan Post-Test milik tutor.'),
                     Forms\Components\Actions::make([
+                        Forms\Components\Actions\Action::make('edit_tutor_meetings')
+                            ->label('Edit Pertemuan & Materi Tutor')
+                            ->icon('heroicon-o-pencil-square')
+                            ->url(fn (ModuleTemplate $record) => LearningMeetingResource::getUrl('index', ['materi_event' => $record->id])),
+                        Forms\Components\Actions\Action::make('resync_from_source')
+                            ->label('Salin ulang dari materi peserta')
+                            ->icon('heroicon-o-arrow-path')
+                            ->color('gray')
+                            ->requiresConfirmation()
+                            ->modalDescription('Pertemuan dan materi tutor akan diganti dengan salinan terbaru materi peserta. Perubahan yang sudah dibuat di materi tutor akan hilang. Pre-Test dan Post-Test ToT tidak berubah.')
+                            ->visible(fn (ModuleTemplate $record) => $record->sourceTemplate !== null)
+                            ->action(function (ModuleTemplate $record): void {
+                                app(TutorMaterialMirror::class)->resync($record);
+
+                                Notification::make()->title('Materi tutor disalin ulang dari materi peserta')->success()->send();
+                            }),
                         Forms\Components\Actions\Action::make('pre_test_tutor')
                             ->label(fn (ModuleTemplate $record) => static::hasTest($record, 'pre') ? 'Ubah Pre-Test Tutor' : 'Isi Pre-Test Tutor')
                             ->icon('heroicon-o-clipboard-document-list')
@@ -78,10 +96,9 @@ class ModuleTemplateResource extends Resource
                         ->required()
                         ->native(false)
                         ->disabled($generated)
-                        ->helperText('Peserta: dipilih admin daerah di wizard event dan menjadi modul/tes peserta, sekaligus otomatis dibuatkan materi tutor (Generated for Tutor) dengan isi yang sama. Tutor: tampil di halaman ToT Awal tutor.'),
+                        ->helperText('Peserta: dipilih admin daerah di wizard event dan menjadi modul/tes peserta, sekaligus otomatis dibuatkan materi tutor (Generated for Tutor) berupa salinan yang bisa diedit. Tutor: tampil di halaman ToT Awal tutor.'),
                     Forms\Components\Toggle::make('is_active')
                         ->label('Aktif / bisa dipilih admin')
-                        ->disabled($generated)
                         ->default(true),
                     Forms\Components\Textarea::make('description')
                         ->label('Deskripsi')
@@ -99,10 +116,7 @@ class ModuleTemplateResource extends Resource
                         ->maxValue(30)
                         ->default(1)
                         ->live(onBlur: true)
-                        ->disabled($generated)
-                        ->helperText(fn (?ModuleTemplate $record) => $record?->isGeneratedForTutor()
-                            ? 'Mengikuti jumlah pertemuan materi peserta.'
-                            : 'Sistem akan membuat daftar pertemuan. Lengkapi isi pertemuan dan materi dari menu Pertemuan & Materi.'),
+                        ->helperText('Sistem akan membuat daftar pertemuan. Lengkapi isi pertemuan dan materi dari menu Pertemuan & Materi.'),
                 ])
                 ->columns(2),
         ]);

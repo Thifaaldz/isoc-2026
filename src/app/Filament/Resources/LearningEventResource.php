@@ -12,6 +12,8 @@ use App\Models\Evidence;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\LearningMeeting;
+use App\Support\EvidenceTemplate;
+use App\Support\TermChecklistTemplate;
 use App\Support\TorEventTemplate;
 use App\Models\ModuleTemplate;
 use App\Models\Partner;
@@ -28,6 +30,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class LearningEventResource extends Resource
@@ -532,26 +535,67 @@ class LearningEventResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
+                Forms\Components\Wizard\Step::make('Bukti Dukung')
+                    ->description('Pilih template bukti dukung yang wajib dikumpulkan di event ini.')
+                    ->icon('heroicon-o-camera')
+                    ->schema([
+                        Forms\Components\Select::make('evidence_template')
+                            ->label('Template Bukti Dukung')
+                            ->helperText('Pakai template yang sudah ada, atau klik + untuk membuat template baru bila bukti dukung event ini berbeda.')
+                            ->options(fn (?LearningEvent $record) => static::evidenceTemplateOptions($record))
+                            ->afterStateHydrated(fn (Forms\Components\Select $component, ?LearningEvent $record) => $component->state($record?->evidence_checklist['template'] ?? EvidenceTemplate::DEFAULT_KEY))
+                            ->live()
+                            ->required()
+                            ->dehydrated(false)
+                            ->createOptionForm(static::evidenceTemplateFormSchema())
+                            ->createOptionModalHeading('Buat Template Bukti Dukung')
+                            ->createOptionUsing(fn (array $data): string => EvidenceTemplate::create($data)),
+                        Forms\Components\Placeholder::make('evidence_template_items')
+                            ->label('Bukti dukung yang wajib dikumpulkan')
+                            ->content(fn (Get $get, ?LearningEvent $record) => static::evidenceTemplatePreview(static::evidenceChecklistState($get('evidence_template'), $record))),
+                        // Item template disalin ke kolom evidence_checklist agar event tidak berubah saat template diubah.
+                        Forms\Components\Hidden::make('evidence_checklist')
+                            ->dehydrateStateUsing(fn (Get $get, ?LearningEvent $record) => static::evidenceChecklistState($get('evidence_template'), $record)),
+                    ])
+                    ->columns(1),
                 Forms\Components\Wizard\Step::make('Checklist Termin')
                     ->description('Checklist keperluan anggaran Termin-1 dan Termin-2 sesuai TOR.')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->schema([
-                        ...collect(TorEventTemplate::TERM_CHECKLIST)->map(fn (array $options, int $term) => Forms\Components\Section::make("Termin-{$term}")
+                        Forms\Components\Select::make('term_template')
+                            ->label('Template Checklist Termin')
+                            ->helperText('Pakai template yang sudah ada, atau klik + untuk membuat template baru bila keperluan termin event ini berbeda.')
+                            ->options(fn (?LearningEvent $record) => static::termTemplateOptions($record))
+                            ->afterStateHydrated(fn (Forms\Components\Select $component, ?LearningEvent $record) => $component->state(TermChecklistTemplate::templateKey($record?->budget_items)))
+                            ->live()
+                            // Ganti template: centang lama yang tidak ada di template baru dibuang.
+                            ->afterStateUpdated(function (?string $state, Get $get, Set $set, ?LearningEvent $record): void {
+                                foreach (TermChecklistTemplate::TERMS as $term) {
+                                    $options = static::termChecklistOptions($state, $record)[$term] ?? [];
+                                    $set("term_checklist_{$term}", array_values(array_filter((array) $get("term_checklist_{$term}"), fn ($key) => isset($options[$key]))));
+                                }
+                            })
+                            ->required()
+                            ->dehydrated(false)
+                            ->createOptionForm(static::termTemplateFormSchema())
+                            ->createOptionModalHeading('Buat Template Checklist Termin')
+                            ->createOptionUsing(fn (array $data): string => TermChecklistTemplate::create($data)),
+                        ...collect(TermChecklistTemplate::TERMS)->map(fn (int $term) => Forms\Components\Section::make("Termin-{$term}")
                             ->description(TorEventTemplate::TERM_NOTES[$term])
                             ->schema([
                                 Forms\Components\CheckboxList::make("term_checklist_{$term}")
                                     ->label("Keperluan Termin-{$term}")
-                                    ->options($options)
+                                    ->options(fn (Get $get, ?LearningEvent $record) => static::termChecklistOptions($get('term_template'), $record)[$term] ?? [])
                                     ->bulkToggleable()
                                     ->afterStateHydrated(fn (Forms\Components\CheckboxList $component, ?LearningEvent $record) => $component->state(TorEventTemplate::checkedKeys($record?->budget_items, $term)))
                                     ->dehydrated(false),
                             ]))->values()->all(),
-                        // Checklist kedua termin disimpan di kolom budget_items.
+                        // Checklist kedua termin (beserta item template-nya) disimpan di kolom budget_items.
                         Forms\Components\Hidden::make('budget_items')
-                            ->dehydrateStateUsing(fn (Get $get) => TorEventTemplate::termChecklist(array_merge(
+                            ->dehydrateStateUsing(fn (Get $get, ?LearningEvent $record) => TorEventTemplate::termChecklist(array_merge(
                                 (array) ($get('term_checklist_1') ?? []),
                                 (array) ($get('term_checklist_2') ?? []),
-                            ))),
+                            ), static::termChecklistOptions($get('term_template'), $record), $get('term_template'))),
                     ])
                     ->columns(1),
             ])
@@ -628,7 +672,7 @@ class LearningEventResource extends Resource
                 Tables\Columns\TextColumn::make('meetings_count')->counts('meetings')->label('Pertemuan')->sortable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('term_checklist')
                     ->label('Checklist Termin')
-                    ->state(fn (LearningEvent $record): string => collect(TorEventTemplate::TERM_CHECKLIST)
+                    ->state(fn (LearningEvent $record): string => collect(TermChecklistTemplate::terms($record->budget_items))
                         ->map(fn (array $options, int $term) => "T{$term} " . count(TorEventTemplate::checkedKeys($record->budget_items, $term)) . '/' . count($options))
                         ->implode(' · '))
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -1294,9 +1338,9 @@ class LearningEventResource extends Resource
             $missing[] = $event->proofMode('microsite') === 'system' ? 'rekap microsite (PDF belum digenerate)' : 'bukti hasil microsite';
         }
 
-        $requiredEvidence = [
-            'video_slogan' => 'video slogan',
-        ];
+        // Bukti non-foto dari template bukti dukung event (default: video slogan).
+        $requiredEvidence = collect(Evidence::requiredFiles($event->id))
+            ->map(fn (array $item) => mb_strtolower($item['title']));
 
         foreach ($requiredEvidence as $type => $label) {
             $exists = $event->evidences
@@ -1328,6 +1372,117 @@ class LearningEventResource extends Resource
         }
 
         return $missing;
+    }
+
+    /** @return array<string, string> Template checklist termin, termasuk template lama yang tersalin di event ini. */
+    public static function termTemplateOptions(?LearningEvent $record): array
+    {
+        $options = TermChecklistTemplate::options();
+        $key = TermChecklistTemplate::templateKey($record?->budget_items);
+
+        if (! isset($options[$key])) {
+            $options[$key] = 'Checklist event ini';
+        }
+
+        return $options;
+    }
+
+    /** Item per termin untuk template terpilih: tetap memakai salinan event bila templatenya tidak diganti. */
+    public static function termChecklistOptions(?string $key, ?LearningEvent $record): array
+    {
+        if ($record && filled($record->budget_items) && TermChecklistTemplate::templateKey($record->budget_items) === $key) {
+            return TermChecklistTemplate::terms($record->budget_items);
+        }
+
+        return TermChecklistTemplate::termsOf($key);
+    }
+
+    /** Form template checklist termin baru; diisi awal dengan checklist standar TOR agar tinggal diubah. */
+    public static function termTemplateFormSchema(): array
+    {
+        $items = fn (int $term) => Forms\Components\Repeater::make("term_{$term}")
+            ->label("Keperluan Termin-{$term}")
+            ->schema([
+                Forms\Components\Hidden::make('key'),
+                Forms\Components\TextInput::make('label')->hiddenLabel()->placeholder('Nama keperluan')->required()->maxLength(255),
+            ])
+            ->default(fn () => TermChecklistTemplate::formItems($term))
+            ->reorderableWithButtons()
+            ->addActionLabel("Tambah keperluan Termin-{$term}");
+
+        return [
+            Forms\Components\TextInput::make('name')
+                ->label('Nama template')
+                ->placeholder('Mis. Checklist Termin Webinar')
+                ->required()
+                ->maxLength(120),
+            $items(1),
+            $items(2)->helperText('Item standar Termin-2 (foto, video, daftar hadir, nilai, microsite, ranking, sertifikat) tetap dicentang otomatis dari data event; item baru dicentang manual di wizard.'),
+        ];
+    }
+
+    /** @return array<string, string> Template bukti dukung, termasuk template lama yang tersalin di event ini. */
+    public static function evidenceTemplateOptions(?LearningEvent $record): array
+    {
+        $options = EvidenceTemplate::options();
+        $key = $record?->evidence_checklist['template'] ?? null;
+
+        if ($key && ! isset($options[$key])) {
+            $options[$key] = EvidenceTemplate::nameFor($record);
+        }
+
+        return $options;
+    }
+
+    /** Isi evidence_checklist: tetap memakai salinan event bila templatenya tidak diganti. */
+    public static function evidenceChecklistState(?string $key, ?LearningEvent $record): array
+    {
+        $current = is_array($record?->evidence_checklist) ? $record->evidence_checklist : null;
+
+        if ($current && ($current['template'] ?? null) === $key) {
+            return $current;
+        }
+
+        return EvidenceTemplate::snapshot($key);
+    }
+
+    public static function evidenceTemplatePreview(array $checklist): HtmlString
+    {
+        $rows = collect(EvidenceTemplate::itemsFor(new LearningEvent(['evidence_checklist' => $checklist])))
+            ->map(fn (array $item) => '<li><strong>' . e($item['label']) . '</strong> - minimal ' . $item['min'] . ($item['photo'] ? ' foto' : ' berkas/link')
+                . ($item['instruction'] !== '' ? '<br><span class="text-gray-500">' . e($item['instruction']) . '</span>' : '') . '</li>')
+            ->implode('');
+
+        return new HtmlString('<ul class="list-disc space-y-1 ps-5 text-sm">' . $rows . '</ul>'
+            . '<p class="mt-2 text-xs text-gray-500">Absensi/daftar hadir dan bukti microsite tetap diatur dari halaman Laporan Final (upload atau generate sistem).</p>');
+    }
+
+    /** Form template bukti dukung baru; diisi awal dengan bukti dukung standar TOR agar tinggal diubah. */
+    public static function evidenceTemplateFormSchema(): array
+    {
+        return [
+            Forms\Components\TextInput::make('name')
+                ->label('Nama template')
+                ->placeholder('Mis. Bukti Dukung Webinar')
+                ->required()
+                ->maxLength(120),
+            Forms\Components\Repeater::make('items')
+                ->label('Daftar bukti dukung')
+                ->schema([
+                    Forms\Components\Hidden::make('type'),
+                    Forms\Components\TextInput::make('title')->label('Nama bukti')->required()->maxLength(120)->columnSpan(5),
+                    Forms\Components\Toggle::make('photo')->label('Berupa foto')->inline(false)->default(true)->columnSpan(2),
+                    Forms\Components\TextInput::make('min')->label('Minimal')->numeric()->minValue(1)->maxValue(50)->default(1)->required()->columnSpan(2),
+                    Forms\Components\Textarea::make('instruction')->label('Instruksi')->rows(2)->columnSpanFull(),
+                ])
+                ->columns(9)
+                ->default(fn () => EvidenceTemplate::defaultItems())
+                ->minItems(1)
+                ->reorderableWithButtons()
+                ->collapsible()
+                ->itemLabel(fn (array $state): ?string => $state['title'] ?? null)
+                ->addActionLabel('Tambah bukti dukung'),
+        ];
     }
 
     /** Simpan centang "logo di sertifikat" ke pivot mitra event. */

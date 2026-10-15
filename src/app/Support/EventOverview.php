@@ -220,7 +220,7 @@ class EventOverview
     private function evidenceItem(string $type, string $label, int $min = 1): array
     {
         $count = $this->evidenceCounts()[$type] ?? ['approved' => 0, 'pending' => 0];
-        $unit = isset(Evidence::REQUIRED_PHOTOS[$type]) ? ' foto' : '';
+        $unit = isset(Evidence::requiredPhotos($this->event->id)[$type]) ? ' foto' : '';
 
         if ($unit) {
             // Foto bisa berupa link Google Drive yang dianggap memenuhi jumlah minimal.
@@ -284,10 +284,15 @@ class EventOverview
             ->count();
         $recapUrl = ParticipantRecap::getUrl(panel: 'admin');
 
-        return collect(TorEventTemplate::TERM_CHECKLIST[2])
+        // Foto & video standar TOR diganti item template bukti dukung event.
+        $evidenceItems = collect(EvidenceTemplate::itemsFor($this->event))
+            ->map(fn (array $item) => $this->evidenceItem($item['type'], $item['label'], $item['min']))
+            ->values();
+        $dataKeys = collect(TermChecklistTemplate::terms($this->event->budget_items)[2])
+            ->reject(fn (string $label, string $key) => isset(Evidence::REQUIRED_PHOTOS[$key]) || $key === 'video_slogan');
+
+        return $evidenceItems->concat($dataKeys
             ->map(fn (string $label, string $key) => match (true) {
-                isset(Evidence::REQUIRED_PHOTOS[$key]) => $this->evidenceItem($key, $label, Evidence::REQUIRED_PHOTOS[$key]['min']),
-                $key === 'video_slogan' => $this->evidenceItem($key, $label),
                 $key === 'daftar_hadir' => $this->dataItem($key, $label, $stats['attended'] > 0, "{$stats['attended']} peserta hadir", AttendanceResource::getUrl()),
                 $key === 'follow_ig_wag' => $this->dataItem($key, $label, $social > 0, "{$social}/{$stats['participants']} peserta", $recapUrl),
                 $key === 'daftar_nilai' => $this->dataItem($key, $label, $stats['pre'] > 0 && $stats['post'] > 0, "pre {$stats['pre']} · post {$stats['post']} peserta", $recapUrl),
@@ -296,7 +301,7 @@ class EventOverview
                 $key === 'sertifikat_peserta' => $this->dataItem($key, $label, $stats['certificates'] > 0, "{$stats['certificates']} sertifikat terbit", CertificateResource::getUrl()),
                 default => $this->dataItem($key, $label, in_array($key, TorEventTemplate::checkedKeys($this->event->budget_items, 2), true), '', $recapUrl),
             })
-            ->values()
+            ->values())
             ->all();
     }
 
@@ -310,12 +315,13 @@ class EventOverview
         $event = $this->event;
         $stats = $this->stats();
         $hasTest = $event->assessments()->where('type', 'pre')->exists() && $event->assessments()->where('type', 'post')->exists();
+        $evidenceItems = collect(EvidenceTemplate::itemsFor($event))->map(fn (array $item) => $this->evidenceItem($item['type'], $item['label'], $item['min']));
 
         return [
             $this->systemProofItem('attendance', 'Absensi / daftar hadir', 'Absensi basah / daftar hadir', $this->stats()['attended'] . ' peserta absen dengan kode'),
-            $this->evidenceItem('video_slogan', 'Video slogan'),
+            ...$evidenceItems->reject(fn (array $item) => isset(Evidence::requiredPhotos($event->id)[$item['key']]))->values()->all(),
             $this->systemProofItem('microsite', 'Bukti hasil microsite', 'Bukti hasil microsite', DB::table('microsite_practices')->where('learning_event_id', $event->id)->whereNotNull('sid_url')->distinct()->count('participant_id') . ' link microsite peserta'),
-            ...collect(Evidence::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => $this->evidenceItem($type, "Foto {$photo['step']}. {$photo['title']}", $photo['min']))->values()->all(),
+            ...$evidenceItems->filter(fn (array $item) => isset(Evidence::requiredPhotos($event->id)[$item['key']]))->values()->all(),
             $this->dataItem('registrasi', 'Registrasi peserta', $stats['participants'] > 0, "{$stats['participants']} peserta", ParticipantRecap::getUrl(panel: 'admin')),
             $this->dataItem('tes', 'Pre-test & post-test', $hasTest, "pre {$stats['pre']} · post {$stats['post']} peserta mengerjakan", ParticipantRecap::getUrl(panel: 'admin')),
             $this->dataItem('materi', 'Materi / pertemuan', $event->meetings->isNotEmpty(), $event->meetings->count() . ' modul', LearningEventResource::getUrl('view', ['record' => $event])),

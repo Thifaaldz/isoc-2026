@@ -85,16 +85,17 @@ class FinalReport extends Page
     public function uploadEvidenceAction(): Action
     {
         $type = fn (array $arguments) => (string) ($arguments['type'] ?? '');
-        $isPhoto = fn (array $arguments) => isset(Evidence::REQUIRED_PHOTOS[$type($arguments)]);
+        $photo = fn (array $arguments) => Evidence::requiredPhotos($this->selectedEvent?->id)[$type($arguments)] ?? null;
+        $isPhoto = fn (array $arguments) => $photo($arguments) !== null;
 
         return Action::make('uploadEvidence')
             ->label('Upload')
             ->icon('heroicon-o-arrow-up-tray')
             ->size('xs')
             ->color('gray')
-            ->modalHeading(fn (array $arguments) => 'Upload ' . (Evidence::TYPES[$type($arguments)] ?? 'bukti dukung'))
+            ->modalHeading(fn (array $arguments) => 'Upload ' . (Evidence::uploadTypes($this->selectedEvent?->id)[$type($arguments)] ?? 'bukti dukung'))
             ->modalDescription(fn (array $arguments) => $isPhoto($arguments)
-                ? Evidence::REQUIRED_PHOTOS[$type($arguments)]['instruction'] . ' Minimal ' . Evidence::REQUIRED_PHOTOS[$type($arguments)]['min'] . ' foto.'
+                ? trim($photo($arguments)['instruction'] . ' Minimal ' . $photo($arguments)['min'] . ' foto.')
                 : 'Bukti dikirim ke Admin RTIK Pusat untuk diverifikasi.')
             ->modalSubmitActionLabel('Upload')
             ->form(fn (array $arguments) => array_values(array_filter([
@@ -129,7 +130,7 @@ class FinalReport extends Page
                 $event = $this->selectedEvent;
                 $evidenceType = $type($arguments);
 
-                if (! $event || ! isset(Evidence::TYPES[$evidenceType])) {
+                if (! $event || ! isset(Evidence::uploadTypes($event->id)[$evidenceType])) {
                     return;
                 }
 

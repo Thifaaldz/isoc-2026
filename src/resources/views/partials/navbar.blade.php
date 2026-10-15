@@ -6,6 +6,7 @@
         ['label' => __('Pengurus'), 'url' => route('home') . '#pengurus', 'active' => false],
         ['label' => __('Mitra'), 'url' => route('home') . '#mitra', 'active' => false],
         ['label' => __('Event'), 'url' => route('events'), 'active' => request()->routeIs('events', 'event.*')],
+        ['label' => __('Jadi Tutor'), 'url' => route('tutors.register'), 'active' => request()->routeIs('tutors.register')],
     ];
 @endphp
 <nav class="fixed top-0 w-full z-50 bg-[#f8f9fa]/80 backdrop-blur-md border-b border-isoc-line/40" x-data="{ mobileOpen: false }">

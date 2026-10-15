@@ -104,14 +104,18 @@ class EvidenceResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Jenis bukti')
-                            ->options(fn (?Evidence $record) => $record && in_array($record->type, Evidence::LEGACY_TYPES, true)
-                                ? Evidence::TYPES
-                                : Evidence::uploadTypes())
+                            ->options(fn (?Evidence $record, Forms\Get $get) => $record && in_array($record->type, Evidence::LEGACY_TYPES, true)
+                                ? Evidence::labels()
+                                : Evidence::uploadTypes($get('learning_event_id') ? (int) $get('learning_event_id') : null))
                             ->required()
                             ->live()
-                            ->helperText(fn (Forms\Get $get) => isset(Evidence::REQUIRED_PHOTOS[$get('type')])
-                                ? Evidence::REQUIRED_PHOTOS[$get('type')]['instruction'] . ' Minimal ' . Evidence::REQUIRED_PHOTOS[$get('type')]['min'] . ' foto. Untuk upload banyak foto sekaligus, gunakan tombol "Upload Foto Wajib".'
-                                : null),
+                            ->helperText(function (Forms\Get $get): ?string {
+                                $photo = Evidence::requiredPhotos($get('learning_event_id') ? (int) $get('learning_event_id') : null)[$get('type')] ?? null;
+
+                                return $photo
+                                    ? trim($photo['instruction'] . ' Minimal ' . $photo['min'] . ' foto. Untuk upload banyak foto sekaligus, gunakan tombol "Upload Foto Wajib".')
+                                    : null;
+                            }),
                         Forms\Components\TextInput::make('session_index')
                             ->label('Sesi ke')
                             ->numeric()
@@ -182,11 +186,11 @@ class EvidenceResource extends Resource
                         ->color(fn ($state) => match ($state) { 'approved' => 'success', 'rejected' => 'danger', 'needs_revision' => 'warning', default => 'gray' }),
                     // Event & lokasi sudah ada di judul grup; pencarian tetap mencakup jenis, event, dan lokasi.
                     Tables\Columns\TextColumn::make('type')
-                        ->formatStateUsing(fn ($state) => Evidence::TYPES[$state] ?? $state)
+                        ->formatStateUsing(fn ($state) => Evidence::typeLabel($state))
                         ->weight(\Filament\Support\Enums\FontWeight::Bold)
                         ->wrap()
                         ->searchable(query: fn ($query, string $search) => $query->where(fn ($inner) => $inner
-                            ->whereIn('type', collect(Evidence::TYPES)->filter(fn (string $label) => str_contains(mb_strtolower($label), mb_strtolower($search)))->keys()->all())
+                            ->whereIn('type', collect(Evidence::labels())->filter(fn (string $label) => str_contains(mb_strtolower($label), mb_strtolower($search)))->keys()->all())
                             ->orWhereHas('learningEvent', fn ($event) => $event->where('title', 'like', "%{$search}%"))
                             ->orWhereHas('school', fn ($school) => $school->where('name', 'like', "%{$search}%")))),
                     Tables\Columns\TextColumn::make('session_index')
@@ -204,7 +208,7 @@ class EvidenceResource extends Resource
                 // Event & lokasi dipilih lewat card event di halaman awal.
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Jenis Bukti')
-                    ->options(Evidence::TYPES),
+                    ->options(fn () => Evidence::labels()),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options(['pending' => 'Menunggu', 'approved' => 'Disetujui', 'needs_revision' => 'Perlu revisi', 'rejected' => 'Ditolak']),
@@ -214,7 +218,7 @@ class EvidenceResource extends Resource
                     ->label('Preview')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
-                    ->modalHeading(fn (Evidence $record) => Evidence::TYPES[$record->type] ?? $record->type)
+                    ->modalHeading(fn (Evidence $record) => Evidence::typeLabel($record->type))
                     ->modalContent(fn (Evidence $record) => view('filament.resources.evidence.preview-modal', ['evidence' => $record]))
                     ->modalWidth('4xl')
                     ->modalSubmitAction(false)
@@ -286,6 +290,7 @@ class EvidenceResource extends Resource
         return $events->map(function (LearningEvent $event) use ($evidence) {
             $items = $evidence->get($event->id, collect());
             $photos = Evidence::photoCounts($event->id);
+            $requiredPhotos = Evidence::requiredPhotos($event->id);
 
             return [
                 'event' => $event,
@@ -296,8 +301,8 @@ class EvidenceResource extends Resource
                 'rejected' => $items->where('status', 'rejected')->count(),
                 // Maksimal 4 cuplikan foto/video/YouTube terbaru untuk mosaik di card.
                 'thumbs' => $items->filter(fn (Evidence $item) => in_array($item->mediaKind(), ['image', 'video', 'youtube'], true))->take(4)->values(),
-                'photos_done' => collect(Evidence::REQUIRED_PHOTOS)->filter(fn (array $photo, string $type) => $photos[$type] >= $photo['min'])->count(),
-                'photos_total' => count(Evidence::REQUIRED_PHOTOS),
+                'photos_done' => collect($requiredPhotos)->filter(fn (array $photo, string $type) => $photos[$type] >= $photo['min'])->count(),
+                'photos_total' => count($requiredPhotos),
             ];
         })
             // Event yang masih menunggu verifikasi tampil paling depan.

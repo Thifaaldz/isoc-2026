@@ -9,6 +9,7 @@ use App\Http\Controllers\EventAttendancePrintController;
 use App\Http\Controllers\ImportTemplateController;
 use App\Http\Controllers\ParticipantRegistrationController;
 use App\Http\Controllers\PublicPageController;
+use App\Http\Controllers\TutorRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/lang/{locale}', function (string $locale) {
@@ -37,6 +38,16 @@ Route::post('/events/{event}/join', [ParticipantRegistrationController::class, '
 Route::post('/events/{event}/register', [ParticipantRegistrationController::class, 'store'])
     ->middleware(['guest', 'throttle:10,1'])
     ->name('event.register.store');
+
+// Registrasi tutor: pilih event, lalu menunggu validasi Admin RTIK Pusat.
+Route::get('/tutors/register', [TutorRegistrationController::class, 'create'])
+    ->name('tutors.register');
+Route::post('/tutors/register', [TutorRegistrationController::class, 'store'])
+    ->middleware(['guest', 'throttle:10,1'])
+    ->name('tutors.register.store');
+Route::post('/tutors/register/join', [TutorRegistrationController::class, 'join'])
+    ->middleware(['auth', 'throttle:10,1'])
+    ->name('tutors.register.join');
 
 Route::redirect('/webinars', '/events');
 Route::redirect('/login', '/auth/login')->name('login');

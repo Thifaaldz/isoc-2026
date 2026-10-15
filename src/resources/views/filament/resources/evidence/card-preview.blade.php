@@ -6,7 +6,7 @@
 @endphp
 <div style="position: relative; aspect-ratio: 16 / 10; width: 100%; overflow: hidden; border-radius: 10px; background: rgba(148, 163, 184, .15); display: flex; align-items: center; justify-content: center;">
     @if ($kind === 'image')
-        <img src="{{ $url }}" alt="{{ \App\Models\Evidence::TYPES[$record->type] ?? $record->type }}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;">
+        <img src="{{ $url }}" alt="{{ \App\Models\Evidence::typeLabel($record->type) }}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;">
     @elseif ($kind === 'video' || $kind === 'youtube')
         @if ($kind === 'video')
             <video src="{{ $url }}#t=0.5" preload="metadata" muted playsinline style="width: 100%; height: 100%; object-fit: cover; pointer-events: none;"></video>

@@ -133,7 +133,7 @@ class MaterialPreview extends Page
     {
         $selected = $this->selected;
 
-        return auth()->user()?->role === UserRole::SuperAdmin && $selected && ! $selected->isGeneratedForTutor()
+        return auth()->user()?->role === UserRole::SuperAdmin && $selected
             ? LearningMeetingResource::getUrl('index', ['materi_event' => $selected->id])
             : null;
     }

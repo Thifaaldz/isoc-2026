@@ -8,39 +8,34 @@ use App\Models\ModuleTemplate;
 
 class ModuleTemplateMeetingSyncer
 {
+    /** Samakan banyak pertemuan materi dengan Jumlah Pertemuan: tambah di akhir atau hapus dari urutan terakhir. */
     public function sync(ModuleTemplate $template): void
     {
-        // Materi tutor auto-generated mengikuti pertemuan dari materi peserta asalnya.
-        if ($template->isGeneratedForTutor()) {
-            return;
-        }
-
         $count = max(1, (int) ($template->meeting_count ?: 1));
+        $meetings = $template->learningMeetings()->whereNull('learning_event_id')->orderBy('order')->orderBy('id')->get();
 
-        $extraMeetings = $template->learningMeetings()->where('order', '>', $count)->get();
-
-        foreach ($extraMeetings as $meeting) {
+        foreach ($meetings->slice($count) as $meeting) {
             Assessment::query()->where('learning_meeting_id', $meeting->id)->delete();
             $meeting->delete();
         }
 
-        foreach (range(1, $count) as $order) {
-            LearningMeeting::query()->firstOrCreate(
-                [
-                    'module_template_id' => $template->id,
-                    'order' => $order,
-                ],
-                [
-                    'learning_event_id' => null,
-                    'title' => 'Pertemuan ' . $order,
-                    'description' => null,
-                    'duration_minutes' => 25,
-                    'task_title' => null,
-                    'task_description' => null,
-                    'starts_at' => null,
-                    'is_published' => true,
-                ],
-            );
+        $nextOrder = (int) $meetings->take($count)->max('order');
+
+        for ($i = $meetings->count(); $i < $count; $i++) {
+            $nextOrder++;
+
+            LearningMeeting::query()->create([
+                'module_template_id' => $template->id,
+                'order' => $nextOrder,
+                'learning_event_id' => null,
+                'title' => 'Pertemuan ' . $nextOrder,
+                'description' => null,
+                'duration_minutes' => 25,
+                'task_title' => null,
+                'task_description' => null,
+                'starts_at' => null,
+                'is_published' => true,
+            ]);
         }
     }
 }

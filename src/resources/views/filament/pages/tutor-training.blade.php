@@ -1,5 +1,40 @@
 <x-filament-panels::page>
     <div class="space-y-6">
+        <x-filament::section>
+            <x-slot name="heading">Event ToT</x-slot>
+            @if ($this->registeredEvents->isEmpty())
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                    Kamu belum mendaftar event sebagai tutor.
+                    <a href="{{ \App\Filament\Pages\TutorEventCatalog::getUrl() }}" class="font-semibold text-primary-600 hover:underline">Daftar event</a>
+                    lalu kerjakan ToT untuk event tersebut.
+                </p>
+            @else
+                <x-slot name="description">Pilih event yang kamu daftarkan. Materi dan Pre/Post-Test ToT mengikuti event yang dipilih.</x-slot>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="sm:max-w-md sm:flex-1">
+                        <x-filament::input.wrapper>
+                            <x-filament::input.select wire:model.live="eventId">
+                                @foreach ($this->registeredEvents as $event)
+                                    <option value="{{ $event->id }}">{{ $event->title }}{{ $event->starts_at ? ' · ' . $event->starts_at->translatedFormat('d M Y') : '' }}</option>
+                                @endforeach
+                            </x-filament::input.select>
+                        </x-filament::input.wrapper>
+                    </div>
+                    @if ($selectedEvent = $this->selectedEvent)
+                        <div class="flex flex-wrap gap-2">
+                            @if ($status = $this->registrationStatus($selectedEvent))
+                                <x-filament::badge :color="$status === 'Disetujui' ? 'success' : 'warning'">{{ $status }}</x-filament::badge>
+                            @endif
+                            @if ($this->eventTotPassed($selectedEvent))
+                                <x-filament::badge color="success" icon="heroicon-m-check-circle">ToT event lulus</x-filament::badge>
+                            @endif
+                        </div>
+                    @endif
+                    <x-filament::button tag="a" :href="\App\Filament\Pages\TutorEventCatalog::getUrl()" color="gray" icon="heroicon-o-plus" class="sm:ml-auto">Daftar event lain</x-filament::button>
+                </div>
+            @endif
+        </x-filament::section>
+
         @if ($this->tutor?->tot_completed)
             <x-filament::section>
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

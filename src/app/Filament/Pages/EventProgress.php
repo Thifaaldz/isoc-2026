@@ -97,7 +97,7 @@ class EventProgress extends Page
             [
                 'title' => 'Checklist Termin-1',
                 'note' => TorEventTemplate::TERM_NOTES[1],
-                'items' => collect(TorEventTemplate::TERM_CHECKLIST[1])
+                'items' => collect(\App\Support\TermChecklistTemplate::terms($event->budget_items)[1])
                     ->map(fn (string $label, string $key) => [
                         'label' => $label,
                         'done' => in_array($key, $termOne, true),

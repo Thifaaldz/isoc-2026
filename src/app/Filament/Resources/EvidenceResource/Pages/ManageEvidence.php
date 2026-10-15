@@ -67,10 +67,11 @@ class ManageEvidence extends ManageRecords
         ];
     }
 
-    /** Wizard foto wajib a-g: tiap langkah berisi instruksi, jumlah minimal, dan progres foto event. */
+    /** Wizard foto wajib (a-g, atau sesuai template bukti dukung event): tiap langkah berisi instruksi, jumlah minimal, dan progres foto event. */
     private function requiredPhotosAction(): Actions\Action
     {
-        $photoSteps = collect(Evidence::REQUIRED_PHOTOS)->map(fn (array $photo, string $type) => Forms\Components\Wizard\Step::make($type)
+        $requiredPhotos = Evidence::requiredPhotos($this->eventId);
+        $photoSteps = collect($requiredPhotos)->map(fn (array $photo, string $type) => Forms\Components\Wizard\Step::make($type)
             ->label("Foto {$photo['step']}")
             ->description("Minimal {$photo['min']} foto")
             ->icon('heroicon-o-camera')
@@ -95,20 +96,24 @@ class ManageEvidence extends ManageRecords
 
         return Actions\Action::make('uploadRequiredPhotos')
             ->label('Upload Foto Wajib')
+            ->visible($requiredPhotos !== [])
             ->icon('heroicon-o-camera')
             ->color('success')
             ->modalWidth('5xl')
             ->modalHeading('Upload Foto Wajib Kegiatan')
-            ->modalDescription('Kumpulkan foto wajib a-g untuk setiap lokasi kegiatan. Foto dikirim ke Admin RTIK Pusat untuk diverifikasi.')
+            ->modalDescription('Kumpulkan foto wajib sesuai template bukti dukung event. Foto dikirim ke Admin RTIK Pusat untuk diverifikasi.')
             ->steps([
                 Forms\Components\Wizard\Step::make('event')
                     ->label('Event / Lokus')
                     ->icon('heroicon-o-calendar-days')
                     ->schema([
+                        // Langkah foto disusun dari template event yang dibuka, jadi event dikunci bila sudah dipilih.
                         Forms\Components\Select::make('learning_event_id')
                             ->label('Event')
                             ->options(fn () => EvidenceResource::eventOptions())
                             ->default(fn () => $this->eventId)
+                            ->disabled(fn () => filled($this->eventId))
+                            ->dehydrated()
                             ->searchable()
                             ->preload()
                             ->live()
@@ -119,11 +124,11 @@ class ManageEvidence extends ManageRecords
                     ]),
                 ...$photoSteps,
             ])
-            ->action(function (array $data): void {
+            ->action(function (array $data) use ($requiredPhotos): void {
                 $event = LearningEvent::query()->find($data['learning_event_id']);
                 $created = 0;
 
-                foreach (array_keys(Evidence::REQUIRED_PHOTOS) as $type) {
+                foreach (array_keys($requiredPhotos) as $type) {
                     foreach ((array) ($data['photos'][$type] ?? []) as $path) {
                         Evidence::query()->create([
                             'learning_event_id' => $event?->id,
@@ -137,7 +142,7 @@ class ManageEvidence extends ManageRecords
                     }
                 }
 
-                $remaining = collect(Evidence::REQUIRED_PHOTOS)
+                $remaining = collect(Evidence::requiredPhotos($event?->id))
                     ->filter(fn (array $photo, string $type) => Evidence::photoCounts($event?->id)[$type] < $photo['min'])
                     ->map(fn (array $photo) => "foto {$photo['step']}")
                     ->values();
@@ -158,9 +163,9 @@ class ManageEvidence extends ManageRecords
             return 'Pilih event terlebih dahulu untuk melihat progres.';
         }
 
-        $min = Evidence::REQUIRED_PHOTOS[$type]['min'];
-        $collected = Evidence::photoCounts((int) $eventId)[$type];
-        $approved = Evidence::photoCounts((int) $eventId, approvedOnly: true)[$type];
+        $min = Evidence::requiredPhotos((int) $eventId)[$type]['min'] ?? 1;
+        $collected = Evidence::photoCounts((int) $eventId)[$type] ?? 0;
+        $approved = Evidence::photoCounts((int) $eventId, approvedOnly: true)[$type] ?? 0;
 
         return "Sudah terkumpul {$collected}/{$min} foto ({$approved} disetujui).";
     }
@@ -170,7 +175,7 @@ class ManageEvidence extends ManageRecords
         $collected = Evidence::photoCounts($eventId ? (int) $eventId : null);
         $approved = Evidence::photoCounts($eventId ? (int) $eventId : null, approvedOnly: true);
 
-        $rows = collect(Evidence::REQUIRED_PHOTOS)->map(function (array $photo, string $type) use ($collected, $approved, $eventId) {
+        $rows = collect(Evidence::requiredPhotos($eventId ? (int) $eventId : null))->map(function (array $photo, string $type) use ($collected, $approved, $eventId) {
             $done = $collected[$type] >= $photo['min'];
             $status = $eventId
                 ? ($done ? '✅' : '⬜') . " {$collected[$type]}/{$photo['min']} terkumpul, {$approved[$type]} disetujui"

@@ -11,6 +11,7 @@ use App\Filament\Pages\ShareLinks;
 use App\Filament\Widgets\ParticipantRecapTable;
 use App\Filament\Pages\ParticipantApproval;
 use App\Filament\Pages\Profile;
+use App\Filament\Pages\TutorEventCatalog;
 use App\Filament\Pages\TutorTraining;
 use App\Filament\Widgets\KpiOverview;
 use App\Http\Middleware\EnsureTutorTrainingCompleted;
@@ -42,6 +43,7 @@ class TutorPanelProvider extends PanelProvider
      */
     public const NAVIGATION = [
         'Sebelum Kegiatan' => [
+            TutorEventCatalog::class,
             TutorTraining::class,
             Resources\TotAssessmentResource::class,
             Resources\TutorResource::class,
@@ -87,7 +89,7 @@ class TutorPanelProvider extends PanelProvider
                     ->values()
                     ->all()))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([TutorTraining::class, Pages\Dashboard::class, AnswerKey::class, TutorScores::class, EventRundown::class, EventAttendanceCode::class, ShareLinks::class, ParticipantApproval::class, MaterialPreview::class, Profile::class])
+            ->pages([TutorEventCatalog::class, TutorTraining::class, Pages\Dashboard::class, AnswerKey::class, TutorScores::class, EventRundown::class, EventAttendanceCode::class, ShareLinks::class, ParticipantApproval::class, MaterialPreview::class, Profile::class])
             ->widgets([Widgets\AccountWidget::class, KpiOverview::class, ParticipantRecapTable::class])
             ->middleware([
                 EncryptCookies::class,

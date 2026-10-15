@@ -3,9 +3,6 @@
 namespace App\Providers;
 
 use App\Http\Responses\Auth\RoleBasedLoginResponse;
-use App\Models\LearningMaterial;
-use App\Models\LearningMeeting;
-use App\Services\TutorMaterialMirror;
 use Filament\Actions\MountableAction;
 use Filament\Http\Responses\Auth\Contracts\LoginResponse;
 use Filament\Notifications\Livewire\Notifications;
@@ -59,22 +56,5 @@ class AppServiceProvider extends ServiceProvider
                 text-overflow: ellipsis;
             }
         </style>');
-
-        // Materi tutor auto-generated selalu mengikuti pertemuan & materi Materi Event peserta.
-        $syncMeeting = function (LearningMeeting $meeting): void {
-            if ($meeting->learning_event_id === null) {
-                app(TutorMaterialMirror::class)->syncFromTemplateId($meeting->module_template_id);
-            }
-        };
-        LearningMeeting::saved($syncMeeting);
-        LearningMeeting::deleted($syncMeeting);
-
-        $syncMaterial = function (LearningMaterial $material) use ($syncMeeting): void {
-            if ($meeting = LearningMeeting::query()->find($material->learning_meeting_id)) {
-                $syncMeeting($meeting);
-            }
-        };
-        LearningMaterial::saved($syncMaterial);
-        LearningMaterial::deleted($syncMaterial);
     }
 }

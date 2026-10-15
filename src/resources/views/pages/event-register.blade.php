@@ -102,6 +102,13 @@
                     {{ __('tanpa membuat akun baru.') }}
                 </div>
 
+                @if($learningEvent)
+                <div class="rounded-xl border border-grey-200 bg-grey-50 p-4 text-sm text-grey-600">
+                    {{ __('Ingin menjadi tutor/fasilitator di event ini?') }}
+                    <a class="font-semibold text-blue hover:underline" href="{{ route('tutors.register', ['event' => $learningEvent->slug]) }}">{{ __('Daftar sebagai tutor') }}</a>
+                </div>
+                @endif
+
                 @if($errors->any())
                 <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
                     <ul class="list-disc list-inside space-y-1">

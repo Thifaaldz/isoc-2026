@@ -149,17 +149,20 @@ class TorEventTemplate
 
     /**
      * Item checklist termin yang disimpan di kolom budget_items.
+     * $terms = item per termin dari template checklist termin (default: TERM_CHECKLIST); $template = key template-nya.
      *
      * @param  array<int, string>  $checkedKeys
+     * @param  array<int, array<string, string>>|null  $terms
      * @return array<int, array{key: string, term: int, description: string, done: bool}>
      */
-    public static function termChecklist(array $checkedKeys = []): array
+    public static function termChecklist(array $checkedKeys = [], ?array $terms = null, ?string $template = null): array
     {
         $items = [];
 
-        foreach (self::TERM_CHECKLIST as $term => $list) {
+        foreach ($terms ?? self::TERM_CHECKLIST as $term => $list) {
             foreach ($list as $key => $description) {
-                $items[] = ['key' => $key, 'term' => $term, 'description' => $description, 'done' => in_array($key, $checkedKeys, true)];
+                $items[] = ['key' => (string) $key, 'term' => (int) $term, 'description' => $description, 'done' => in_array((string) $key, $checkedKeys, true)]
+                    + ($template && $template !== TermChecklistTemplate::DEFAULT_KEY ? ['template' => $template] : []);
             }
         }
 
@@ -173,10 +176,12 @@ class TorEventTemplate
      */
     public static function checkedKeys(?array $items, int $term): array
     {
+        $options = TermChecklistTemplate::terms($items)[$term] ?? [];
+
         return collect($items ?? [])
             ->filter(fn ($item) => is_array($item) && (int) ($item['term'] ?? 0) === $term && ! empty($item['done']))
             ->pluck('key')
-            ->filter(fn ($key) => isset(self::TERM_CHECKLIST[$term][$key]))
+            ->filter(fn ($key) => isset($options[$key]))
             ->values()
             ->all();
     }

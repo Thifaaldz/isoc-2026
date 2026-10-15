@@ -220,7 +220,7 @@
 
     <h2>11. Anggaran (Checklist Termin)</h2>
     <p>Sesuai TOR, anggaran ditransfer ke rekening RTIK Pusat dalam dua termin. Checklist keperluan diisi Fasilitator pada wizard event.</p>
-    @foreach(TorEventTemplate::TERM_CHECKLIST as $term => $list)
+    @foreach(\App\Support\TermChecklistTemplate::terms($event->budget_items) as $term => $list)
         @php $checked = $termChecked($term); @endphp
         <h3>Termin-{{ $term }} ({{ TorEventTemplate::TERM_NOTES[$term] }})</h3>
         <table class="fixed">

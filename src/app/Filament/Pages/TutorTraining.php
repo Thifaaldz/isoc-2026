@@ -5,13 +5,16 @@ namespace App\Filament\Pages;
 use App\Enums\UserRole;
 use App\Models\Assessment;
 use App\Models\AssessmentAttempt;
+use App\Models\LearningEvent;
 use App\Models\LearningMaterial;
 use App\Models\ModuleTemplate;
 use App\Models\TotAssessment;
+use App\Models\TutorRegistration;
 use App\Support\MaterialViewer;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Collection;
+use Livewire\Attributes\Url;
 
 class TutorTraining extends Page
 {
@@ -26,6 +29,10 @@ class TutorTraining extends Page
     protected static ?string $slug = 'pelatihan-tutor';
 
     protected static string $view = 'filament.pages.tutor-training';
+
+    /** Event yang didaftarkan tutor dan sedang dikerjakan ToT-nya. */
+    #[Url(as: 'event')]
+    public ?int $eventId = null;
 
     /** @var array<int, string|null> */
     public array $answers = [];
@@ -46,9 +53,72 @@ class TutorTraining extends Page
         return auth()->user()?->tutor;
     }
 
+    public function mount(): void
+    {
+        if (! $this->registeredEvents->contains('id', $this->eventId)) {
+            $this->eventId = $this->registeredEvents->first()?->id;
+        }
+    }
+
+    public function updatedEventId(): void
+    {
+        $this->activeTestId = null;
+        $this->testAnswers = [];
+    }
+
+    /** Event yang didaftarkan tutor (menunggu validasi atau sudah ditugaskan), pilihan untuk ToT. */
+    public function getRegisteredEventsProperty(): Collection
+    {
+        if (! $this->tutor) {
+            return new Collection();
+        }
+
+        return LearningEvent::query()
+            ->whereIn('id', $this->tutor->registrations()->where('status', '!=', TutorRegistration::REJECTED)->select('learning_event_id'))
+            ->with('moduleTemplate.tutorMirror')
+            ->orderBy('starts_at')
+            ->get();
+    }
+
+    public function getSelectedEventProperty(): ?LearningEvent
+    {
+        return $this->registeredEvents->firstWhere('id', $this->eventId);
+    }
+
+    /** Materi ToT milik event terpilih (salinan tutor dari Materi Event peserta). */
+    public function getEventTemplateProperty(): ?ModuleTemplate
+    {
+        $template = $this->selectedEvent?->moduleTemplate?->tutorMirror;
+
+        return $template?->is_active ? $template : null;
+    }
+
+    public function registrationStatus(LearningEvent $event): ?string
+    {
+        return TutorRegistration::STATUSES[$this->tutor?->registrations()->where('learning_event_id', $event->id)->value('status')] ?? null;
+    }
+
+    public function eventTotPassed(LearningEvent $event): bool
+    {
+        return TotAssessment::query()->where('learning_event_id', $event->id)->where('tutor_id', $this->tutor?->id)->where('is_perfect', true)->exists();
+    }
+
     /** Materi Event tipe Tutor yang dikelola Super Admin dari menu Materi Event dan Pertemuan & Materi. */
     public function getTutorTemplatesProperty(): Collection
     {
+        if ($this->eventTemplate) {
+            return ModuleTemplate::query()
+                ->whereKey($this->eventTemplate->id)
+                ->with([
+                    'learningMeetings' => fn ($query) => $query
+                        ->whereNull('learning_event_id')
+                        ->where('is_published', true)
+                        ->orderBy('order')
+                        ->with(['materials' => fn ($materials) => $materials->where('is_published', true)->orderBy('order')]),
+                ])
+                ->get();
+        }
+
         return ModuleTemplate::query()
             ->forTutors()
             ->where('is_active', true)
@@ -67,9 +137,13 @@ class TutorTraining extends Page
         return MaterialViewer::url($material);
     }
 
-    /** Materi Event tipe Tutor terbaru yang memiliki Pre-Test dan Post-Test ToT. */
+    /** Pre/Post-Test ToT milik event terpilih, atau Materi Event tipe Tutor terbaru yang memilikinya. */
     public function getTestTemplateProperty(): ?ModuleTemplate
     {
+        if ($this->eventTemplate && $this->hasOpenTests($this->eventTemplate)) {
+            return $this->eventTemplate;
+        }
+
         return ModuleTemplate::query()
             ->forTutors()
             ->where('is_active', true)
@@ -77,6 +151,12 @@ class TutorTraining extends Page
             ->whereHas('assessments', fn ($query) => $query->where('type', 'post')->where('is_open', true))
             ->latest('id')
             ->first();
+    }
+
+    private function hasOpenTests(ModuleTemplate $template): bool
+    {
+        return $template->assessments()->where('type', 'pre')->where('is_open', true)->exists()
+            && $template->assessments()->where('type', 'post')->where('is_open', true)->exists();
     }
 
     public function getPreTestProperty(): ?Assessment
@@ -202,7 +282,7 @@ class TutorTraining extends Page
             : Notification::make()->title('Post-Test ToT belum sempurna')->body("Skor: {$score}. Pelajari kembali materi dan ulangi Post-Test ToT sampai nilai 100.")->warning()->send();
     }
 
-    /** Simpan nilai ToT ke semua event tutor; nilai 100 menandai tutor lulus ToT. */
+    /** Simpan nilai ToT ke event terpilih (tes milik event) atau semua event tutor; nilai 100 menandai tutor lulus ToT. */
     private function recordTotScore(int $score, string $note): void
     {
         $tutor = $this->tutor;
@@ -215,7 +295,11 @@ class TutorTraining extends Page
             $tutor->update(['tot_completed' => true, 'is_cadre' => true]);
         }
 
-        foreach ($tutor->learningEvents()->get() as $event) {
+        $events = $this->selectedEvent && $this->testTemplate?->is($this->eventTemplate)
+            ? collect([$this->selectedEvent])
+            : $tutor->learningEvents()->get()->push($this->selectedEvent)->filter()->unique('id');
+
+        foreach ($events as $event) {
             TotAssessment::query()->updateOrCreate(
                 ['learning_event_id' => $event->id, 'tutor_id' => $tutor->id],
                 ['score' => $score, 'completed_at' => now(), 'assessed_by' => auth()->id(), 'notes' => $note],

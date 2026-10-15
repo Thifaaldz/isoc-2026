@@ -33,7 +33,7 @@ class ManageLearningMeeting extends ManageRecords
         return ModuleTemplate::query()
             ->withCount('learningMeetings')
             ->where('is_active', true)
-            ->whereNull('source_template_id')
+            // Materi tutor (Generated for Tutor) ikut tampil agar pertemuan & materinya bisa diedit.
             ->orderBy('name')
             ->get();
     }

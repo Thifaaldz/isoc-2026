@@ -8,6 +8,7 @@ use App\Filament\Pages\CreateSeminarShortcut;
 use App\Filament\Pages\EventProgress;
 use App\Filament\Pages\ManageHomePage;
 use App\Filament\Pages\Profile;
+use App\Filament\Pages\TutorApproval;
 use App\Filament\Resources;
 use App\Filament\Widgets\ControlCenter;
 use App\Filament\Widgets\LocationProgress;
@@ -51,6 +52,7 @@ class SuperAdminPanelProvider extends PanelProvider
             Resources\AttendanceResource::class,
             Resources\MicrositePracticeResource::class,
             Resources\TutorResource::class,
+            TutorApproval::class,
             Resources\TotAssessmentResource::class,
             Resources\TrainingSessionResource::class,
         ],
@@ -100,7 +102,7 @@ class SuperAdminPanelProvider extends PanelProvider
                     ->values()
                     ->all()))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->pages([Pages\Dashboard::class, ManageHomePage::class, CreateSeminarShortcut::class, EventProgress::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
+            ->pages([Pages\Dashboard::class, TutorApproval::class, ManageHomePage::class, CreateSeminarShortcut::class, EventProgress::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
             // KPI di atas, lalu Update (kiri) & Reminder (kanan). Sign out tersedia di menu profil.
             ->widgets([ControlCenter::class, KpiOverview::class, LocationProgress::class, EventApprovalUpdates::class, EventApprovalReminders::class])
             ->middleware([

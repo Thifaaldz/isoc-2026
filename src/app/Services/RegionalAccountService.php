@@ -30,6 +30,7 @@ class RegionalAccountService
         $tutorUsers = DB::table('tutors')
             ->join('learning_event_tutor', 'learning_event_tutor.tutor_id', '=', 'tutors.id')
             ->whereIn('learning_event_tutor.learning_event_id', $events)
+            ->whereNotIn('learning_event_tutor.status', \App\Models\TutorRegistration::UNASSIGNED)
             ->select('tutors.user_id');
 
         return User::query()

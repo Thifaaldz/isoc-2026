@@ -7,14 +7,13 @@ use App\Models\ModuleTemplate;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Materi tutor (ToT) dibuat otomatis dari Materi Event peserta dengan isi pertemuan & materi yang sama.
- * Yang diisi manual untuk materi tutor hanya Pre-Test dan Post-Test ToT.
+ * Materi tutor (ToT) disalin dari Materi Event peserta saat pertama kali dibuat (pertemuan & materi yang sama).
+ * Setelah tersalin, materi tutor berdiri sendiri: pertemuan dan materinya (PPT, video, dll.) bisa diedit
+ * tanpa tertimpa perubahan materi peserta. Salin ulang hanya lewat tombol "Salin ulang dari materi peserta".
  */
 class TutorMaterialMirror
 {
-    private static bool $syncing = false;
-
-    /** Buat (bila belum ada) lalu samakan materi tutor dari Materi Event peserta. */
+    /** Buat materi tutor (bila belum ada) dan salin isi materi peserta selama materi tutor masih kosong. */
     public function ensureFor(ModuleTemplate $source): ?ModuleTemplate
     {
         if ($source->audience !== ModuleTemplate::AUDIENCE_PESERTA) {
@@ -32,66 +31,54 @@ class TutorMaterialMirror
             'is_active' => $source->is_active,
         ]);
 
-        $this->sync($source, $mirror);
+        if (! $mirror->learningMeetings()->whereNull('learning_event_id')->exists()) {
+            $this->copy($source, $mirror);
+        }
 
         return $mirror;
     }
 
-    /** Dipanggil saat pertemuan/materi template peserta berubah; hanya jalan bila materi tutornya sudah ada. */
-    public function syncFromTemplateId(?int $templateId): void
+    /** Timpa pertemuan & materi tutor dengan salinan terbaru materi peserta asalnya (Pre/Post-Test ToT tetap). */
+    public function resync(ModuleTemplate $mirror): bool
     {
-        if (self::$syncing || ! $templateId) {
-            return;
+        $source = $mirror->sourceTemplate;
+
+        if (! $source) {
+            return false;
         }
 
-        $source = ModuleTemplate::query()->find($templateId);
-        $mirror = $source?->tutorMirror()->first();
+        $this->copy($source, $mirror);
 
-        if ($mirror) {
-            $this->sync($source, $mirror);
-        }
+        return true;
     }
 
-    private function sync(ModuleTemplate $source, ModuleTemplate $mirror): void
+    private function copy(ModuleTemplate $source, ModuleTemplate $mirror): void
     {
-        if (self::$syncing) {
-            return;
-        }
+        DB::transaction(function () use ($source, $mirror): void {
+            $mirror->update(['meeting_count' => $source->meeting_count]);
 
-        self::$syncing = true;
+            // Pertemuan tutor dibangun ulang dari sumber; Pre/Post-Test ToT melekat ke template, jadi tidak terhapus.
+            $mirror->learningMeetings()->whereNull('learning_event_id')->get()
+                ->each(fn (LearningMeeting $meeting) => $meeting->materials()->delete());
+            $mirror->learningMeetings()->whereNull('learning_event_id')->delete();
 
-        try {
-            DB::transaction(function () use ($source, $mirror): void {
-                $mirror->update([
-                    'meeting_count' => $source->meeting_count,
-                    'is_active' => $source->is_active,
-                ]);
+            $meetings = $source->learningMeetings()
+                ->whereNull('learning_event_id')
+                ->with('materials')
+                ->orderBy('order')
+                ->get();
 
-                // Pertemuan tutor dibangun ulang dari sumber; Pre/Post-Test ToT melekat ke template, jadi tidak terhapus.
-                $mirror->learningMeetings()->whereNull('learning_event_id')->get()
-                    ->each(fn (LearningMeeting $meeting) => $meeting->materials()->delete());
-                $mirror->learningMeetings()->whereNull('learning_event_id')->delete();
+            foreach ($meetings as $meeting) {
+                $copy = $meeting->replicate();
+                $copy->module_template_id = $mirror->id;
+                $copy->save();
 
-                $meetings = $source->learningMeetings()
-                    ->whereNull('learning_event_id')
-                    ->with('materials')
-                    ->orderBy('order')
-                    ->get();
-
-                foreach ($meetings as $meeting) {
-                    $copy = $meeting->replicate();
-                    $copy->module_template_id = $mirror->id;
-                    $copy->save();
-
-                    foreach ($meeting->materials as $material) {
-                        $materialCopy = $material->replicate();
-                        $materialCopy->learning_meeting_id = $copy->id;
-                        $materialCopy->save();
-                    }
+                foreach ($meeting->materials as $material) {
+                    $materialCopy = $material->replicate();
+                    $materialCopy->learning_meeting_id = $copy->id;
+                    $materialCopy->save();
                 }
-            });
-        } finally {
-            self::$syncing = false;
-        }
+            }
+        });
     }
 }

@@ -9,7 +9,7 @@
 <div style="display: grid; gap: 16px;">
     <div style="border-radius: 12px; overflow: hidden; background: rgba(15, 23, 42, .92); display: flex; align-items: center; justify-content: center; min-height: 200px;">
         @if ($kind === 'image')
-            <img src="{{ $url }}" alt="{{ \App\Models\Evidence::TYPES[$evidence->type] ?? $evidence->type }}" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
+            <img src="{{ $url }}" alt="{{ \App\Models\Evidence::typeLabel($evidence->type) }}" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
         @elseif ($kind === 'video')
             <video src="{{ $url }}" controls preload="metadata" playsinline style="width: 100%; max-height: 70vh;"></video>
         @elseif ($kind === 'youtube')
@@ -35,7 +35,7 @@
     </div>
 
     <dl style="display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; margin: 0;">
-        <dt style="color: rgb(100, 116, 139);">Jenis</dt><dd style="margin: 0;">{{ \App\Models\Evidence::TYPES[$evidence->type] ?? $evidence->type }}</dd>
+        <dt style="color: rgb(100, 116, 139);">Jenis</dt><dd style="margin: 0;">{{ \App\Models\Evidence::typeLabel($evidence->type) }}</dd>
         <dt style="color: rgb(100, 116, 139);">Event</dt><dd style="margin: 0;">{{ $evidence->learningEvent?->title ?? '-' }}</dd>
         <dt style="color: rgb(100, 116, 139);">Lokasi</dt><dd style="margin: 0;">{{ $evidence->school?->name ?? '-' }}</dd>
         @if ($evidence->session_index)

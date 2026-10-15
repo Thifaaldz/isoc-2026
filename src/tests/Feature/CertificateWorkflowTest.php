@@ -719,3 +719,21 @@ test('sertifikat yang sudah terbit tetap bisa diunduh walau aturan eligibility b
     \Illuminate\Support\Facades\DB::table('certificates')->where('id', $certificate->id)->update(['status' => 'revoked']);
     $this->get(route('certificates.download-pdf', $certificate))->assertForbidden();
 });
+
+test('dashboard peserta menampilkan daftar tutor event, tanpa tutor yang masih menunggu validasi', function () {
+    $event = makeEvent();
+    $participant = enrol($event);
+    $assigned = \App\Models\Tutor::query()->create(['user_id' => makeUser(UserRole::Tutor, 'tutor.dashboard@isoc.id')->id, 'school_id' => $event->school_id, 'institution' => 'RTIK Dashboard']);
+    $pending = \App\Models\Tutor::query()->create(['user_id' => makeUser(UserRole::Tutor, 'tutor.pending@isoc.id')->id, 'school_id' => $event->school_id]);
+    $event->tutors()->attach($assigned->id, ['status' => 'assigned', 'assigned_at' => now()]);
+    \App\Models\TutorRegistration::query()->create(['learning_event_id' => $event->id, 'tutor_id' => $pending->id, 'status' => 'pending']);
+
+    \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('peserta'));
+    $this->actingAs($participant->user);
+
+    \Livewire\Livewire::test(\App\Filament\Widgets\ParticipantDashboardOverview::class)
+        ->assertSee('Tutor Event')
+        ->assertSee('Tutor.dashboard')
+        ->assertSee('RTIK Dashboard')
+        ->assertDontSee('Tutor.pending');
+});

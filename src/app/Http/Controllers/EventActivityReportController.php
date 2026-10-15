@@ -150,16 +150,21 @@ class EventActivityReportController extends Controller
             ['Registrasi laman ISOC untuk e-Sertifikat', "{$participantCount} peserta", "{$participantCount} terdaftar, {$issuedCertificates} e-Sertifikat terbit", $participantCount > 0],
         ];
 
-        foreach (Evidence::REQUIRED_PHOTOS as $type => $photo) {
+        foreach (Evidence::requiredPhotos($event->id) as $type => $photo) {
             // Status laporan dihitung dari jumlah foto per jenis yang benar-benar disetujui.
-            $torEvidence[] = ["Foto {$photo['step']}. {$photo['instruction']}", "{$photo['min']} foto", "{$photoCounts[$type]} foto disetujui", $photoCounts[$type] >= $photo['min']];
+            $torEvidence[] = ["Foto {$photo['step']}. " . ($photo['instruction'] ?: $photo['title']), "{$photo['min']} foto", "{$photoCounts[$type]} foto disetujui", $photoCounts[$type] >= $photo['min']];
         }
 
         if ($legacyPhotos > 0) {
             $torEvidence[] = ['Foto kegiatan per sesi (format lama, sebelum checklist foto wajib a-g)', '-', "{$legacyPhotos} foto disetujui", true];
         }
 
-        $torEvidence[] = ['Video Tutor & Peserta dengan slogan "ISOC - The Internet is for Everyone"', '1 video', $approvedTypeCount('video_slogan') . ' video disetujui', $approvedTypeCount('video_slogan') > 0];
+        // Bukti non-foto dari template bukti dukung event (default: video slogan).
+        foreach (Evidence::requiredFiles($event->id) as $type => $item) {
+            $torEvidence[] = $type === 'video_slogan'
+                ? ['Video Tutor & Peserta dengan slogan "ISOC - The Internet is for Everyone"', "{$item['min']} video", $approvedTypeCount('video_slogan') . ' video disetujui', $approvedTypeCount('video_slogan') >= $item['min']]
+                : [$item['title'] . ($item['instruction'] !== '' ? " ({$item['instruction']})" : ''), "{$item['min']} berkas", $approvedTypeCount($type) . ' berkas disetujui', $approvedTypeCount($type) >= $item['min']];
+        }
         $torEvidence[] = ['Pre-Test di awal dan Post-Test di akhir sesi', "{$participantCount} peserta", "Pre {$preCompleted}, Post {$postCompleted} peserta", $participantCount > 0 && $preCompleted >= $participantCount && $postCompleted >= $participantCount];
 
         // Bukti dukung per peserta: semua peserta tampil, termasuk yang buktinya belum lengkap.
@@ -200,7 +205,7 @@ class EventActivityReportController extends Controller
             'tutors' => $event->tutors,
             'meetings' => $event->meetings->sortBy('order')->values(),
             'evidences' => $event->evidences->sortBy('type'),
-            'evidenceTypes' => Evidence::TYPES,
+            'evidenceTypes' => Evidence::labels(),
             'preAverage' => $averageScore('pre'),
             'postAverage' => $averageScore('post'),
             'quizAverage' => $averageScore('quiz'),

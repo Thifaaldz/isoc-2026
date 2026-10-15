@@ -77,6 +77,8 @@ class LearningEvent extends Model
     {
         return $this->belongsToMany(Tutor::class, 'learning_event_tutor')
             ->withPivot(['status', 'assigned_at'])
+            // Pendaftaran tutor yang belum divalidasi / ditolak bukan tutor event.
+            ->wherePivotNotIn('status', TutorRegistration::UNASSIGNED)
             ->withTimestamps();
     }
 

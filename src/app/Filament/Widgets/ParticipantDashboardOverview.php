@@ -83,7 +83,7 @@ class ParticipantDashboardOverview extends Widget
         }
 
         $events = LearningEvent::query()
-            ->with(['school.wagGroups', 'meetings.materials', 'assessments'])
+            ->with(['school.wagGroups', 'meetings.materials', 'assessments', 'tutors.user'])
             ->where('is_published', true)
             ->whereHas('participants', fn ($query) => $query->where('participants.id', $participant->id))
             ->orderByDesc('starts_at')
