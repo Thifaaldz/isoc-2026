@@ -45,16 +45,18 @@ class SuperAdminPanelProvider extends PanelProvider
             Resources\LearningEventResource::class,
             Resources\EvidenceResource::class,
             Resources\PaymentResource::class,
+            Resources\TrainingSessionResource::class,
         ],
-        'Peserta & Tutor' => [
+        'Peserta' => [
             Resources\ParticipantResource::class,
             Resources\AssessmentAttemptResource::class,
             Resources\AttendanceResource::class,
             Resources\MicrositePracticeResource::class,
+        ],
+        'Tutor' => [
             Resources\TutorResource::class,
             TutorApproval::class,
             Resources\TotAssessmentResource::class,
-            Resources\TrainingSessionResource::class,
         ],
         'Materi & Tes' => [
             Resources\ModuleTemplateResource::class,
