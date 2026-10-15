@@ -510,7 +510,6 @@ test('tambah seminar otomatis memakai mitra TOR dan hanya logo yang dicentang ma
     \App\Models\Partner::query()->create(['name' => 'Mitra Lain', 'status' => 'active']);
     $school = School::query()->create(['name' => 'SMAN 1 Uji', 'city' => 'Kota Uji', 'status' => 'active']);
     $admin = makeUser(UserRole::SuperAdmin, 'pusat.mitra@isoc.id');
-    config(['app.event_creation_enabled' => true]);
 
     \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('superadmin'));
     $this->actingAs($admin);

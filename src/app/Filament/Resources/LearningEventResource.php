@@ -89,13 +89,10 @@ class LearningEventResource extends Resource
         return static::canViewAny();
     }
 
-    /**
-     * Event tiap lokus sudah disiapkan RTIK Pusat (RtikDaerahSeeder), jadi tombol New Event dinonaktifkan untuk semua role.
-     * Aktifkan lagi lewat EVENT_CREATION_ENABLED=true.
-     */
+    /** Hanya Admin RTIK Pusat (Super Admin) yang dapat membuat event baru lewat tombol New Event. */
     public static function canCreate(): bool
     {
-        return (bool) config('app.event_creation_enabled') && auth()->user()?->role === UserRole::SuperAdmin;
+        return auth()->user()?->role === UserRole::SuperAdmin;
     }
 
     public static function canDelete(Model $record): bool
