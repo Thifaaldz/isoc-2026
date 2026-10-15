@@ -42,7 +42,7 @@ class EventCatalog extends Page
     public function getEventsProperty(): Collection
     {
         return app(EventEnrollmentService::class)->availableEventsQuery()
-            ->with(['school', 'orderedPartners'])
+            ->with('school')
             ->withCount('participants')
             ->orderByDesc('registration_open')
             ->orderBy('starts_at')

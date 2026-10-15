@@ -26,7 +26,7 @@
                     @endif
                     <div class="flex justify-between gap-6"><dt class="text-grey-500">{{ __('Status ToT') }}</dt><dd class="font-medium text-right">{{ $tutor->tot_completed ? __('Lulus ToT') : __('Belum ToT') }}</dd></div>
                 </dl>
-                <p class="text-grey-500 text-xs mt-6">{{ __('Tanda tangan ini diterbitkan sistem pada Laporan Kegiatan dan hanya sah untuk kegiatan di atas.') }}</p>
+                <p class="text-grey-500 text-xs mt-6">{{ __('Tanda tangan ini diterbitkan sistem pada Laporan Kegiatan dan Sertifikat Tutor, dan hanya sah untuk kegiatan di atas.') }}</p>
             @else
                 <span class="material-symbols-outlined text-5xl text-red-500">gpp_bad</span>
                 <div class="text-red-600 text-sm font-semibold tracking-wide mt-2 mb-2">{{ __('TANDA TANGAN TIDAK VALID') }}</div>

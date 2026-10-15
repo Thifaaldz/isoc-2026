@@ -80,6 +80,11 @@ Route::middleware('auth')->get('/certificates/{certificate}/download-pdf', [Cert
     ->name('certificates.download-pdf');
 Route::middleware('auth')->get('/events/{event}/certificates/download', [CertificatePdfController::class, 'downloadEvent'])
     ->name('certificates.event-download');
+// Sertifikat tutor per event (tanpa syarat, hanya untuk tutor yang ditugaskan).
+Route::middleware('auth')->get('/tutor-certificates/{event}/preview-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'preview'])
+    ->name('tutor-certificates.preview');
+Route::middleware('auth')->get('/tutor-certificates/{event}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'download'])
+    ->name('tutor-certificates.download');
 Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
     ->name('certificate-templates.preview-pdf');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])

@@ -2,6 +2,8 @@
     use App\Models\LearningMeeting;
 
     $participant = $certificate->participant;
+    // Sertifikat tutor: tidak tersimpan di tabel certificates, data pemegangnya dikirim lewat $holder.
+    $holder = $holder ?? null;
     $event = $certificate->learningEvent ?? $participant?->learningEvents()->first();
     $event?->loadMissing('certificatePartners');
     $school = $participant?->school;
@@ -15,17 +17,19 @@
         : null;
     $issuedDate = optional($certificate->issued_at)->translatedFormat('d F Y') ?? now()->translatedFormat('d F Y');
     $eventDate = optional($event?->starts_at)->translatedFormat('d F Y') ?? $issuedDate;
-    $participantName = $participant?->user?->name ?? 'Nama Peserta';
+    $participantName = $holder['name'] ?? $participant?->user?->name ?? 'Nama Peserta';
     $nameFontSize = mb_strlen($participantName) > 34 ? 20 : (mb_strlen($participantName) > 24 ? 23 : 26);
     $eventTitle = $event?->title ?? 'Digital Safety Champions';
-    $competencyTitle = 'PESERTA LITERASI DIGITAL SAFETY CHAMPIONS';
+    $competencyTitle = $holder['competency'] ?? 'PESERTA LITERASI DIGITAL SAFETY CHAMPIONS';
+    $holderInstitution = $holder['institution'] ?? $school?->name;
+    $holderRole = $holder['role'] ?? $participant?->grade;
     $primaryTutor = $event?->exists
         ? $event->tutors()->with('user')->orderBy('tutors.id')->first()
         : null;
     $tutorName = $primaryTutor?->user?->name ?? 'Nama Tutor';
     $tutorInstitution = $primaryTutor?->institution ?: ($primaryTutor ? ($school?->name ?? '-') : 'Lembaga Tutor');
     $organizerName = 'Sena';
-    $verifyUrl = filled($certificate->number) ? route('certificate.verify', $certificate->number) : null;
+    $verifyUrl = $holder['verify_url'] ?? (filled($certificate->number) ? route('certificate.verify', $certificate->number) : null);
     $qrCodeSrc = null;
 
     if ($verifyUrl) {
@@ -180,15 +184,15 @@
     };
 
     $pageTwoLogoSrcs = $eventPartnerLogoSrcs;
-    $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $school, $participant, $eventDate, $competencyTitle, $tutorName, $tutorInstitution, $organizerName): string {
+    $elementText = function (array $element) use ($participantName, $eventTitle, $certificate, $issuedDate, $holderInstitution, $holderRole, $eventDate, $competencyTitle, $tutorName, $tutorInstitution, $organizerName): string {
         $type = $element['type'] ?? 'custom_text';
         $content = match ($type) {
             'participant_name' => $participantName,
             'event_title' => $eventTitle,
             'certificate_number' => $certificate->number ?: '-',
             'issued_date' => $issuedDate,
-            'school_name' => $school?->name ?? 'Nama Sekolah / Instansi',
-            'class_name' => $participant?->grade ?? 'Kelas / Peran',
+            'school_name' => $holderInstitution ?? 'Nama Sekolah / Instansi',
+            'class_name' => $holderRole ?? 'Kelas / Peran',
             'tutor_name' => $tutorName,
             'tutor_institution' => $tutorInstitution,
             'organizer_name' => $organizerName,
@@ -201,8 +205,8 @@
             '{{event_title}}' => $eventTitle,
             '{{certificate_number}}' => $certificate->number ?: '-',
             '{{issued_date}}' => $issuedDate,
-            '{{school_name}}' => $school?->name ?? 'Nama Sekolah / Instansi',
-            '{{class_name}}' => $participant?->grade ?? 'Kelas / Peran',
+            '{{school_name}}' => $holderInstitution ?? 'Nama Sekolah / Instansi',
+            '{{class_name}}' => $holderRole ?? 'Kelas / Peran',
             '{{event_date}}' => $eventDate,
             '{{competency_title}}' => $competencyTitle,
             '{{tutor_name}}' => $tutorName,
@@ -602,7 +606,7 @@
                 <div class="meta">
                     Program literasi keamanan digital<br>
                     No. Sertifikat: {{ $certificate->number }}<br>
-                    Peserta: <strong>{{ $participant?->user?->name ?? '-' }}</strong>{{ $school?->name ? ' - ' . $school->name : '' }}
+                    {{ $holder['label'] ?? 'Peserta' }}: <strong>{{ $holder ? $participantName : ($participant?->user?->name ?? '-') }}</strong>{{ $holderInstitution ? ' - ' . $holderInstitution : '' }}
                 </div>
             </div>
             <table>

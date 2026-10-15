@@ -6,59 +6,46 @@
         <x-slot name="description">Pilih event lalu klik Daftar Jadi Tutor. Pendaftaran divalidasi Admin RTIK Pusat; ToT untuk event yang didaftarkan bisa dikerjakan dari menu ToT Awal.</x-slot>
 
         @if ($this->events->isEmpty())
-            <p class="text-sm text-gray-500">Belum ada event yang dipublikasikan.</p>
+            <div style="align-items: center; color: rgb(100, 116, 139); display: grid; font-size: 14px; gap: 6px; justify-items: center; padding: 28px 12px; text-align: center;">
+                <x-heroicon-o-calendar-days style="color: rgb(148, 163, 184); height: 36px; width: 36px;" />
+                <span>Belum ada event yang dipublikasikan.</span>
+            </div>
         @else
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="ecc-grid">
                 @foreach ($this->events as $event)
                     @php
                         $status = $statuses[$event->id] ?? null;
                         $reason = $this->closedReason($event);
-                        $location = match ($event->event_type) {
-                            'webinar' => 'Webinar / Zoom',
-                            'hybrid' => ($event->school?->name ? $event->school->name . ' + Zoom' : 'Hybrid'),
-                            default => $event->school?->name ?? '-',
+                        $registered = in_array($status, [\App\Models\TutorRegistration::ASSIGNED, \App\Models\TutorRegistration::PENDING], true);
+                        [$statusLabel, $statusColor] = match (true) {
+                            $status === \App\Models\TutorRegistration::ASSIGNED => ['Tutor event ini', 'success'],
+                            $status === \App\Models\TutorRegistration::PENDING => ['Menunggu validasi', 'warning'],
+                            $status === \App\Models\TutorRegistration::REJECTED && ! $reason => ['Ditolak, bisa daftar ulang', 'danger'],
+                            (bool) $reason => ['Pendaftaran ditutup', 'gray'],
+                            default => ['Pendaftaran dibuka', 'info'],
                         };
                     @endphp
-                    <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                        <div class="flex flex-wrap items-center gap-2">
-                            @if ($status === \App\Models\TutorRegistration::ASSIGNED)
-                                <x-filament::badge color="success" icon="heroicon-m-check-circle">Tutor event ini</x-filament::badge>
-                            @elseif ($status === \App\Models\TutorRegistration::PENDING)
-                                <x-filament::badge color="warning" icon="heroicon-m-clock">Menunggu validasi</x-filament::badge>
-                            @elseif ($status === \App\Models\TutorRegistration::REJECTED)
-                                <x-filament::badge color="danger">Ditolak, bisa daftar ulang</x-filament::badge>
-                            @elseif ($reason)
-                                <x-filament::badge color="gray">Pendaftaran ditutup</x-filament::badge>
-                            @else
-                                <x-filament::badge color="info">Pendaftaran dibuka</x-filament::badge>
-                            @endif
-                            <x-filament::badge color="gray">{{ ucfirst($event->event_type ?: 'offline') }}</x-filament::badge>
-                        </div>
-
-                        <h3 class="text-base font-semibold text-gray-950 dark:text-white">{{ $event->title }}</h3>
-
-                        <dl class="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-calendar" class="h-4 w-4 text-gray-400" /><span>{{ $event->starts_at?->translatedFormat('d F Y') ?? '-' }}{{ $event->starts_at && $event->ends_at ? ', ' . $event->starts_at->format('H.i') . ' - ' . $event->ends_at->format('H.i') . ' WIB' : '' }}</span></div>
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-map-pin" class="h-4 w-4 text-gray-400" /><span>{{ $location }}</span></div>
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-user-group" class="h-4 w-4 text-gray-400" /><span>{{ $event->tutors_count }}/{{ $event->target_tutors ?: '-' }} tutor</span></div>
-                        </dl>
-
-                        @if ($event->description)
-                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit($event->description, 180) }}</p>
+                    <x-event-catalog-card
+                        wire:key="tutor-catalog-{{ $event->id }}"
+                        :event="$event"
+                        :status-label="$statusLabel"
+                        :status-color="$statusColor"
+                        quota-label="tutor"
+                        :quota-count="$event->tutors_count"
+                        :quota-target="(int) $event->target_tutors"
+                        :highlight="$registered"
+                        :muted="! $registered && (bool) $reason"
+                    >
+                        @if ($registered)
+                            <x-filament::button tag="a" :href="\App\Filament\Pages\TutorTraining::getUrl(['event' => $event->id])" icon="heroicon-o-academic-cap" color="success">
+                                Kerjakan ToT Event
+                            </x-filament::button>
+                        @elseif ($reason)
+                            <x-filament::button disabled color="gray">{{ $reason }}</x-filament::button>
+                        @else
+                            {{ ($this->joinAction)(['event' => $event->id]) }}
                         @endif
-
-                        <div class="mt-auto flex flex-wrap gap-2 pt-2">
-                            @if (in_array($status, [\App\Models\TutorRegistration::ASSIGNED, \App\Models\TutorRegistration::PENDING], true))
-                                <x-filament::button tag="a" :href="\App\Filament\Pages\TutorTraining::getUrl(['event' => $event->id])" icon="heroicon-o-academic-cap" color="success">
-                                    Kerjakan ToT Event
-                                </x-filament::button>
-                            @elseif ($reason)
-                                <x-filament::button disabled color="gray">{{ $reason }}</x-filament::button>
-                            @else
-                                {{ ($this->joinAction)(['event' => $event->id]) }}
-                            @endif
-                        </div>
-                    </div>
+                    </x-event-catalog-card>
                 @endforeach
             </div>
         @endif

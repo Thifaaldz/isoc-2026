@@ -6,76 +6,45 @@
         <x-slot name="description">Pilih event yang sedang dibuka, lalu klik Ikuti Event. Event yang sudah kamu ikuti bisa langsung dibuka dari sini.</x-slot>
 
         @if ($this->events->isEmpty())
-            <p class="text-sm text-gray-500">Belum ada event yang dipublikasikan.</p>
+            <div style="align-items: center; color: rgb(100, 116, 139); display: grid; font-size: 14px; gap: 6px; justify-items: center; padding: 28px 12px; text-align: center;">
+                <x-heroicon-o-calendar-days style="color: rgb(148, 163, 184); height: 36px; width: 36px;" />
+                <span>Belum ada event yang dipublikasikan.</span>
+            </div>
         @else
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="ecc-grid">
                 @foreach ($this->events as $event)
                     @php
                         $joined = in_array($event->id, $enrolledIds, true);
-                        $location = match ($event->event_type) {
-                            'webinar' => 'Webinar / Zoom',
-                            'hybrid' => ($event->school?->name ? $event->school->name . ' + Zoom' : 'Hybrid'),
-                            default => $event->school?->name ?? '-',
+                        [$statusLabel, $statusColor] = match (true) {
+                            $joined => ['Sudah terdaftar', 'success'],
+                            $this->isPast($event) => ['Event selesai', 'gray'],
+                            ! $event->registration_open => ['Pendaftaran ditutup', 'gray'],
+                            $this->isFull($event) => ['Kuota penuh', 'warning'],
+                            default => ['Pendaftaran dibuka', 'info'],
                         };
+                        $open = ! $joined && $statusLabel === 'Pendaftaran dibuka';
                     @endphp
-                    <div class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                        <div class="flex flex-wrap items-center gap-2">
-                            @if ($joined)
-                                <x-filament::badge color="success" icon="heroicon-m-check-circle">Sudah terdaftar</x-filament::badge>
-                            @elseif ($this->isPast($event))
-                                <x-filament::badge color="gray">Event selesai</x-filament::badge>
-                            @elseif (! $event->registration_open)
-                                <x-filament::badge color="gray">Pendaftaran ditutup</x-filament::badge>
-                            @elseif ($this->isFull($event))
-                                <x-filament::badge color="warning">Kuota penuh</x-filament::badge>
-                            @elseif ($event->registration_open)
-                                <x-filament::badge color="info">Pendaftaran dibuka</x-filament::badge>
-                            @else
-                                <x-filament::badge color="gray">Pendaftaran ditutup</x-filament::badge>
-                            @endif
-                            <x-filament::badge color="gray">{{ ucfirst($event->event_type ?: 'offline') }}</x-filament::badge>
-                        </div>
-
-                        <h3 class="text-base font-semibold text-gray-950 dark:text-white">{{ $event->title }}</h3>
-
-                        <dl class="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-calendar" class="h-4 w-4 text-gray-400" /><span>{{ $event->starts_at?->translatedFormat('d F Y') ?? '-' }}{{ $event->starts_at && $event->ends_at ? ', ' . $event->starts_at->format('H.i') . ' - ' . $event->ends_at->format('H.i') . ' WIB' : '' }}</span></div>
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-map-pin" class="h-4 w-4 text-gray-400" /><span>{{ $location }}</span></div>
-                            <div class="flex gap-2"><x-filament::icon icon="heroicon-m-user-group" class="h-4 w-4 text-gray-400" /><span>{{ $event->participants_count }}/{{ $event->target_participants ?: '-' }} peserta</span></div>
-                        </dl>
-
-                        @if ($event->description)
-                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit($event->description, 180) }}</p>
+                    <x-event-catalog-card
+                        wire:key="catalog-{{ $event->id }}"
+                        :event="$event"
+                        :status-label="$statusLabel"
+                        :status-color="$statusColor"
+                        quota-label="peserta"
+                        :quota-count="$event->participants_count"
+                        :quota-target="(int) $event->target_participants"
+                        :highlight="$joined"
+                        :muted="! $joined && ! $open"
+                    >
+                        @if ($joined)
+                            <x-filament::button tag="a" :href="url('/peserta?event=' . $event->id)" icon="heroicon-o-arrow-right-circle" color="success">
+                                Buka Dashboard Event
+                            </x-filament::button>
+                        @elseif ($open)
+                            {{ ($this->joinAction)(['event' => $event->id]) }}
+                        @else
+                            <x-filament::button disabled color="gray">{{ $statusLabel }}</x-filament::button>
                         @endif
-
-                        @if ($event->orderedPartners->isNotEmpty())
-                            <div class="flex flex-wrap items-center gap-3">
-                                @foreach ($event->orderedPartners as $partner)
-                                    @if ($partner->logoSource())
-                                        <img src="{{ $partner->logoSource() }}" alt="{{ $partner->name }}" title="{{ $partner->name }}" class="h-7 w-auto object-contain">
-                                    @endif
-                                @endforeach
-                            </div>
-                        @endif
-
-                        <div class="mt-auto flex flex-wrap gap-2 pt-2">
-                            @if ($joined)
-                                <x-filament::button tag="a" :href="url('/peserta?event=' . $event->id)" icon="heroicon-o-arrow-right-circle" color="success">
-                                    Buka Dashboard Event
-                                </x-filament::button>
-                            @elseif ($this->isPast($event))
-                                <x-filament::button disabled color="gray">Event selesai</x-filament::button>
-                            @elseif (! $event->registration_open)
-                                <x-filament::button disabled color="gray">Pendaftaran ditutup</x-filament::button>
-                            @elseif ($this->isFull($event))
-                                <x-filament::button disabled color="gray">Kuota penuh</x-filament::button>
-                            @elseif ($event->registration_open)
-                                {{ ($this->joinAction)(['event' => $event->id]) }}
-                            @else
-                                <x-filament::button disabled color="gray">Pendaftaran ditutup</x-filament::button>
-                            @endif
-                        </div>
-                    </div>
+                    </x-event-catalog-card>
                 @endforeach
             </div>
         @endif

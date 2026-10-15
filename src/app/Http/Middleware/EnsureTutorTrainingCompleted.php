@@ -25,6 +25,8 @@ class EnsureTutorTrainingCompleted
             'filament.tutor.pages.preview-materi',
             // Tutor bisa mendaftar event dulu lalu mengerjakan ToT untuk event tersebut.
             'filament.tutor.pages.daftar-event',
+            // Sertifikat tutor bisa dicetak tanpa syarat ToT.
+            'filament.tutor.pages.sertifikat-tutor',
             'filament.tutor.auth.login',
             'filament.tutor.auth.logout',
         ], true)) {
@@ -33,7 +35,7 @@ class EnsureTutorTrainingCompleted
 
         $referer = (string) $request->headers->get('referer');
 
-        if ($request->is('livewire/update') && (str_contains($referer, '/tutor/pelatihan-tutor') || str_contains($referer, '/tutor/preview-materi') || str_contains($referer, '/tutor/daftar-event'))) {
+        if ($request->is('livewire/update') && (str_contains($referer, '/tutor/pelatihan-tutor') || str_contains($referer, '/tutor/preview-materi') || str_contains($referer, '/tutor/daftar-event') || str_contains($referer, '/tutor/sertifikat-tutor'))) {
             return $next($request);
         }
 
