@@ -197,13 +197,10 @@ docker compose exec php php artisan test
 ## Dokumen Pendukung
 
 ```text
-docs/BRD.md
-docs/PRD.md
-docs/WORKFLOW.md
-docs/PANDUAN_APLIKASI.md
-docs/users.md
-docs/modul ajar/
-docs/templte sertifikat/
+docs/manual-guide/          manual guide per role (PDF + Markdown + screenshot)
+docs/laporan-perubahan/     laporan perubahan sistem + screenshot
+docs/1. 2026-TOR Litdig-ISOC  (2).docx
+docs/BRD-Digital Safety Champions (1).pdf
 ```
 
 ## Catatan Development
