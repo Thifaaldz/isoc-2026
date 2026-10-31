@@ -51,6 +51,11 @@ class LearningEvent extends Model
         return $this->belongsTo(CertificateTemplate::class);
     }
 
+    public function tutorCertificateTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CertificateTemplate::class, 'tutor_certificate_template_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

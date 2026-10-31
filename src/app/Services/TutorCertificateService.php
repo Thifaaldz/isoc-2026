@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 /**
  * Sertifikat tutor per event: bisa dicetak tanpa syarat oleh tutor yang ditugaskan di event.
- * Tidak disimpan di tabel certificates; PDF memakai template sertifikat event yang sama dengan peserta,
+ * Tidak disimpan di tabel certificates; PDF memakai template sertifikat tutor milik event,
  * dan QR mengarah ke verifikasi tutor bertanda tangan (signed URL).
  */
 class TutorCertificateService
@@ -36,6 +36,14 @@ class TutorCertificateService
         return 'sertifikat-tutor-' . Str::slug($tutor->user?->name ?? 'tutor') . '-' . Str::slug($event->title) . '.pdf';
     }
 
+    /** Template tutor event; bila belum dipilih memakai template peserta event, lalu template default. */
+    public function template(LearningEvent $event): ?CertificateTemplate
+    {
+        return $event->tutorCertificateTemplate
+            ?? $event->certificateTemplate
+            ?? CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->first();
+    }
+
     public function pdf(LearningEvent $event, Tutor $tutor)
     {
         $certificate = new Certificate([
@@ -45,9 +53,7 @@ class TutorCertificateService
         ]);
         $certificate->setRelation('learningEvent', $event);
         $certificate->setRelation('participant', null);
-        // Sama seperti sertifikat peserta: template event, atau template default bila event belum memilih.
-        $certificate->setRelation('certificateTemplate', $event->certificateTemplate
-            ?? CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->first());
+        $certificate->setRelation('certificateTemplate', $this->template($event));
 
         return Pdf::loadView('certificates.pdf', [
             'certificate' => $certificate,

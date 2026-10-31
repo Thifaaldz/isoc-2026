@@ -279,13 +279,23 @@ class LearningEventResource extends Resource
                             ->columns(3)
                             ->columnSpanFull(),
                         Forms\Components\Select::make('certificate_template_id')
-                            ->label('Template Sertifikat')
+                            ->label('Template Sertifikat Peserta')
                             ->helperText('Template ini dipakai otomatis untuk sertifikat peserta event ini.')
                             ->options(fn () => CertificateTemplate::query()
                                 ->orderByDesc('is_default')
                                 ->orderBy('name')
                                 ->pluck('name', 'id'))
                             ->default(fn () => CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->value('id'))
+                            ->searchable()
+                            ->preload()
+                            ->nullable(),
+                        Forms\Components\Select::make('tutor_certificate_template_id')
+                            ->label('Template Sertifikat Tutor')
+                            ->helperText('Template ini dipakai untuk sertifikat tutor event ini. Bila dikosongkan, sertifikat tutor memakai template peserta.')
+                            ->options(fn () => CertificateTemplate::query()
+                                ->orderByDesc('is_default')
+                                ->orderBy('name')
+                                ->pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->nullable(),
@@ -658,7 +668,11 @@ class LearningEventResource extends Resource
                     ->separator(',')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('certificateTemplate.name')
-                    ->label('Template Sertifikat')
+                    ->label('Template Sertifikat Peserta')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('tutorCertificateTemplate.name')
+                    ->label('Template Sertifikat Tutor')
+                    ->placeholder('Sama dengan peserta')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('starts_at')->label('Jadwal')->dateTime('d M Y, H:i')->sortable(),
                 Tables\Columns\TextColumn::make('participants_count')->counts('participants')->label('Peserta')->sortable(),

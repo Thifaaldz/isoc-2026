@@ -2,10 +2,12 @@
 
 use App\Enums\UserRole;
 use App\Filament\Pages\TutorCertificate;
+use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\School;
 use App\Models\Tutor;
 use App\Models\User;
+use App\Services\TutorCertificateService;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -34,6 +36,22 @@ test('tutor yang ditugaskan bisa membuka form dan mengunduh sertifikat tanpa sya
     $this->actingAs($user)->get(route('tutor-certificates.download', $event))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+});
+
+test('sertifikat tutor memakai template tutor, sedangkan peserta tetap memakai template peserta', function () {
+    [$event] = tutorCertificateFixture();
+    $participantTemplate = CertificateTemplate::query()->create(['name' => 'Desain Peserta', 'elements' => []]);
+    $tutorTemplate = CertificateTemplate::query()->create(['name' => 'Desain Tutor', 'elements' => []]);
+    $event->update(['certificate_template_id' => $participantTemplate->id]);
+
+    // Belum memilih template tutor: tetap memakai template peserta seperti event lama.
+    expect(app(TutorCertificateService::class)->template($event->fresh())->id)->toBe($participantTemplate->id);
+
+    $event->update(['tutor_certificate_template_id' => $tutorTemplate->id]);
+    $event = $event->fresh();
+
+    expect(app(TutorCertificateService::class)->template($event)->id)->toBe($tutorTemplate->id)
+        ->and($event->certificateTemplate->id)->toBe($participantTemplate->id);
 });
 
 test('sertifikat tutor ditolak untuk tutor yang belum ditugaskan atau masih menunggu validasi', function () {
