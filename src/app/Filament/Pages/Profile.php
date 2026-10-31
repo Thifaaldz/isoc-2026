@@ -2,7 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Services\CertificateEligibilityService;
 use App\Services\MicrositeLinkChecker;
+use App\Services\TutorCertificateService;
 use App\Support\IdentityNumber;
 use App\Filament\Support\UploadTypes;
 use App\Enums\UserRole;
@@ -473,6 +475,79 @@ class Profile extends Page implements HasForms
             ->title('Password berhasil diganti')
             ->success()
             ->send();
+    }
+
+    /**
+     * Sertifikat milik user yang login, sesuai role-nya.
+     *
+     * @return array<int, array{event: string, date: ?string, label: string, number: string, preview: string, download: string}>
+     */
+    public function myCertificates(): array
+    {
+        $user = auth()->user();
+
+        return match ($user?->role) {
+            UserRole::Peserta => $this->participantCertificates($user),
+            UserRole::Tutor => $this->tutorCertificates($user),
+            UserRole::Admin => $this->facilitatorCertificates($user),
+            default => [],
+        };
+    }
+
+    private function participantCertificates(User $user): array
+    {
+        $participant = $user->participant;
+
+        if (! $participant) {
+            return [];
+        }
+
+        $service = app(CertificateEligibilityService::class);
+
+        // Sama dengan dashboard peserta: status sertifikat diperbarui dulu, hanya yang sudah terbit bisa dicetak.
+        return $participant->learningEvents()->orderByDesc('starts_at')->get()
+            ->map(fn (LearningEvent $event) => [$event, $service->ensureCertificate($participant, $event)])
+            ->filter(fn (array $row) => $row[1]->isIssued())
+            ->map(fn (array $row) => $this->certificateRow($row[0], 'Peserta', $row[1]->number, route('certificates.preview-pdf', $row[1]), route('certificates.download-pdf', $row[1])))
+            ->values()
+            ->all();
+    }
+
+    private function tutorCertificates(User $user): array
+    {
+        $tutor = $user->tutor;
+
+        if (! $tutor) {
+            return [];
+        }
+
+        $service = app(TutorCertificateService::class);
+
+        return $service->events($tutor)
+            ->map(fn (LearningEvent $event) => $this->certificateRow($event, 'Narasumber', $service->number($event, $tutor), route('tutor-certificates.preview', $event), route('tutor-certificates.download', $event)))
+            ->values()
+            ->all();
+    }
+
+    private function facilitatorCertificates(User $user): array
+    {
+        $service = app(TutorCertificateService::class);
+
+        return LearningEvent::query()->where('created_by', $user->id)->orderByDesc('starts_at')->get()
+            ->map(fn (LearningEvent $event) => $this->certificateRow($event, 'Narasumber', $service->facilitatorNumber($event, $user), route('facilitator-certificates.preview', $event), route('facilitator-certificates.download', $event)))
+            ->all();
+    }
+
+    private function certificateRow(LearningEvent $event, string $label, string $number, string $preview, string $download): array
+    {
+        return [
+            'event' => $event->title,
+            'date' => $event->starts_at?->translatedFormat('d F Y'),
+            'label' => $label,
+            'number' => $number,
+            'preview' => $preview,
+            'download' => $download,
+        ];
     }
 
     private function schoolOptions(): array
