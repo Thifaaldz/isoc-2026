@@ -30,7 +30,7 @@ test('tutor yang ditugaskan bisa membuka form dan mengunduh sertifikat tanpa sya
     [$event, $user, $tutor] = tutorCertificateFixture();
     $event->tutors()->attach($tutor->id, ['status' => 'assigned', 'assigned_at' => now()]);
 
-    $this->actingAs($user)->get('/tutor/sertifikat-tutor')->assertOk()->assertSee($event->title)->assertSee('DSC-TUTOR/');
+    $this->actingAs($user)->get('/tutor/sertifikat-tutor')->assertOk()->assertSee($event->title)->assertSee('DSC-NARASUMBER/');
 
     Filament::setCurrentPanel(Filament::getPanel('tutor'));
     Livewire::actingAs($user)->test(TutorCertificate::class)->assertSet('eventId', $event->id);
@@ -46,8 +46,12 @@ test('sertifikat tutor memakai template tutor, sedangkan peserta tetap memakai t
     $tutorTemplate = CertificateTemplate::query()->create(['name' => 'Desain Tutor', 'elements' => []]);
     $event->update(['certificate_template_id' => $participantTemplate->id]);
 
-    // Belum memilih template tutor: tetap memakai template peserta seperti event lama.
+    // Template narasumber belum ada: memakai template peserta.
     expect(app(TutorCertificateService::class)->template($event->fresh())->id)->toBe($participantTemplate->id);
+
+    // Event belum memilih template tutor: otomatis memakai template narasumber.
+    $this->seed(TutorCertificateTemplateSeeder::class);
+    expect(app(TutorCertificateService::class)->template($event->fresh())->name)->toBe(CertificateTemplate::TUTOR_TEMPLATE_NAME);
 
     $event->update(['tutor_certificate_template_id' => $tutorTemplate->id]);
     $event = $event->fresh();

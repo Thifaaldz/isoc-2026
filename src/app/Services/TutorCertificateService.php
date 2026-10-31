@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
  */
 class TutorCertificateService
 {
-    public const COMPETENCY = 'TUTOR LITERASI DIGITAL SAFETY CHAMPIONS';
+    public const COMPETENCY = 'NARASUMBER LITERASI DIGITAL SAFETY CHAMPIONS';
 
     private const PDF_OPTIONS = [
         'isRemoteEnabled' => true,
@@ -33,18 +33,19 @@ class TutorCertificateService
 
     public function number(LearningEvent $event, Tutor $tutor): string
     {
-        return 'DSC-TUTOR/' . ($event->starts_at ?? now())->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $tutor->id, 5, '0', STR_PAD_LEFT);
+        return 'DSC-NARASUMBER/' . ($event->starts_at ?? now())->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $tutor->id, 5, '0', STR_PAD_LEFT);
     }
 
     public function filename(LearningEvent $event, Tutor $tutor): string
     {
-        return 'sertifikat-tutor-' . Str::slug($tutor->user?->name ?? 'tutor') . '-' . Str::slug($event->title) . '.pdf';
+        return 'sertifikat-narasumber-' . Str::slug($tutor->user?->name ?? 'narasumber') . '-' . Str::slug($event->title) . '.pdf';
     }
 
-    /** Template tutor event; bila belum dipilih memakai template peserta event, lalu template default. */
+    /** Template pilihan event; bila belum dipilih memakai template narasumber, lalu template peserta event dan default. */
     public function template(LearningEvent $event): ?CertificateTemplate
     {
         return $event->tutorCertificateTemplate
+            ?? CertificateTemplate::query()->where('name', CertificateTemplate::TUTOR_TEMPLATE_NAME)->first()
             ?? $event->certificateTemplate
             ?? CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->first();
     }
@@ -90,8 +91,8 @@ class TutorCertificateService
             'holder' => [
                 'name' => $tutor->user?->name ?? 'Nama Tutor',
                 'institution' => $tutor->institution ?: $tutor->school?->name,
-                'role' => 'Tutor / Fasilitator',
-                'label' => 'Tutor',
+                'role' => 'Narasumber',
+                'label' => 'Narasumber',
                 'competency' => self::COMPETENCY,
                 'verify_url' => TutorSignatureVerificationController::url($event, $tutor),
             ],

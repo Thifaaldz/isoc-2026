@@ -40,7 +40,7 @@ class TutorCertificateController
         set_time_limit(0);
         ini_set('memory_limit', '1024M');
 
-        return $this->certificates->eventPdf($event)->download('e-sertifikat-tutor-' . Str::slug($event->title) . '.pdf');
+        return $this->certificates->eventPdf($event)->download('e-sertifikat-narasumber-' . Str::slug($event->title) . '.pdf');
     }
 
     public function managerPreview(Request $request, LearningEvent $event, int $tutor): Response

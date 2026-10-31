@@ -291,7 +291,7 @@ class LearningEventResource extends Resource
                             ->nullable(),
                         Forms\Components\Select::make('tutor_certificate_template_id')
                             ->label('Template Sertifikat Tutor')
-                            ->helperText('Template ini dipakai untuk sertifikat tutor event ini. Bila dikosongkan, sertifikat tutor memakai template peserta.')
+                            ->helperText('Template ini dipakai untuk sertifikat tutor event ini. Bila dikosongkan, sertifikat tutor memakai template narasumber.')
                             ->options(fn () => CertificateTemplate::query()
                                 ->orderByDesc('is_default')
                                 ->orderBy('name')
@@ -673,7 +673,7 @@ class LearningEventResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('tutorCertificateTemplate.name')
                     ->label('Template Sertifikat Tutor')
-                    ->placeholder('Sama dengan peserta')
+                    ->placeholder('Template narasumber')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('starts_at')->label('Jadwal')->dateTime('d M Y, H:i')->sortable(),
                 Tables\Columns\TextColumn::make('participants_count')->counts('participants')->label('Peserta')->sortable(),
