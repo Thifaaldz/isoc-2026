@@ -12,12 +12,17 @@ class ManageCertificate extends ManageRecords
 {
     protected static string $resource = CertificateResource::class;
 
+    public function getSubNavigation(): array
+    {
+        return CertificateResource::certificateTabs();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             // Cetak semua e-sertifikat terbit di satu event dalam satu PDF panjang.
             Actions\Action::make('downloadCertificates')
-                ->label('Download e-Sertifikat')
+                ->label('Download e-Sertifikat Peserta')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->visible(fn () => auth()->user()?->role !== UserRole::Peserta)

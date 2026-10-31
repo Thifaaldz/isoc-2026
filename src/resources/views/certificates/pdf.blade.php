@@ -502,7 +502,8 @@
     </style>
 </head>
 <body>
-    <section class="page page-1">
+    {{-- Sertifikat tutor hanya halaman depan, tanpa lampiran modul dan JP. --}}
+    <section class="page {{ $holder ? '' : 'page-1' }}">
         @if ($templateImageSrc)
             <img class="template-bg" src="{{ $templateImageSrc }}" alt="">
         @endif
@@ -572,6 +573,7 @@
         @endif
     </section>
 
+    @unless ($holder)
     <section class="page page-2">
         <div class="side-pattern left">
             @for ($i = 0; $i < 19; $i++)
@@ -647,5 +649,6 @@
             @endif
         </div>
     </section>
+    @endunless
 </body>
 </html>

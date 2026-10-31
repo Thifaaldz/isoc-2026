@@ -12,6 +12,8 @@ use App\Models\LearningEvent;
 use App\Services\CertificateEligibilityService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Navigation\NavigationItem;
+use Filament\Pages\SubNavigationPosition;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -33,6 +35,8 @@ class CertificateResource extends Resource
     protected static ?string $pluralModelLabel = 'Sertifikat Saya';
 
     protected static ?int $navigationSort = 2;
+
+    protected static SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     public static function getNavigationLabel(): string
     {
@@ -182,6 +186,26 @@ class CertificateResource extends Resource
     {
         return [
             'index' => Pages\ManageCertificate::route('/'),
+            'tutors' => Pages\ManageTutorCertificate::route('/tutor'),
+        ];
+    }
+
+    /** Dua pilihan di menu e-Certificate: sertifikat peserta dan sertifikat tutor. Peserta tidak melihatnya. */
+    public static function certificateTabs(): array
+    {
+        if (! Pages\ManageTutorCertificate::canAccess()) {
+            return [];
+        }
+
+        return [
+            NavigationItem::make('Sertifikat Peserta')
+                ->icon('heroicon-o-academic-cap')
+                ->url(static::getUrl())
+                ->isActiveWhen(fn () => request()->routeIs(Pages\ManageCertificate::getRouteName())),
+            NavigationItem::make('Sertifikat Tutor')
+                ->icon('heroicon-o-user-circle')
+                ->url(static::getUrl('tutors'))
+                ->isActiveWhen(fn () => request()->routeIs(Pages\ManageTutorCertificate::getRouteName())),
         ];
     }
 }

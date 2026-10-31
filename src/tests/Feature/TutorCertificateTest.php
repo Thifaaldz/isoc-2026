@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Filament\Pages\TutorCertificate;
+use App\Filament\Resources\CertificateResource;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\School;
@@ -53,6 +54,65 @@ test('sertifikat tutor memakai template tutor, sedangkan peserta tetap memakai t
 
     expect(app(TutorCertificateService::class)->template($event)->id)->toBe($tutorTemplate->id)
         ->and($event->certificateTemplate->id)->toBe($participantTemplate->id);
+});
+
+test('sertifikat tutor hanya satu halaman', function () {
+    [$event, , $tutor] = tutorCertificateFixture();
+
+    $pdf = app(TutorCertificateService::class)->pdf($event, $tutor->load(['user', 'school']));
+    $pdf->output();
+
+    expect($pdf->getDomPDF()->getCanvas()->get_page_count())->toBe(1);
+});
+
+test('sertifikat semua tutor terpisah dari peserta, satu halaman per tutor, dan hanya untuk pengelola event', function () {
+    [$event, $tutorUser, $tutor] = tutorCertificateFixture();
+    $secondUser = User::query()->create(['name' => 'Tutor Kedua', 'email' => 'tutor.kedua@isoc.id', 'password' => 'password', 'role' => UserRole::Tutor, 'is_active' => true]);
+    $second = Tutor::query()->create(['user_id' => $secondUser->id, 'school_id' => $tutor->school_id, 'institution' => 'RTIK Uji']);
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.sertifikat@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $owner = User::query()->create(['name' => 'Fasilitator', 'email' => 'fasilitator.sertifikat@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $otherAdmin = User::query()->create(['name' => 'Fasilitator Lain', 'email' => 'fasilitator.lain@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $event->update(['created_by' => $owner->id]);
+
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.event-download', $event))->assertNotFound();
+
+    $event->tutors()->attach([$tutor->id, $second->id], ['status' => 'assigned', 'assigned_at' => now()]);
+
+    $pdf = app(TutorCertificateService::class)->eventPdf($event);
+    $pdf->output();
+    expect($pdf->getDomPDF()->getCanvas()->get_page_count())->toBe(2);
+
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.event-download', $event))->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($owner)->get(route('tutor-certificates.event-download', $event))->assertOk();
+    $this->actingAs($otherAdmin)->get(route('tutor-certificates.event-download', $event))->assertForbidden();
+    $this->actingAs($tutorUser)->get(route('tutor-certificates.event-download', $event))->assertForbidden();
+});
+
+test('menu e-Certificate punya pilihan peserta dan tutor dengan nomor tutor otomatis', function () {
+    [$event, $tutorUser, $tutor] = tutorCertificateFixture();
+    $event->tutors()->attach($tutor->id, ['status' => 'assigned', 'assigned_at' => now()]);
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.menu@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $number = app(TutorCertificateService::class)->number($event, $tutor);
+
+    Filament::setCurrentPanel(Filament::getPanel('superadmin'));
+
+    $this->actingAs($superAdmin)->get(CertificateResource::getUrl())
+        ->assertOk()->assertSee('Sertifikat Peserta')->assertSee('Sertifikat Tutor');
+
+    $this->actingAs($superAdmin)->get(CertificateResource::getUrl('tutors') . '?event=' . $event->id)
+        ->assertOk()
+        ->assertSee('Sertifikat Peserta')
+        ->assertSee('Tutor Bersertifikat')
+        ->assertSee($number)
+        ->assertSee(route('tutor-certificates.manager-download', [$event, $tutor]), false);
+
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.manager-download', [$event, $tutor]))
+        ->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($tutorUser)->get(route('tutor-certificates.manager-download', [$event, $tutor]))->assertForbidden();
+
+    // Tutor yang tidak ditugaskan di event ini tidak punya sertifikat.
+    $event->tutors()->detach($tutor->id);
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.manager-download', [$event, $tutor]))->assertNotFound();
 });
 
 test('seeder template narasumber tidak menimpa hasil edit maupun mengubah data lain', function () {

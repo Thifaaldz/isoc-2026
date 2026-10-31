@@ -20,6 +20,11 @@ class TutorCertificateService
 {
     public const COMPETENCY = 'TUTOR LITERASI DIGITAL SAFETY CHAMPIONS';
 
+    private const PDF_OPTIONS = [
+        'isRemoteEnabled' => true,
+        'isHtml5ParserEnabled' => true,
+    ];
+
     /** Event tempat tutor ditugaskan (pendaftaran yang belum divalidasi tidak termasuk). */
     public function events(Tutor $tutor): Collection
     {
@@ -46,6 +51,30 @@ class TutorCertificateService
 
     public function pdf(LearningEvent $event, Tutor $tutor)
     {
+        return Pdf::loadView('certificates.pdf', $this->viewData($event, $tutor))->setOptions(self::PDF_OPTIONS);
+    }
+
+    /** Sertifikat semua tutor yang ditugaskan di event, satu halaman per tutor, dalam satu PDF. */
+    public function eventPdf(LearningEvent $event)
+    {
+        $head = null;
+        $bodies = $event->tutors()->with(['user', 'school'])->get()
+            ->sortBy(fn (Tutor $tutor) => $tutor->user?->name)
+            ->values()
+            ->map(function (Tutor $tutor, int $index) use ($event, &$head): string {
+                $html = view('certificates.pdf', $this->viewData($event, $tutor))->render();
+                $head ??= Str::before($html, '<body>');
+                $body = Str::beforeLast(Str::after($html, '<body>'), '</body>');
+
+                return $index === 0 ? $body : '<div style="page-break-before: always;"></div>' . $body;
+            })
+            ->implode('');
+
+        return Pdf::loadHTML($head . '<body>' . $bodies . '</body></html>')->setOptions(self::PDF_OPTIONS);
+    }
+
+    private function viewData(LearningEvent $event, Tutor $tutor): array
+    {
         $certificate = new Certificate([
             'number' => $this->number($event, $tutor),
             'status' => 'issued',
@@ -55,7 +84,7 @@ class TutorCertificateService
         $certificate->setRelation('participant', null);
         $certificate->setRelation('certificateTemplate', $this->template($event));
 
-        return Pdf::loadView('certificates.pdf', [
+        return [
             'certificate' => $certificate,
             'qrSvg' => null,
             'holder' => [
@@ -66,9 +95,6 @@ class TutorCertificateService
                 'competency' => self::COMPETENCY,
                 'verify_url' => TutorSignatureVerificationController::url($event, $tutor),
             ],
-        ])->setOptions([
-            'isRemoteEnabled' => true,
-            'isHtml5ParserEnabled' => true,
-        ]);
+        ];
     }
 }
