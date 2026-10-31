@@ -3,6 +3,7 @@
 use App\Enums\UserRole;
 use App\Filament\Pages\TutorCertificate;
 use App\Filament\Resources\CertificateResource;
+use App\Http\Controllers\TutorSignatureVerificationController;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\School;
@@ -117,6 +118,49 @@ test('menu e-Certificate punya pilihan peserta dan tutor dengan nomor tutor otom
     // Tutor yang tidak ditugaskan di event ini tidak punya sertifikat.
     $event->tutors()->detach($tutor->id);
     $this->actingAs($superAdmin)->get(route('tutor-certificates.manager-download', [$event, $tutor]))->assertNotFound();
+});
+
+test('fasilitator punya sertifikat narasumber untuk event yang dibuatnya', function () {
+    [$event, $tutorUser] = tutorCertificateFixture();
+    $facilitator = User::query()->create(['name' => 'Fasilitator Daerah', 'email' => 'fasil.narasumber@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true, 'school_id' => $event->school_id]);
+    $other = User::query()->create(['name' => 'Fasilitator Lain', 'email' => 'fasil.lain@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.fasil@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $service = app(TutorCertificateService::class);
+
+    // Event buatan admin pusat tidak punya fasilitator.
+    $event->update(['created_by' => $superAdmin->id]);
+    $this->actingAs($superAdmin)->get(route('facilitator-certificates.download', $event))->assertNotFound();
+
+    $event->update(['created_by' => $facilitator->id]);
+    $event = $event->fresh();
+    $number = $service->facilitatorNumber($event, $facilitator);
+    expect($number)->toStartWith('DSC-NARASUMBER-F/');
+
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $this->actingAs($facilitator)->get(CertificateResource::getUrl('facilitators') . '?event=' . $event->id)
+        ->assertOk()->assertSee('Sertifikat Fasilitator')->assertSee('Fasilitator Daerah')->assertSee($number);
+
+    $this->actingAs($facilitator)->get(route('facilitator-certificates.download', $event))->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($superAdmin)->get(route('facilitator-certificates.preview', $event))->assertOk();
+    $this->actingAs($other)->get(route('facilitator-certificates.download', $event))->assertForbidden();
+    $this->actingAs($tutorUser)->get(route('facilitator-certificates.download', $event))->assertForbidden();
+
+    $pdf = $service->facilitatorPdf($event, $facilitator);
+    $pdf->output();
+    expect($pdf->getDomPDF()->getCanvas()->get_page_count())->toBe(1);
+
+    $url = TutorSignatureVerificationController::facilitatorUrl($event, $facilitator);
+    auth()->logout();
+    $this->get($url)->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH')->assertSee('Fasilitator Daerah')->assertDontSee('Status ToT');
+    $this->get($url . 'x')->assertOk()->assertSee('TANDA TANGAN TIDAK VALID')->assertDontSee('Fasilitator Daerah');
+});
+
+test('QR verifikasi tutor tetap sah setelah halaman verifikasi diubah', function () {
+    [$event, , $tutor] = tutorCertificateFixture();
+    $event->tutors()->attach($tutor->id, ['status' => 'assigned', 'assigned_at' => now()]);
+
+    $this->get(TutorSignatureVerificationController::url($event, $tutor))
+        ->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH')->assertSee('Tutor Bersertifikat')->assertSee('Status ToT');
 });
 
 test('seeder template narasumber tidak menimpa hasil edit maupun mengubah data lain', function () {

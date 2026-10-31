@@ -93,6 +93,10 @@ Route::middleware('auth')->get('/tutor-certificates/{event}/tutors/{tutor}/previ
 Route::middleware('auth')->get('/tutor-certificates/{event}/tutors/{tutor}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'managerDownload'])
     ->whereNumber('tutor')
     ->name('tutor-certificates.manager-download');
+Route::middleware('auth')->get('/facilitator-certificates/{event}/preview-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorPreview'])
+    ->name('facilitator-certificates.preview');
+Route::middleware('auth')->get('/facilitator-certificates/{event}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorDownload'])
+    ->name('facilitator-certificates.download');
 Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
     ->name('certificate-templates.preview-pdf');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])
@@ -104,6 +108,10 @@ Route::get('/signatures/tutor/{event}/{tutor}', [\App\Http\Controllers\TutorSign
     ->whereNumber(['event', 'tutor'])
     ->middleware('throttle:30,1')
     ->name('signatures.tutor.verify');
+Route::get('/signatures/facilitator/{event}/{user}', [\App\Http\Controllers\TutorSignatureVerificationController::class, 'showFacilitator'])
+    ->whereNumber(['event', 'user'])
+    ->middleware('throttle:30,1')
+    ->name('signatures.facilitator.verify');
 Route::get('/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
     ->middleware('throttle:30,1')

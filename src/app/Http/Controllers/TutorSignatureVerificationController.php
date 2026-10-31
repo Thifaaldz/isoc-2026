@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\LearningEvent;
 use App\Models\Tutor;
+use App\Models\User;
+use App\Services\TutorCertificateService;
 use App\Support\QrImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -24,6 +26,11 @@ class TutorSignatureVerificationController
         return QrImage::png(static::url($event, $tutor), 4);
     }
 
+    public static function facilitatorUrl(LearningEvent $event, User $facilitator): string
+    {
+        return URL::signedRoute('signatures.facilitator.verify', ['event' => $event->id, 'user' => $facilitator->id]);
+    }
+
     public function show(Request $request, int $event, int $tutor): View
     {
         $learningEvent = LearningEvent::query()->with('school')->find($event);
@@ -33,7 +40,24 @@ class TutorSignatureVerificationController
         return view('signatures.tutor-verify', [
             'valid' => $valid,
             'event' => $valid ? $learningEvent : null,
-            'tutor' => $valid ? $tutorModel : null,
+            'name' => $tutorModel?->user?->name,
+            'institution' => $tutorModel?->institution,
+            'totStatus' => $tutorModel ? ($tutorModel->tot_completed ? 'Lulus ToT' : 'Belum ToT') : null,
+        ]);
+    }
+
+    public function showFacilitator(Request $request, int $event, int $user): View
+    {
+        $learningEvent = LearningEvent::query()->with(['school', 'creator.school'])->find($event);
+        $facilitator = $learningEvent ? app(TutorCertificateService::class)->facilitator($learningEvent) : null;
+        $valid = $request->hasValidSignature() && $facilitator && $facilitator->id === $user;
+
+        return view('signatures.tutor-verify', [
+            'valid' => $valid,
+            'event' => $valid ? $learningEvent : null,
+            'name' => $facilitator?->name,
+            'institution' => $facilitator?->school?->name,
+            'totStatus' => null,
         ]);
     }
 }

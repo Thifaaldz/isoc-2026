@@ -187,10 +187,11 @@ class CertificateResource extends Resource
         return [
             'index' => Pages\ManageCertificate::route('/'),
             'tutors' => Pages\ManageTutorCertificate::route('/tutor'),
+            'facilitators' => Pages\ManageFacilitatorCertificate::route('/fasilitator'),
         ];
     }
 
-    /** Dua pilihan di menu e-Certificate: sertifikat peserta dan sertifikat tutor. Peserta tidak melihatnya. */
+    /** Pilihan di menu e-Certificate: sertifikat peserta, tutor, dan fasilitator. Peserta tidak melihatnya. */
     public static function certificateTabs(): array
     {
         if (! Pages\ManageTutorCertificate::canAccess()) {
@@ -206,6 +207,10 @@ class CertificateResource extends Resource
                 ->icon('heroicon-o-user-circle')
                 ->url(static::getUrl('tutors'))
                 ->isActiveWhen(fn () => request()->routeIs(Pages\ManageTutorCertificate::getRouteName())),
+            NavigationItem::make('Sertifikat Fasilitator')
+                ->icon('heroicon-o-identification')
+                ->url(static::getUrl('facilitators'))
+                ->isActiveWhen(fn () => request()->routeIs(Pages\ManageFacilitatorCertificate::getRouteName())),
         ];
     }
 }

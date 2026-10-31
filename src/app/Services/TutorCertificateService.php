@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\TutorSignatureVerificationController;
 use App\Models\Certificate;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\Tutor;
+use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
@@ -50,6 +52,35 @@ class TutorCertificateService
             ?? CertificateTemplate::query()->orderByDesc('is_default')->orderBy('name')->first();
     }
 
+    /** Fasilitator event: Admin RTIK Daerah yang membuat event. */
+    public function facilitator(LearningEvent $event): ?User
+    {
+        $creator = $event->creator;
+
+        return $creator?->role === UserRole::Admin ? $creator : null;
+    }
+
+    public function facilitatorNumber(LearningEvent $event, User $facilitator): string
+    {
+        return 'DSC-NARASUMBER-F/' . ($event->starts_at ?? now())->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $facilitator->id, 5, '0', STR_PAD_LEFT);
+    }
+
+    public function facilitatorFilename(LearningEvent $event, User $facilitator): string
+    {
+        return 'sertifikat-narasumber-' . Str::slug($facilitator->name ?? 'fasilitator') . '-' . Str::slug($event->title) . '.pdf';
+    }
+
+    public function facilitatorPdf(LearningEvent $event, User $facilitator)
+    {
+        return Pdf::loadView('certificates.pdf', $this->holderData(
+            $event,
+            $this->facilitatorNumber($event, $facilitator),
+            $facilitator->name ?? 'Nama Fasilitator',
+            $facilitator->school?->name,
+            TutorSignatureVerificationController::facilitatorUrl($event, $facilitator),
+        ))->setOptions(self::PDF_OPTIONS);
+    }
+
     public function pdf(LearningEvent $event, Tutor $tutor)
     {
         return Pdf::loadView('certificates.pdf', $this->viewData($event, $tutor))->setOptions(self::PDF_OPTIONS);
@@ -76,8 +107,19 @@ class TutorCertificateService
 
     private function viewData(LearningEvent $event, Tutor $tutor): array
     {
+        return $this->holderData(
+            $event,
+            $this->number($event, $tutor),
+            $tutor->user?->name ?? 'Nama Tutor',
+            $tutor->institution ?: $tutor->school?->name,
+            TutorSignatureVerificationController::url($event, $tutor),
+        );
+    }
+
+    private function holderData(LearningEvent $event, string $number, string $name, ?string $institution, string $verifyUrl): array
+    {
         $certificate = new Certificate([
-            'number' => $this->number($event, $tutor),
+            'number' => $number,
             'status' => 'issued',
             'issued_at' => $event->ends_at ?? $event->starts_at ?? now(),
         ]);
@@ -89,12 +131,12 @@ class TutorCertificateService
             'certificate' => $certificate,
             'qrSvg' => null,
             'holder' => [
-                'name' => $tutor->user?->name ?? 'Nama Tutor',
-                'institution' => $tutor->institution ?: $tutor->school?->name,
+                'name' => $name,
+                'institution' => $institution,
                 'role' => 'Narasumber',
                 'label' => 'Narasumber',
                 'competency' => self::COMPETENCY,
-                'verify_url' => TutorSignatureVerificationController::url($event, $tutor),
+                'verify_url' => $verifyUrl,
             ],
         ];
     }

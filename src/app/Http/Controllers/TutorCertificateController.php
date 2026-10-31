@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\UserRole;
 use App\Models\LearningEvent;
 use App\Models\Tutor;
+use App\Models\User;
 use App\Services\TutorCertificateService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -55,6 +56,30 @@ class TutorCertificateController
         $tutor = $this->eventTutor($request, $event, $tutor);
 
         return $this->certificates->pdf($event, $tutor)->download($this->certificates->filename($event, $tutor));
+    }
+
+    public function facilitatorPreview(Request $request, LearningEvent $event): Response
+    {
+        $facilitator = $this->eventFacilitator($request, $event);
+
+        return $this->certificates->facilitatorPdf($event, $facilitator)->stream($this->certificates->facilitatorFilename($event, $facilitator));
+    }
+
+    public function facilitatorDownload(Request $request, LearningEvent $event): Response
+    {
+        $facilitator = $this->eventFacilitator($request, $event);
+
+        return $this->certificates->facilitatorPdf($event, $facilitator)->download($this->certificates->facilitatorFilename($event, $facilitator));
+    }
+
+    private function eventFacilitator(Request $request, LearningEvent $event): User
+    {
+        $this->authorizeManager($request, $event);
+
+        $facilitator = $this->certificates->facilitator($event);
+        abort_unless($facilitator, 404, 'Event ini tidak dibuat oleh fasilitator.');
+
+        return $facilitator->loadMissing('school');
     }
 
     private function eventTutor(Request $request, LearningEvent $event, int $tutorId): Tutor
