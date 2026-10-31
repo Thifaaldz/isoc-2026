@@ -11,6 +11,9 @@ class CertificateTemplate extends Model
     /** Background bawaan (relatif ke folder public) bila template belum punya background sendiri. */
     public const DEFAULT_BACKGROUND = 'certificate-templates/esertifikat-litdig-2026.png';
 
+    /** Template bawaan sertifikat tutor sebagai narasumber. */
+    public const TUTOR_TEMPLATE_NAME = 'Template Sertifikat Narasumber - Landscape';
+
     protected $guarded = [];
 
     protected function casts(): array

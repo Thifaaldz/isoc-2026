@@ -9,7 +9,7 @@ use Illuminate\Database\Seeder;
 class CertificateTemplateSeeder extends Seeder
 {
     /** Background eSertifikat Litdig 2026 yang hanya menyisakan judul SERTIFIKAT. */
-    private const BACKGROUND = '/certificate-templates/esertifikat-litdig-2026-bersih.png';
+    public const BACKGROUND = '/certificate-templates/esertifikat-litdig-2026-bersih.png';
 
     public function run(): void
     {
@@ -23,7 +23,7 @@ class CertificateTemplateSeeder extends Seeder
                 'background_color' => '#ffffff',
                 'background_image' => self::BACKGROUND,
                 'is_default' => true,
-                'elements' => $this->certificateTemplateElements(),
+                'elements' => self::elements(),
             ],
         );
 
@@ -40,7 +40,7 @@ class CertificateTemplateSeeder extends Seeder
     }
 
     /** Desain mengikuti docs/templte sertifikat/eSertifikat Litdig 2026.pdf, dengan TTD Ketua Umum ISOC Indonesia dan Relawan TIK Indonesia. */
-    private function certificateTemplateElements(): array
+    public static function elements(): array
     {
         return [
             ['type' => 'event_partner_logos', 'label' => 'Logo Mitra Event', 'x' => 44.7, 'y' => 9, 'width' => 207.6, 'height' => 24],

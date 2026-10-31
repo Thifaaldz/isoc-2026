@@ -296,6 +296,7 @@ class LearningEventResource extends Resource
                                 ->orderByDesc('is_default')
                                 ->orderBy('name')
                                 ->pluck('name', 'id'))
+                            ->default(fn () => CertificateTemplate::query()->where('name', CertificateTemplate::TUTOR_TEMPLATE_NAME)->value('id'))
                             ->searchable()
                             ->preload()
                             ->nullable(),

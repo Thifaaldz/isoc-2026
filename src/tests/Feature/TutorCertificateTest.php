@@ -8,6 +8,7 @@ use App\Models\School;
 use App\Models\Tutor;
 use App\Models\User;
 use App\Services\TutorCertificateService;
+use Database\Seeders\TutorCertificateTemplateSeeder;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -52,6 +53,28 @@ test('sertifikat tutor memakai template tutor, sedangkan peserta tetap memakai t
 
     expect(app(TutorCertificateService::class)->template($event)->id)->toBe($tutorTemplate->id)
         ->and($event->certificateTemplate->id)->toBe($participantTemplate->id);
+});
+
+test('seeder template narasumber tidak menimpa hasil edit maupun mengubah data lain', function () {
+    [$event] = tutorCertificateFixture();
+    $default = CertificateTemplate::query()->create(['name' => 'Desain Peserta', 'is_default' => true, 'elements' => []]);
+    $event->update(['certificate_template_id' => $default->id]);
+
+    $this->seed(TutorCertificateTemplateSeeder::class);
+
+    $template = CertificateTemplate::query()->where('name', CertificateTemplate::TUTOR_TEMPLATE_NAME)->sole();
+    expect($template->is_default)->toBeFalse()
+        ->and(collect($template->elements)->firstWhere('label', 'Narasi kegiatan')['content'])->toContain('NARASUMBER');
+
+    $template->update(['elements' => []]);
+    $this->seed(TutorCertificateTemplateSeeder::class);
+
+    $event = $event->fresh();
+    expect(CertificateTemplate::query()->where('name', CertificateTemplate::TUTOR_TEMPLATE_NAME)->count())->toBe(1)
+        ->and($template->fresh()->elements)->toBe([])
+        ->and($default->fresh()->is_default)->toBeTrue()
+        ->and($event->certificate_template_id)->toBe($default->id)
+        ->and($event->tutor_certificate_template_id)->toBeNull();
 });
 
 test('sertifikat tutor ditolak untuk tutor yang belum ditugaskan atau masih menunggu validasi', function () {

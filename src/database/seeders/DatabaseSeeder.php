@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             CertificateTemplateSeeder::class,
+            TutorCertificateTemplateSeeder::class,
             PartnerSeeder::class,
             MateriSeeder::class,
             RtikDaerahSeeder::class,
