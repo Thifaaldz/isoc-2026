@@ -69,6 +69,13 @@ test('tutor mencetak sertifikat narasumber dari profil', function () {
         ->assertSee(route('tutor-certificates.download', $event), false);
 });
 
+test('menu sertifikat tidak ada di sidebar tutor, cetak lewat profil', function () {
+    $classes = collect(\App\Providers\Filament\TutorPanelProvider::NAVIGATION)->flatten();
+
+    expect($classes)->not->toContain(\App\Filament\Pages\TutorCertificate::class)
+        ->and($classes)->toContain(\App\Filament\Pages\Profile::class);
+});
+
 test('fasilitator hanya melihat sertifikat event buatannya di profil', function () {
     [$school, $event, $facilitator] = profileCertificateFixture();
     $other = profileCertificateUser(UserRole::Admin, 'lain', $school->id);

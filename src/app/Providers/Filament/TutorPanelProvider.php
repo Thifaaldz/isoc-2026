@@ -61,7 +61,6 @@ class TutorPanelProvider extends PanelProvider
             TutorScores::class,
             Resources\MicrositePracticeResource::class,
             Resources\EvidenceResource::class,
-            TutorCertificate::class,
         ],
         'Akun' => [
             Profile::class,
