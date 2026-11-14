@@ -60,12 +60,31 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Nama')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('email')->label('Email')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('role')->label('Role')->badge()->formatStateUsing(fn ($state) => $state instanceof UserRole ? $state->label() : $state),
-                Tables\Columns\TextColumn::make('school.name')->label('Sekolah'),
+                Tables\Columns\ViewColumn::make('name')
+                    ->label('Nama')
+                    ->view('filament.resources.user.name-column')
+                    ->searchable(['name', 'email'])
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('role')
+                    ->label('Peran')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state === UserRole::Admin ? 'Admin RTIK Daerah' : ($state instanceof UserRole ? $state->label() : $state))
+                    ->icon(fn ($state) => match ($state) {
+                        UserRole::SuperAdmin => 'heroicon-m-shield-check',
+                        UserRole::Admin => 'heroicon-m-map-pin',
+                        UserRole::Tutor => 'heroicon-m-presentation-chart-bar',
+                        default => 'heroicon-m-academic-cap',
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        UserRole::SuperAdmin => 'danger',
+                        UserRole::Admin => 'warning',
+                        UserRole::Tutor => 'success',
+                        default => 'info',
+                    }),
+                Tables\Columns\TextColumn::make('school.name')->label('Lokasi / Sekolah')->placeholder('-')->wrap(),
                 Tables\Columns\IconColumn::make('is_active')->label('Aktif')->boolean(),
             ])
+            ->defaultSort('name')
             ->filters([
                 Tables\Filters\SelectFilter::make('role')
                     ->label('Role')
