@@ -73,12 +73,14 @@ class UserResource extends Resource
                         UserRole::SuperAdmin => 'heroicon-m-shield-check',
                         UserRole::Admin => 'heroicon-m-map-pin',
                         UserRole::Tutor => 'heroicon-m-presentation-chart-bar',
+                        UserRole::Manajemen => 'heroicon-m-chart-pie',
                         default => 'heroicon-m-academic-cap',
                     })
                     ->color(fn ($state) => match ($state) {
                         UserRole::SuperAdmin => 'danger',
                         UserRole::Admin => 'warning',
                         UserRole::Tutor => 'success',
+                        UserRole::Manajemen => 'gray',
                         default => 'info',
                     }),
                 Tables\Columns\TextColumn::make('school.name')->label('Lokasi / Sekolah')->placeholder('-')->wrap(),

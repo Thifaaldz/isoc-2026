@@ -8,6 +8,8 @@ enum UserRole: string
     case Admin = 'admin';
     case Tutor = 'tutor';
     case Peserta = 'peserta';
+    /** Manajemen: hanya memantau progres & KPI seluruh program (read-only). */
+    case Manajemen = 'manajemen';
 
     public function label(): string
     {
@@ -16,6 +18,7 @@ enum UserRole: string
             self::Admin => 'Fasilitator (Admin RTIK Daerah)',
             self::Tutor => 'Tutor',
             self::Peserta => 'Peserta',
+            self::Manajemen => 'Manajemen',
         };
     }
 
@@ -27,6 +30,7 @@ enum UserRole: string
             self::Admin => 'admin',
             self::Tutor => 'tutor',
             self::Peserta => 'peserta',
+            self::Manajemen => 'manajemen',
         };
     }
 

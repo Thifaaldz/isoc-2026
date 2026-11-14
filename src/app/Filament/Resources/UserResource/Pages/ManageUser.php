@@ -40,6 +40,7 @@ class ManageUser extends ManageRecords
             'tutor' => $tab('Tutor', 'heroicon-o-presentation-chart-bar', UserRole::Tutor),
             'daerah' => $tab('Admin RTIK Daerah', 'heroicon-o-map-pin', UserRole::Admin),
             'pusat' => $tab('Admin RTIK Pusat', 'heroicon-o-shield-check', UserRole::SuperAdmin),
+            'manajemen' => $tab('Manajemen', 'heroicon-o-chart-pie', UserRole::Manajemen),
         ];
     }
 }
