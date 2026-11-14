@@ -78,13 +78,20 @@ class CertificateResource extends Resource
         return $form->schema([
             auth()->user()?->role === UserRole::Peserta
                 ? Forms\Components\Hidden::make('participant_id')->default(fn () => auth()->user()->participant?->id)
-                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => static::scopedParticipantOptions())->searchable()->required(),
+                : Forms\Components\Select::make('participant_id')->label('Peserta')->options(fn () => static::scopedParticipantOptions())->searchable()->required()
+                    ->live()
+                    ->afterStateUpdated(fn (Forms\Get $get, Forms\Set $set) => static::fillNumber($get, $set)),
             Forms\Components\Select::make('learning_event_id')
                 ->label('Event')
                 ->options(fn () => static::scopedLearningEventOptions(LearningEvent::query())->pluck('title', 'id'))
                 ->searchable()
                 ->preload()
-                ->required(),
+                ->required()
+                ->live()
+                ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set, $state) {
+                    static::fillNumber($get, $set);
+                    $set('certificate_template_id', static::templateForEvent($state));
+                }),
             Forms\Components\Select::make('certificate_template_id')
                 ->label('Desain Sertifikat')
                 ->options(fn () => CertificateTemplate::query()
@@ -93,8 +100,16 @@ class CertificateResource extends Resource
                     ->pluck('name', 'id'))
                 ->searchable()
                 ->preload()
-                ->nullable(),
-            Forms\Components\TextInput::make('number')->label('Nomor sertifikat')->required()->unique(ignoreRecord: true),
+                ->nullable()
+                ->helperText('Otomatis mengikuti desain sertifikat peserta di event yang dipilih; tetap bisa diganti.'),
+            Forms\Components\TextInput::make('number')
+                ->label('Nomor sertifikat')
+                ->readOnly()
+                ->required()
+                ->placeholder('Otomatis setelah peserta & event dipilih')
+                ->helperText('Dibuat otomatis oleh sistem: DSC/{tahun}/{ID event}/{ID peserta}.')
+                ->unique(ignoreRecord: true)
+                ->validationMessages(['unique' => 'Peserta ini sudah punya sertifikat di event tersebut.']),
             Forms\Components\Select::make('status')
                 ->label('Status')
                 ->options(fn (?Certificate $record) => $record?->eligibility_status === 'eligible'
@@ -113,6 +128,22 @@ class CertificateResource extends Resource
             Forms\Components\FileUpload::make('file_path')
                 ->acceptedFileTypes(UploadTypes::PDF)->label('Berkas PDF')->directory('certificates'),
         ]);
+    }
+
+    /** Desain sertifikat peserta dari event; fallback ke desain default. */
+    public static function templateForEvent(int|string|null $eventId): ?int
+    {
+        $eventTemplate = $eventId ? LearningEvent::query()->whereKey($eventId)->value('certificate_template_id') : null;
+
+        return $eventTemplate ?: CertificateTemplate::query()->where('is_default', true)->value('id');
+    }
+
+    /** Isi nomor sertifikat otomatis begitu peserta dan event sudah dipilih. */
+    protected static function fillNumber(Forms\Get $get, Forms\Set $set): void
+    {
+        $participant = $get('participant_id');
+        $event = $get('learning_event_id');
+        $set('number', $participant && $event ? CertificateEligibilityService::numberFor($event, $participant) : null);
     }
 
     public static function table(Table $table): Table

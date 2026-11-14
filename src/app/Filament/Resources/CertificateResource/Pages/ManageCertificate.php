@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CertificateResource\Pages;
 
 use App\Enums\UserRole;
 use App\Filament\Resources\CertificateResource;
+use App\Services\CertificateEligibilityService;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Pages\ManageRecords;
@@ -38,7 +39,14 @@ class ManageCertificate extends ManageRecords
                         ->required(),
                 ])
                 ->action(fn (array $data) => redirect()->route('certificates.event-download', $data['learning_event_id'])),
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->mutateFormDataUsing(function (array $data): array {
+                    // Nomor selalu dihitung ulang di server, tidak bergantung pada isian form.
+                    $data['number'] = CertificateEligibilityService::numberFor($data['learning_event_id'], $data['participant_id']);
+                    $data['certificate_template_id'] ??= CertificateResource::templateForEvent($data['learning_event_id']);
+
+                    return $data;
+                }),
         ];
     }
 }

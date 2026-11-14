@@ -49,6 +49,12 @@ class CertificateEligibilityService
         ];
     }
 
+    /** Nomor sertifikat peserta: DSC/{tahun}/{id event 4 digit}/{id peserta 5 digit}. */
+    public static function numberFor(int|string $eventId, int|string $participantId): string
+    {
+        return 'DSC/' . now()->format('Y') . '/' . str_pad((string) $eventId, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $participantId, 5, '0', STR_PAD_LEFT);
+    }
+
     /** Ambil (atau buat) sertifikat peserta untuk event, lalu perbarui status eligibility & terbitnya. */
     public function ensureCertificate(Participant $participant, LearningEvent $event): Certificate
     {
@@ -59,7 +65,7 @@ class CertificateEligibilityService
             ],
             [
                 'certificate_template_id' => $event->certificate_template_id,
-                'number' => 'DSC/' . now()->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $participant->id, 5, '0', STR_PAD_LEFT),
+                'number' => static::numberFor($event->id, $participant->id),
                 'status' => 'pending',
                 'eligibility_status' => 'pending',
             ],
