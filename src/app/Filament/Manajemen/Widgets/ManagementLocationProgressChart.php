@@ -2,7 +2,6 @@
 
 namespace App\Filament\Manajemen\Widgets;
 
-use App\Enums\UserRole;
 use App\Filament\Manajemen\Pages\LocationDetailPage;
 use App\Support\ProgramMetrics;
 use Filament\Widgets\Widget;
@@ -16,7 +15,7 @@ class ManagementLocationProgressChart extends Widget
 
     public static function canView(): bool
     {
-        return auth()->user()?->role === UserRole::Manajemen;
+        return (bool) auth()->user()?->canViewManagement();
     }
 
     protected function getViewData(): array

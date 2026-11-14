@@ -51,8 +51,28 @@ test('panel manajemen tidak memuat resource yang bisa mengubah data', function (
     expect(Filament::getPanel('manajemen')->getResources())->toBe([]);
 });
 
+test('admin rtik pusat bisa membuka dashboard manajerial lewat tombol khusus', function () {
+    $this->actingAs(mgmtUser(UserRole::SuperAdmin, 'pusat.mgmt@isoc.id'));
+
+    foreach (['/manajemen', '/manajemen/progres-lokasi', '/manajemen/detail-lokasi', '/manajemen/peserta-nilai', '/manajemen/tutor-tot', '/manajemen/bukti-dukung', '/manajemen/laporan-termin'] as $url) {
+        $this->get($url)->assertOk();
+    }
+    $this->get('/manajemen')->assertSee('Kembali ke Admin Pusat');
+});
+
+test('akun manajemen tidak melihat tombol kembali ke panel pusat', function () {
+    $this->actingAs(mgmtUser(UserRole::Manajemen, 'mgmt.only@isoc.id'));
+    $this->get('/manajemen')->assertOk()->assertDontSee('Kembali ke Admin Pusat');
+});
+
+test('dashboard admin rtik pusat menampilkan tombol ke dashboard manajerial', function () {
+    $this->actingAs(mgmtUser(UserRole::SuperAdmin, 'pusat.tombol@isoc.id'));
+
+    $this->get('/superadmin')->assertOk()->assertSee('Dashboard Manajerial')->assertSee('/manajemen');
+});
+
 test('role lain tidak bisa membuka panel manajemen', function () {
-    foreach ([UserRole::SuperAdmin, UserRole::Admin, UserRole::Tutor, UserRole::Peserta] as $i => $role) {
+    foreach ([UserRole::Admin, UserRole::Tutor, UserRole::Peserta] as $i => $role) {
         $this->actingAs(mgmtUser($role, "role{$i}@isoc.id"));
         foreach (['/manajemen', '/manajemen/progres-lokasi', '/manajemen/detail-lokasi', '/manajemen/peserta-nilai', '/manajemen/tutor-tot', '/manajemen/bukti-dukung', '/manajemen/laporan-termin'] as $url) {
             $this->get($url)->assertForbidden();

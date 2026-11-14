@@ -2,7 +2,6 @@
 
 namespace App\Filament\Manajemen\Widgets;
 
-use App\Enums\UserRole;
 use App\Filament\Manajemen\Pages\EvidencePage;
 use App\Filament\Manajemen\Pages\LocationProgressPage;
 use App\Filament\Manajemen\Pages\ParticipantScoresPage;
@@ -22,7 +21,7 @@ class ManagementKpi extends Widget
 
     public static function canView(): bool
     {
-        return auth()->user()?->role === UserRole::Manajemen;
+        return (bool) auth()->user()?->canViewManagement();
     }
 
     protected function getViewData(): array

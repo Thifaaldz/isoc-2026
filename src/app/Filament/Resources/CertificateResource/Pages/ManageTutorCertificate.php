@@ -73,6 +73,12 @@ class ManageTutorCertificate extends Page
             ]);
     }
 
+    /** @return Collection<int, array{entry: array, number: string}> narasumber yang belum terdaftar di sistem. */
+    public function externalRows(): Collection
+    {
+        return SpeakerCertificateActions::externalRows($this->selectedEvent, SpeakerCertificates::ROLE_TUTOR);
+    }
+
     public function deleteManualAction(): Actions\Action
     {
         return SpeakerCertificateActions::delete();
@@ -86,7 +92,7 @@ class ManageTutorCertificate extends Page
                 ->label('Download Semua Sertifikat Tutor')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->visible(fn () => $this->rows()->isNotEmpty())
+                ->visible(fn () => $this->rows()->isNotEmpty() || $this->externalRows()->isNotEmpty())
                 ->url(fn () => route('tutor-certificates.event-download', $this->eventId)),
         ];
     }

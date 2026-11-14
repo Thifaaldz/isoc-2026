@@ -14,6 +14,9 @@ use App\Filament\Widgets\ControlCenter;
 use App\Filament\Widgets\LocationProgress;
 use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationGroup;
+use Filament\Navigation\NavigationItem;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 use App\Filament\Widgets\EventApprovalReminders;
 use App\Filament\Widgets\EventApprovalUpdates;
 use App\Filament\Widgets\KpiOverview;
@@ -93,7 +96,14 @@ class SuperAdminPanelProvider extends PanelProvider
             ->login(fn () => redirect('/login'))
             ->colors(['primary' => Color::Red])
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => $builder
-                ->items(Pages\Dashboard::getNavigationItems())
+                ->items([
+                    ...Pages\Dashboard::getNavigationItems(),
+                    // Pintasan ke panel Manajemen (dashboard manajerial read-only).
+                    NavigationItem::make('Dashboard Manajerial')
+                        ->icon('heroicon-o-presentation-chart-line')
+                        ->url('/manajemen')
+                        ->sort(1),
+                ])
                 ->groups(collect(self::NAVIGATION)
                     ->map(fn (array $classes, string $group) => NavigationGroup::make($group)->items(collect($classes)
                         ->filter(fn (string $class) => $class::shouldRegisterNavigation() && $class::canAccess())
@@ -103,6 +113,9 @@ class SuperAdminPanelProvider extends PanelProvider
                     ->filter(fn (NavigationGroup $group) => filled($group->getItems()))
                     ->values()
                     ->all()))
+            ->renderHook(PanelsRenderHook::GLOBAL_SEARCH_BEFORE, fn (): string => Blade::render(
+                '<x-filament::button tag="a" href="/manajemen" icon="heroicon-o-presentation-chart-line" color="info" size="sm" outlined>Dashboard Manajerial</x-filament::button>'
+            ))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->pages([Pages\Dashboard::class, TutorApproval::class, ManageHomePage::class, CreateSeminarShortcut::class, EventProgress::class, CertificateDesignStudio::class, MaterialPreview::class, Profile::class])
             // KPI di atas, lalu Update (kiri) & Reminder (kanan). Sign out tersedia di menu profil.

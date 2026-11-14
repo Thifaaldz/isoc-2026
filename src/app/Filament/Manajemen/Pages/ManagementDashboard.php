@@ -2,7 +2,6 @@
 
 namespace App\Filament\Manajemen\Pages;
 
-use App\Enums\UserRole;
 use App\Filament\Manajemen\Widgets\ManagementAlerts;
 use App\Filament\Manajemen\Widgets\ManagementKpi;
 use App\Filament\Manajemen\Widgets\ManagementLocationProgressChart;
@@ -21,7 +20,7 @@ class ManagementDashboard extends Dashboard
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->role === UserRole::Manajemen;
+        return (bool) auth()->user()?->canViewManagement();
     }
 
     public function getSubheading(): ?string

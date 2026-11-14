@@ -10,7 +10,9 @@ use App\Filament\Manajemen\Pages\ParticipantScoresPage;
 use App\Filament\Manajemen\Pages\ReportsTermsPage;
 use App\Filament\Manajemen\Pages\TutorsPage;
 use App\Filament\Manajemen\Widgets;
+use App\Enums\UserRole;
 use App\Filament\Pages\Profile;
+use Filament\Navigation\NavigationItem;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -42,6 +44,14 @@ class ManajemenPanelProvider extends PanelProvider
             ->login(fn () => redirect('/login'))
             ->colors(['primary' => Color::Indigo])
             ->navigationGroups(['Monitoring', 'Akun'])
+            // Admin RTIK Pusat yang membuka panel ini bisa kembali ke panelnya sendiri.
+            ->navigationItems([
+                NavigationItem::make('Kembali ke Admin Pusat')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->url('/superadmin')
+                    ->group('Akun')
+                    ->visible(fn (): bool => auth()->user()?->role === UserRole::SuperAdmin),
+            ])
             ->pages([ManagementDashboard::class, LocationProgressPage::class, LocationDetailPage::class, ParticipantScoresPage::class, TutorsPage::class, EvidencePage::class, ReportsTermsPage::class, Profile::class])
             ->widgets([
                 Widgets\ManagementKpi::class,

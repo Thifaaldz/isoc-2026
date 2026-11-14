@@ -31,6 +31,12 @@ class TutorSignatureVerificationController
         return URL::signedRoute('signatures.facilitator.verify', ['event' => $event->id, 'user' => $facilitator->id]);
     }
 
+    /** Narasumber yang belum terdaftar di sistem: dikenali dari ID entri sertifikat manual. */
+    public static function externalUrl(LearningEvent $event, string $id): string
+    {
+        return URL::signedRoute('signatures.speaker.verify', ['event' => $event->id, 'speaker' => $id]);
+    }
+
     public function show(Request $request, int $event, int $tutor): View
     {
         $learningEvent = LearningEvent::query()->with('school')->find($event);
@@ -57,6 +63,21 @@ class TutorSignatureVerificationController
             'event' => $valid ? $learningEvent : null,
             'name' => $facilitator?->name,
             'institution' => $facilitator?->school?->name,
+            'totStatus' => null,
+        ]);
+    }
+
+    public function showExternal(Request $request, int $event, string $speaker): View
+    {
+        $learningEvent = LearningEvent::query()->with('school')->find($event);
+        $entry = $learningEvent ? app(TutorCertificateService::class)->externalSpeaker($learningEvent, $speaker) : null;
+        $valid = $request->hasValidSignature() && $entry;
+
+        return view('signatures.tutor-verify', [
+            'valid' => $valid,
+            'event' => $valid ? $learningEvent : null,
+            'name' => $entry['name'] ?? null,
+            'institution' => $entry['institution'] ?? null,
             'totStatus' => null,
         ]);
     }

@@ -73,6 +73,12 @@ class ManageFacilitatorCertificate extends Page
             ]);
     }
 
+    /** @return Collection<int, array{entry: array, number: string}> narasumber yang belum terdaftar di sistem. */
+    public function externalRows(): Collection
+    {
+        return SpeakerCertificateActions::externalRows($this->selectedEvent, SpeakerCertificates::ROLE_FACILITATOR);
+    }
+
     public function deleteManualAction(): Actions\Action
     {
         return SpeakerCertificateActions::delete();

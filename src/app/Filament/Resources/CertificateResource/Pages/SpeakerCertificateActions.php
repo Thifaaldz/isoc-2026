@@ -30,7 +30,7 @@ class SpeakerCertificateActions
             ->icon('heroicon-o-plus')
             ->visible(fn () => static::canManage())
             ->modalHeading($isTutor ? 'Tambah Sertifikat Tutor' : 'Tambah Sertifikat Fasilitator')
-            ->modalDescription('Sertifikat narasumber langsung terbit untuk akun yang dipilih. Nomor sertifikat dibuat otomatis oleh sistem.')
+            ->modalDescription('Sertifikat narasumber langsung terbit untuk akun yang dipilih. Bila narasumber belum terdaftar di sistem, aktifkan pilihan di bawah lalu isi nama dan instansinya. Nomor sertifikat dibuat otomatis oleh sistem.')
             ->modalSubmitActionLabel('Tambah')
             ->fillForm(fn () => ['learning_event_id' => $page->eventId])
             ->form([
@@ -39,16 +39,46 @@ class SpeakerCertificateActions
                     ->options(fn () => CertificateResource::eventOptions())
                     ->searchable()
                     ->required(),
+                Forms\Components\Toggle::make('external')
+                    ->label($isTutor ? 'Tutor / narasumber belum terdaftar di sistem' : 'Fasilitator / narasumber belum terdaftar di sistem')
+                    ->helperText('Aktifkan bila orangnya tidak punya akun ' . ($isTutor ? 'tutor' : 'fasilitator') . ', lalu isi nama dan instansi yang dicetak di sertifikat.')
+                    ->live(),
                 Forms\Components\Select::make('user_id')
                     ->label($isTutor ? 'Akun Tutor' : 'Akun Fasilitator')
                     ->options(fn () => $isTutor ? static::tutorOptions() : static::facilitatorOptions())
                     ->searchable()
-                    ->required(),
+                    ->visible(fn (Forms\Get $get) => ! $get('external'))
+                    ->required(fn (Forms\Get $get) => ! $get('external')),
+                Forms\Components\TextInput::make('name')
+                    ->label('Nama di sertifikat')
+                    ->helperText('Tulis lengkap beserta gelar, sesuai yang akan dicetak.')
+                    ->maxLength(150)
+                    ->visible(fn (Forms\Get $get) => (bool) $get('external'))
+                    ->required(fn (Forms\Get $get) => (bool) $get('external')),
+                Forms\Components\TextInput::make('institution')
+                    ->label('Instansi')
+                    ->maxLength(150)
+                    ->visible(fn (Forms\Get $get) => (bool) $get('external')),
             ])
             ->action(function (array $data) use ($role, $isTutor, $page): void {
                 abort_unless(static::canManage(), 403);
 
                 $event = LearningEvent::query()->findOrFail($data['learning_event_id']);
+
+                if (! empty($data['external'])) {
+                    $page->eventId = $event->id;
+                    $name = trim((string) ($data['name'] ?? ''));
+
+                    if (! SpeakerCertificates::addExternal($event->id, $role, $name, $data['institution'] ?? null)) {
+                        Notification::make()->title($name . ' sudah punya sertifikat di event ini.')->warning()->send();
+
+                        return;
+                    }
+
+                    Notification::make()->title('Sertifikat untuk ' . $name . ' berhasil ditambahkan.')->success()->send();
+
+                    return;
+                }
                 $userId = (int) $data['user_id'];
                 $service = app(TutorCertificateService::class);
 
@@ -92,6 +122,19 @@ class SpeakerCertificateActions
 
                 Notification::make()->title('Sertifikat tambahan dihapus.')->success()->send();
             });
+    }
+
+    /** @return \Illuminate\Support\Collection<int, array{entry: array, number: string}> narasumber belum terdaftar di event. */
+    public static function externalRows(?LearningEvent $event, string $role): \Illuminate\Support\Collection
+    {
+        if (! $event) {
+            return collect();
+        }
+
+        $service = app(TutorCertificateService::class);
+
+        return $service->externalSpeakers($event, $role)
+            ->map(fn (array $entry) => ['entry' => $entry, 'number' => $service->externalNumber($event, $entry)]);
     }
 
     private static function tutorOptions(): array

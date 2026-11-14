@@ -103,6 +103,13 @@ Route::middleware('auth')->get('/facilitator-certificates/{event}/users/{user}/p
 Route::middleware('auth')->get('/facilitator-certificates/{event}/users/{user}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorDownload'])
     ->whereNumber('user')
     ->name('facilitator-certificates.user-download');
+// Narasumber yang belum terdaftar di sistem (ditambahkan manual oleh Admin RTIK Pusat).
+Route::middleware('auth')->get('/speaker-certificates/{event}/external/{speaker}/preview-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'externalPreview'])
+    ->whereUuid('speaker')
+    ->name('speaker-certificates.external-preview');
+Route::middleware('auth')->get('/speaker-certificates/{event}/external/{speaker}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'externalDownload'])
+    ->whereUuid('speaker')
+    ->name('speaker-certificates.external-download');
 Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
     ->name('certificate-templates.preview-pdf');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])
@@ -118,6 +125,11 @@ Route::get('/signatures/facilitator/{event}/{user}', [\App\Http\Controllers\Tuto
     ->whereNumber(['event', 'user'])
     ->middleware('throttle:30,1')
     ->name('signatures.facilitator.verify');
+Route::get('/signatures/speaker/{event}/{speaker}', [\App\Http\Controllers\TutorSignatureVerificationController::class, 'showExternal'])
+    ->whereNumber('event')
+    ->whereUuid('speaker')
+    ->middleware('throttle:30,1')
+    ->name('signatures.speaker.verify');
 Route::get('/verify/{certificateNumber}', [CertificateVerificationController::class, 'show'])
     ->where('certificateNumber', '.*')
     ->middleware('throttle:30,1')

@@ -91,6 +91,35 @@ class TutorCertificateService
         return SpeakerCertificates::where($role, eventId: $event->id)->keyBy('user_id');
     }
 
+    /** @return \Illuminate\Support\Collection<int, array> narasumber belum terdaftar di sistem untuk event ini. */
+    public function externalSpeakers(LearningEvent $event, string $role): \Illuminate\Support\Collection
+    {
+        return SpeakerCertificates::external($role, $event->id);
+    }
+
+    /** Entri narasumber belum terdaftar milik event; null bila tidak ada / sudah dihapus. */
+    public function externalSpeaker(LearningEvent $event, string $id): ?array
+    {
+        $entry = SpeakerCertificates::find($id);
+
+        return $entry && SpeakerCertificates::isExternal($entry) && (int) $entry['learning_event_id'] === $event->id ? $entry : null;
+    }
+
+    public function externalNumber(LearningEvent $event, array $entry): string
+    {
+        return 'DSC-NARASUMBER-' . ($entry['role'] === SpeakerCertificates::ROLE_FACILITATOR ? 'XF' : 'XT') . '/' . ($event->starts_at ?? now())->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) ($entry['seq'] ?? 0), 5, '0', STR_PAD_LEFT);
+    }
+
+    public function externalFilename(LearningEvent $event, array $entry): string
+    {
+        return 'sertifikat-narasumber-' . Str::slug($entry['name'] ?? 'narasumber') . '-' . Str::slug($event->title) . '.pdf';
+    }
+
+    public function externalPdf(LearningEvent $event, array $entry)
+    {
+        return Pdf::loadView('certificates.pdf', $this->externalViewData($event, $entry))->setOptions(self::PDF_OPTIONS);
+    }
+
     public function number(LearningEvent $event, Tutor $tutor): string
     {
         return 'DSC-NARASUMBER/' . ($event->starts_at ?? now())->format('Y') . '/' . str_pad((string) $event->id, 4, '0', STR_PAD_LEFT) . '/' . str_pad((string) $tutor->id, 5, '0', STR_PAD_LEFT);
@@ -144,13 +173,16 @@ class TutorCertificateService
         return Pdf::loadView('certificates.pdf', $this->viewData($event, $tutor))->setOptions(self::PDF_OPTIONS);
     }
 
-    /** Sertifikat semua tutor yang ditugaskan di event, satu halaman per tutor, dalam satu PDF. */
+    /** Sertifikat semua tutor event (termasuk narasumber tutor yang belum terdaftar), satu halaman per orang, dalam satu PDF. */
     public function eventPdf(LearningEvent $event)
     {
         $head = null;
         $bodies = $this->tutors($event)
-            ->map(function (Tutor $tutor, int $index) use ($event, &$head): string {
-                $html = view('certificates.pdf', $this->viewData($event, $tutor))->render();
+            ->map(fn (Tutor $tutor) => $this->viewData($event, $tutor))
+            ->concat($this->externalSpeakers($event, SpeakerCertificates::ROLE_TUTOR)->map(fn (array $entry) => $this->externalViewData($event, $entry)))
+            ->values()
+            ->map(function (array $data, int $index) use (&$head): string {
+                $html = view('certificates.pdf', $data)->render();
                 $head ??= Str::before($html, '<body>');
                 $body = Str::beforeLast(Str::after($html, '<body>'), '</body>');
 
@@ -169,6 +201,17 @@ class TutorCertificateService
             $tutor->user?->name ?? 'Nama Tutor',
             $tutor->institution ?: $tutor->school?->name,
             TutorSignatureVerificationController::url($event, $tutor),
+        );
+    }
+
+    private function externalViewData(LearningEvent $event, array $entry): array
+    {
+        return $this->holderData(
+            $event,
+            $this->externalNumber($event, $entry),
+            $entry['name'],
+            $entry['institution'] ?? null,
+            TutorSignatureVerificationController::externalUrl($event, $entry['id']),
         );
     }
 

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Manajemen\Pages;
 
-use App\Enums\UserRole;
 use Filament\Pages\Page;
 use App\Filament\Manajemen\Widgets\ManagementProgress;
 
@@ -15,7 +14,7 @@ class LocationProgressPage extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->role === UserRole::Manajemen;
+        return (bool) auth()->user()?->canViewManagement();
     }
 
     public function getHeaderWidgetsColumns(): int | array

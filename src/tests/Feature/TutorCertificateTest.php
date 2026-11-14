@@ -271,3 +271,68 @@ test('admin pusat bisa menambah sertifikat fasilitator untuk fasilitator yang bu
     $this->get(TutorSignatureVerificationController::facilitatorUrl($event, $extra))
         ->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH')->assertSee('Fasilitator Tambahan');
 });
+
+test('admin pusat bisa mencetak sertifikat narasumber yang belum terdaftar di sistem', function () {
+    [$event] = tutorCertificateFixture();
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.eksternal@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $other = User::query()->create(['name' => 'Fasilitator Lain', 'email' => 'fasil.lain.eksternal@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $service = app(TutorCertificateService::class);
+
+    Filament::setCurrentPanel(Filament::getPanel('superadmin'));
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class)
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'external' => true, 'name' => '  Dr. Narasumber   Tamu, M.Kom ', 'institution' => 'Universitas Tamu'])
+        ->assertHasNoActionErrors()
+        ->assertSet('eventId', $event->id)
+        ->assertSee('Dr. Narasumber Tamu, M.Kom')
+        ->assertSee('Universitas Tamu')
+        ->assertSee('Belum terdaftar')
+        ->assertSee('DSC-NARASUMBER-XT/');
+
+    // Nama wajib diisi bila narasumber belum terdaftar.
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class)
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'external' => true, 'name' => ''])
+        ->assertHasActionErrors(['name' => 'required']);
+
+    // Nama yang sama tidak digandakan.
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class)
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'external' => true, 'name' => 'dr. narasumber tamu, m.kom']);
+    expect(SpeakerCertificates::all())->toHaveCount(1);
+
+    $entry = SpeakerCertificates::all()->sole();
+    // Tidak tercampur dengan sertifikat akun terdaftar.
+    expect(SpeakerCertificates::where(SpeakerCertificates::ROLE_TUTOR))->toHaveCount(0)
+        ->and($service->tutors($event))->toHaveCount(0)
+        ->and($service->externalSpeakers($event, SpeakerCertificates::ROLE_FACILITATOR))->toHaveCount(0);
+
+    $this->actingAs($superAdmin)->get(route('speaker-certificates.external-download', [$event, $entry['id']]))
+        ->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($superAdmin)->get(route('speaker-certificates.external-preview', [$event, $entry['id']]))->assertOk();
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.event-download', $event))->assertOk();
+    $this->actingAs($other)->get(route('speaker-certificates.external-download', [$event, $entry['id']]))->assertForbidden();
+
+    auth()->logout();
+    $url = TutorSignatureVerificationController::externalUrl($event, $entry['id']);
+    $this->get($url)->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH')->assertSee('Dr. Narasumber Tamu, M.Kom')->assertSee('Universitas Tamu');
+
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class, ['eventId' => $event->id])
+        ->callAction('deleteManual', arguments: ['id' => $entry['id']]);
+    expect(SpeakerCertificates::all())->toHaveCount(0);
+    $this->actingAs($superAdmin)->get(route('speaker-certificates.external-download', [$event, $entry['id']]))->assertNotFound();
+    auth()->logout();
+    $this->get($url)->assertSee('TANDA TANGAN TIDAK VALID');
+});
+
+test('admin pusat bisa menambah fasilitator yang belum terdaftar di sistem', function () {
+    [$event] = tutorCertificateFixture();
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.fasil.eksternal@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+
+    Filament::setCurrentPanel(Filament::getPanel('superadmin'));
+    Livewire::actingAs($superAdmin)->test(ManageFacilitatorCertificate::class, ['eventId' => $event->id])
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'external' => true, 'name' => 'Fasilitator Tamu'])
+        ->assertHasNoActionErrors()
+        ->assertSee('Fasilitator Tamu')
+        ->assertSee('DSC-NARASUMBER-XF/');
+
+    $entry = SpeakerCertificates::all()->sole();
+    $this->actingAs($superAdmin)->get(route('speaker-certificates.external-download', [$event, $entry['id']]))->assertOk();
+});

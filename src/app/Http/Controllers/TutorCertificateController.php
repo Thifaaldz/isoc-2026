@@ -36,7 +36,8 @@ class TutorCertificateController
     public function downloadEvent(Request $request, LearningEvent $event): Response
     {
         $this->authorizeManager($request, $event);
-        abort_unless($this->certificates->tutors($event)->isNotEmpty(), 404, 'Belum ada tutor yang ditugaskan di event ini.');
+        abort_unless($this->certificates->tutors($event)->isNotEmpty()
+            || $this->certificates->externalSpeakers($event, \App\Support\SpeakerCertificates::ROLE_TUTOR)->isNotEmpty(), 404, 'Belum ada tutor yang ditugaskan di event ini.');
 
         set_time_limit(0);
         ini_set('memory_limit', '1024M');
@@ -70,6 +71,31 @@ class TutorCertificateController
         $facilitator = $this->eventFacilitator($request, $event, $user);
 
         return $this->certificates->facilitatorPdf($event, $facilitator)->download($this->certificates->facilitatorFilename($event, $facilitator));
+    }
+
+    /** Narasumber yang belum terdaftar di sistem: hanya dicetak oleh Admin RTIK Pusat / fasilitator pembuat event. */
+    public function externalPreview(Request $request, LearningEvent $event, string $speaker): Response
+    {
+        $entry = $this->externalSpeaker($request, $event, $speaker);
+
+        return $this->certificates->externalPdf($event, $entry)->stream($this->certificates->externalFilename($event, $entry));
+    }
+
+    public function externalDownload(Request $request, LearningEvent $event, string $speaker): Response
+    {
+        $entry = $this->externalSpeaker($request, $event, $speaker);
+
+        return $this->certificates->externalPdf($event, $entry)->download($this->certificates->externalFilename($event, $entry));
+    }
+
+    private function externalSpeaker(Request $request, LearningEvent $event, string $id): array
+    {
+        $this->authorizeManager($request, $event);
+
+        $entry = $this->certificates->externalSpeaker($event, $id);
+        abort_unless($entry, 404, 'Narasumber ini tidak punya sertifikat di event ini.');
+
+        return $entry;
     }
 
     /** Tanpa $userId: fasilitator pembuat event. Dengan $userId: fasilitator mana pun yang berhak (termasuk tambahan manual). */

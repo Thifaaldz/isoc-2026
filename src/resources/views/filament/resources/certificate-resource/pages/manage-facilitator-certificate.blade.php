@@ -15,7 +15,7 @@
                 </x-filament::input.wrapper>
             </label>
 
-            @if ($this->rows()->isEmpty())
+            @if ($this->rows()->isEmpty() && $this->externalRows()->isEmpty())
                 <p class="text-sm text-gray-600 dark:text-gray-300">Event ini tidak dibuat oleh fasilitator, jadi belum ada sertifikat fasilitator.</p>
             @else
                 <div style="overflow-x: auto;">
@@ -52,6 +52,7 @@
                                     </td>
                                 </tr>
                             @endforeach
+                            @include('filament.resources.certificate-resource.pages.partials-external-speaker-rows', ['withRole' => true])
                         </tbody>
                     </table>
                 </div>

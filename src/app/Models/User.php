@@ -36,6 +36,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             return $this->is_active;
         }
 
+        // Admin RTIK Pusat juga boleh membuka dashboard manajerial (read-only).
+        if ($panel->getId() === 'manajemen') {
+            return $this->canViewManagement();
+        }
+
         return $this->is_active && $this->role?->panelId() === $panel->getId();
     }
 
@@ -50,6 +55,12 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         }
 
         return Storage::disk('public')->url($this->avatar_url);
+    }
+
+    /** Boleh melihat dashboard manajerial: role Manajemen dan Admin RTIK Pusat. */
+    public function canViewManagement(): bool
+    {
+        return $this->is_active && in_array($this->role, [UserRole::Manajemen, UserRole::SuperAdmin], true);
     }
 
     public function hasRole(UserRole ...$roles): bool
