@@ -1,5 +1,6 @@
 @php
     use App\Filament\Resources\LearningEventResource;
+    use App\Support\PdfImage;
     use App\Support\TorEventTemplate;
     use Illuminate\Support\Facades\Storage;
 
@@ -25,14 +26,8 @@
         ['Anggota WAG Mentoring', '≥ 70% peserta terdaftar (min. ' . $wagTarget . ' dari ' . $participantCount . ')', $joinedWag . ' peserta (' . str_replace('.', ',', (string) $wagPercent) . '%)', $participantCount > 0 && $joinedWag >= $wagTarget],
         ['Microsite s.id peserta', $participantCount . ' peserta', $microsites->count() . ' microsite', $participantCount > 0 && $microsites->count() >= $participantCount],
     ];
-    $evidenceThumb = function ($evidence): ?string {
-        $path = $evidence->file_path;
-        if (! $path || ! preg_match('/\.(jpe?g|png|webp|gif)$/i', $path) || ! Storage::disk('public')->exists($path)) {
-            return null;
-        }
-
-        return 'data:' . (Storage::disk('public')->mimeType($path) ?: 'image/png') . ';base64,' . base64_encode(Storage::disk('public')->get($path));
-    };
+    // Foto dikecilkan dulu agar HTML PDF tidak membengkak dan dompdf tidak kehabisan memori.
+    $evidenceThumb = fn ($evidence): ?string => PdfImage::thumbnail($evidence->file_path);
 @endphp
 <!DOCTYPE html>
 <html>
