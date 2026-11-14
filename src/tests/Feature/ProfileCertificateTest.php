@@ -83,7 +83,7 @@ test('fasilitator hanya melihat sertifikat event buatannya di profil', function 
     $this->actingAs($facilitator)->get('/admin/profile')
         ->assertOk()
         ->assertSee('DSC-NARASUMBER-F/')
-        ->assertSee(route('facilitator-certificates.download', $event), false);
+        ->assertSee(route('facilitator-certificates.user-download', [$event, $facilitator->id]), false);
 
     auth()->logout();
     $this->flushSession();

@@ -36,7 +36,7 @@ class TutorCertificateController
     public function downloadEvent(Request $request, LearningEvent $event): Response
     {
         $this->authorizeManager($request, $event);
-        abort_unless($event->tutors()->exists(), 404, 'Belum ada tutor yang ditugaskan di event ini.');
+        abort_unless($this->certificates->tutors($event)->isNotEmpty(), 404, 'Belum ada tutor yang ditugaskan di event ini.');
 
         set_time_limit(0);
         ini_set('memory_limit', '1024M');
@@ -58,26 +58,32 @@ class TutorCertificateController
         return $this->certificates->pdf($event, $tutor)->download($this->certificates->filename($event, $tutor));
     }
 
-    public function facilitatorPreview(Request $request, LearningEvent $event): Response
+    public function facilitatorPreview(Request $request, LearningEvent $event, ?int $user = null): Response
     {
-        $facilitator = $this->eventFacilitator($request, $event);
+        $facilitator = $this->eventFacilitator($request, $event, $user);
 
         return $this->certificates->facilitatorPdf($event, $facilitator)->stream($this->certificates->facilitatorFilename($event, $facilitator));
     }
 
-    public function facilitatorDownload(Request $request, LearningEvent $event): Response
+    public function facilitatorDownload(Request $request, LearningEvent $event, ?int $user = null): Response
     {
-        $facilitator = $this->eventFacilitator($request, $event);
+        $facilitator = $this->eventFacilitator($request, $event, $user);
 
         return $this->certificates->facilitatorPdf($event, $facilitator)->download($this->certificates->facilitatorFilename($event, $facilitator));
     }
 
-    private function eventFacilitator(Request $request, LearningEvent $event): User
+    /** Tanpa $userId: fasilitator pembuat event. Dengan $userId: fasilitator mana pun yang berhak (termasuk tambahan manual). */
+    private function eventFacilitator(Request $request, LearningEvent $event, ?int $userId = null): User
     {
-        $this->authorizeManager($request, $event);
+        // Fasilitator yang ditambahkan manual boleh mencetak sertifikatnya sendiri meski bukan pembuat event.
+        if ($userId === null || (int) $request->user()?->id !== $userId) {
+            $this->authorizeManager($request, $event);
+        }
 
-        $facilitator = $this->certificates->facilitator($event);
-        abort_unless($facilitator, 404, 'Event ini tidak dibuat oleh fasilitator.');
+        $facilitator = $userId === null
+            ? $this->certificates->facilitator($event)
+            : $this->certificates->facilitators($event)->firstWhere('id', $userId);
+        abort_unless($facilitator, 404, 'Fasilitator ini tidak punya sertifikat di event ini.');
 
         return $facilitator->loadMissing('school');
     }
@@ -86,7 +92,10 @@ class TutorCertificateController
     {
         $this->authorizeManager($request, $event);
 
-        return $event->tutors()->with(['user', 'school'])->findOrFail($tutorId);
+        $tutor = $this->certificates->tutors($event)->firstWhere('id', $tutorId);
+        abort_unless($tutor, 404);
+
+        return $tutor;
     }
 
     private function authorizeManager(Request $request, LearningEvent $event): void
@@ -104,7 +113,7 @@ class TutorCertificateController
     {
         $tutor = $request->user()?->tutor;
 
-        abort_unless($tutor && $event->tutors()->whereKey($tutor->id)->exists(), 403, 'Sertifikat tutor hanya untuk tutor yang ditugaskan di event ini.');
+        abort_unless($tutor && $this->certificates->tutors($event)->contains('id', $tutor->id), 403, 'Sertifikat tutor hanya untuk tutor yang ditugaskan di event ini.');
 
         return $tutor->loadMissing(['user', 'school']);
     }

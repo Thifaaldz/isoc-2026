@@ -1,10 +1,10 @@
 <x-filament-panels::page>
     <x-filament::section>
         <x-slot name="heading">Sertifikat Narasumber untuk Fasilitator</x-slot>
-        <x-slot name="description">Tersedia untuk fasilitator yang membuat event. Nomor sertifikat dibuat otomatis oleh sistem.</x-slot>
+        <x-slot name="description">Tersedia untuk fasilitator yang membuat event, serta fasilitator yang ditambahkan oleh Admin RTIK Pusat. Nomor sertifikat dibuat otomatis oleh sistem.</x-slot>
 
-        <div style="display: grid; gap: 20px; max-width: 720px;">
-            <label style="display: grid; gap: 6px;">
+        <div style="display: grid; gap: 20px;">
+            <label style="display: grid; gap: 6px; max-width: 720px;">
                 <span class="text-sm font-medium text-gray-950 dark:text-white">Event</span>
                 <x-filament::input.wrapper>
                     <x-filament::input.select wire:model.live="eventId">
@@ -15,20 +15,46 @@
                 </x-filament::input.wrapper>
             </label>
 
-            @if ($this->facilitator)
-                <dl style="display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));" class="rounded-xl border border-gray-200 p-4 text-sm dark:border-white/10">
-                    <div><dt class="text-gray-500">Nama di sertifikat</dt><dd class="font-semibold text-gray-950 dark:text-white">{{ $this->facilitator->name }}</dd></div>
-                    <div><dt class="text-gray-500">Instansi</dt><dd class="font-semibold text-gray-950 dark:text-white">{{ $this->facilitator->school?->name ?? '-' }}</dd></div>
-                    <div><dt class="text-gray-500">Sebagai</dt><dd class="font-semibold text-gray-950 dark:text-white">Narasumber</dd></div>
-                    <div><dt class="text-gray-500">No. Sertifikat</dt><dd class="font-semibold text-gray-950 dark:text-white">{{ $this->certificateNumber() }}</dd></div>
-                </dl>
-
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                    <x-filament::button color="gray" icon="heroicon-o-eye" tag="a" target="_blank" :href="route('facilitator-certificates.preview', $this->eventId)">Preview</x-filament::button>
-                    <x-filament::button icon="heroicon-o-arrow-down-tray" tag="a" :href="route('facilitator-certificates.download', $this->eventId)">Download Sertifikat (PDF)</x-filament::button>
-                </div>
-            @else
+            @if ($this->rows()->isEmpty())
                 <p class="text-sm text-gray-600 dark:text-gray-300">Event ini tidak dibuat oleh fasilitator, jadi belum ada sertifikat fasilitator.</p>
+            @else
+                <div style="overflow-x: auto;">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200 text-gray-500 dark:border-white/10">
+                                <th class="px-3 py-2 font-medium">Nama di sertifikat</th>
+                                <th class="px-3 py-2 font-medium">Instansi</th>
+                                <th class="px-3 py-2 font-medium">Sebagai</th>
+                                <th class="px-3 py-2 font-medium">No. Sertifikat</th>
+                                <th class="px-3 py-2 font-medium">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($this->rows() as $row)
+                                <tr class="border-b border-gray-100 dark:border-white/5" wire:key="facilitator-{{ $row['user']->id }}">
+                                    <td class="px-3 py-2 font-semibold text-gray-950 dark:text-white">
+                                        {{ $row['user']->name }}
+                                        @if ($row['manual'])
+                                            <x-filament::badge color="info" size="sm" style="display: inline-flex; margin-left: 6px;">Tambahan</x-filament::badge>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $row['user']->school?->name ?? '-' }}</td>
+                                    <td class="px-3 py-2 text-gray-600 dark:text-gray-300">Narasumber</td>
+                                    <td class="px-3 py-2 text-gray-600 dark:text-gray-300" style="white-space: nowrap;">{{ $row['number'] }}</td>
+                                    <td class="px-3 py-2">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            <x-filament::button size="sm" color="gray" icon="heroicon-o-eye" tag="a" target="_blank" :href="route('facilitator-certificates.user-preview', [$this->eventId, $row['user']->id])">Preview</x-filament::button>
+                                            <x-filament::button size="sm" icon="heroicon-o-arrow-down-tray" tag="a" :href="route('facilitator-certificates.user-download', [$this->eventId, $row['user']->id])">Download Sertifikat (PDF)</x-filament::button>
+                                            @if ($row['manual'])
+                                                {{ ($this->deleteManualAction)(['id' => $row['manual']['id']]) }}
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             @endif
         </div>
     </x-filament::section>

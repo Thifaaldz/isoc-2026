@@ -9,6 +9,7 @@ use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
 use App\Models\Tutor;
 use App\Models\User;
+use App\Support\SpeakerCertificates;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
@@ -27,10 +28,67 @@ class TutorCertificateService
         'isHtml5ParserEnabled' => true,
     ];
 
-    /** Event tempat tutor ditugaskan (pendaftaran yang belum divalidasi tidak termasuk). */
+    /** Event tempat tutor ditugaskan (pendaftaran yang belum divalidasi tidak termasuk) atau diberi sertifikat manual. */
     public function events(Tutor $tutor): Collection
     {
-        return $tutor->learningEvents()->with('school')->orderBy('starts_at')->get();
+        return LearningEvent::query()
+            ->with('school')
+            ->where(fn ($query) => $query
+                ->whereIn('id', $tutor->learningEvents()->select('learning_events.id'))
+                ->orWhereIn('id', SpeakerCertificates::eventIds(SpeakerCertificates::ROLE_TUTOR, (int) $tutor->user_id)))
+            ->orderBy('starts_at')
+            ->get();
+    }
+
+    /** Tutor yang berhak atas sertifikat event: tutor yang ditugaskan dan tutor yang ditambahkan manual. */
+    public function tutors(LearningEvent $event): Collection
+    {
+        return Tutor::query()
+            ->with(['user', 'school'])
+            ->where(fn ($query) => $query
+                ->whereIn('id', $event->tutors()->select('tutors.id'))
+                ->orWhereIn('user_id', SpeakerCertificates::userIds(SpeakerCertificates::ROLE_TUTOR, $event->id)))
+            ->get()
+            ->sortBy(fn (Tutor $tutor) => $tutor->user?->name)
+            ->values();
+    }
+
+    /** Fasilitator yang berhak atas sertifikat event: pembuat event dan fasilitator yang ditambahkan manual. */
+    public function facilitators(LearningEvent $event): \Illuminate\Support\Collection
+    {
+        $manual = User::query()
+            ->with('school')
+            ->where('role', UserRole::Admin)
+            ->whereIn('id', SpeakerCertificates::userIds(SpeakerCertificates::ROLE_FACILITATOR, $event->id))
+            ->get();
+
+        return collect([$this->facilitator($event)?->loadMissing('school')])
+            ->filter()
+            ->concat($manual)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+    }
+
+    /** Event yang memberi fasilitator sertifikat: event buatannya dan event yang ditambahkan manual. */
+    public function facilitatorEvents(User $facilitator): Collection
+    {
+        if ($facilitator->role !== UserRole::Admin) {
+            return new Collection();
+        }
+
+        return LearningEvent::query()
+            ->where(fn ($query) => $query
+                ->where('created_by', $facilitator->id)
+                ->orWhereIn('id', SpeakerCertificates::eventIds(SpeakerCertificates::ROLE_FACILITATOR, $facilitator->id)))
+            ->orderByDesc('starts_at')
+            ->get();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, array> sertifikat manual event, dikunci dengan user_id. */
+    public function manualCertificates(LearningEvent $event, string $role): \Illuminate\Support\Collection
+    {
+        return SpeakerCertificates::where($role, eventId: $event->id)->keyBy('user_id');
     }
 
     public function number(LearningEvent $event, Tutor $tutor): string
@@ -90,9 +148,7 @@ class TutorCertificateService
     public function eventPdf(LearningEvent $event)
     {
         $head = null;
-        $bodies = $event->tutors()->with(['user', 'school'])->get()
-            ->sortBy(fn (Tutor $tutor) => $tutor->user?->name)
-            ->values()
+        $bodies = $this->tutors($event)
             ->map(function (Tutor $tutor, int $index) use ($event, &$head): string {
                 $html = view('certificates.pdf', $this->viewData($event, $tutor))->render();
                 $head ??= Str::before($html, '<body>');

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CertificateResource\Pages;
 use App\Enums\UserRole;
 use App\Filament\Resources\CertificateResource;
 use App\Models\LearningEvent;
+use App\Support\SpeakerCertificates;
 use App\Services\TutorCertificateService;
 use Filament\Actions;
 use Filament\Resources\Pages\Page;
@@ -50,7 +51,7 @@ class ManageTutorCertificate extends Page
         return $this->eventOptions()->has($this->eventId) ? LearningEvent::query()->find($this->eventId) : null;
     }
 
-    /** @return Collection<int, array{tutor: \App\Models\Tutor, number: string}> */
+    /** @return Collection<int, array{tutor: \App\Models\Tutor, number: string, manual: ?array}> */
     public function rows(): Collection
     {
         $event = $this->selectedEvent;
@@ -60,16 +61,27 @@ class ManageTutorCertificate extends Page
         }
 
         $service = app(TutorCertificateService::class);
+        $assigned = $event->tutors()->pluck('tutors.id');
+        $manual = $service->manualCertificates($event, SpeakerCertificates::ROLE_TUTOR);
 
-        return $event->tutors()->with(['user', 'school'])->get()
-            ->sortBy(fn ($tutor) => $tutor->user?->name)
-            ->values()
-            ->map(fn ($tutor) => ['tutor' => $tutor, 'number' => $service->number($event, $tutor)]);
+        return $service->tutors($event)
+            ->map(fn ($tutor) => [
+                'tutor' => $tutor,
+                'number' => $service->number($event, $tutor),
+                // Hanya sertifikat tambahan (bukan dari penugasan) yang bisa dihapus dari sini.
+                'manual' => $assigned->contains($tutor->id) ? null : $manual->get($tutor->user_id),
+            ]);
+    }
+
+    public function deleteManualAction(): Actions\Action
+    {
+        return SpeakerCertificateActions::delete();
     }
 
     protected function getHeaderActions(): array
     {
         return [
+            SpeakerCertificateActions::create(SpeakerCertificates::ROLE_TUTOR, $this),
             Actions\Action::make('downloadAll')
                 ->label('Download Semua Sertifikat Tutor')
                 ->icon('heroicon-o-arrow-down-tray')

@@ -3,6 +3,8 @@
 use App\Enums\UserRole;
 use App\Filament\Pages\TutorCertificate;
 use App\Filament\Resources\CertificateResource;
+use App\Filament\Resources\CertificateResource\Pages\ManageFacilitatorCertificate;
+use App\Filament\Resources\CertificateResource\Pages\ManageTutorCertificate;
 use App\Http\Controllers\TutorSignatureVerificationController;
 use App\Models\CertificateTemplate;
 use App\Models\LearningEvent;
@@ -10,6 +12,7 @@ use App\Models\School;
 use App\Models\Tutor;
 use App\Models\User;
 use App\Services\TutorCertificateService;
+use App\Support\SpeakerCertificates;
 use Database\Seeders\TutorCertificateTemplateSeeder;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -192,4 +195,79 @@ test('sertifikat tutor ditolak untuk tutor yang belum ditugaskan atau masih menu
 
     $event->tutors()->attach($tutor->id, ['status' => 'pending']);
     $this->actingAs($user)->get(route('tutor-certificates.preview', $event))->assertForbidden();
+});
+
+test('admin pusat bisa menambah sertifikat tutor untuk tutor yang tidak ditugaskan di event', function () {
+    [$event, $tutorUser, $tutor] = tutorCertificateFixture();
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.tambah@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $facilitator = User::query()->create(['name' => 'Fasilitator', 'email' => 'fasil.tambah@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $event->update(['created_by' => $facilitator->id]);
+
+    $this->actingAs($tutorUser)->get(route('tutor-certificates.download', $event))->assertForbidden();
+
+    // Fasilitator tidak bisa menambah sertifikat.
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Livewire::actingAs($facilitator)->test(ManageTutorCertificate::class, ['eventId' => $event->id])
+        ->assertActionHidden('addSpeakerCertificate');
+
+    Filament::setCurrentPanel(Filament::getPanel('superadmin'));
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class)
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'user_id' => $tutorUser->id])
+        ->assertHasNoActionErrors()
+        ->assertSet('eventId', $event->id)
+        ->assertSee('Tutor Bersertifikat')
+        ->assertSee('Tambahan');
+
+    expect(SpeakerCertificates::where(SpeakerCertificates::ROLE_TUTOR))->toHaveCount(1);
+
+    // Penambahan kedua tidak menggandakan sertifikat.
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class)
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'user_id' => $tutorUser->id]);
+    expect(SpeakerCertificates::all())->toHaveCount(1);
+
+    $this->actingAs($tutorUser)->get(route('tutor-certificates.download', $event))->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.manager-download', [$event, $tutor]))->assertOk();
+    $this->actingAs($superAdmin)->get(route('tutor-certificates.event-download', $event))->assertOk();
+    expect(app(TutorCertificateService::class)->events($tutor)->pluck('id')->all())->toBe([$event->id]);
+
+    $url = TutorSignatureVerificationController::url($event, $tutor);
+    $this->get($url)->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH');
+
+    $manual = SpeakerCertificates::all()->sole();
+    Livewire::actingAs($superAdmin)->test(ManageTutorCertificate::class, ['eventId' => $event->id])
+        ->callAction('deleteManual', arguments: ['id' => $manual['id']]);
+
+    expect(SpeakerCertificates::all())->toHaveCount(0);
+    $this->actingAs($tutorUser)->get(route('tutor-certificates.download', $event))->assertForbidden();
+    $this->get($url)->assertSee('TANDA TANGAN TIDAK VALID');
+});
+
+test('admin pusat bisa menambah sertifikat fasilitator untuk fasilitator yang bukan pembuat event', function () {
+    [$event] = tutorCertificateFixture();
+    $superAdmin = User::query()->create(['name' => 'Pusat', 'email' => 'pusat.fasil.tambah@isoc.id', 'password' => 'password', 'role' => UserRole::SuperAdmin, 'is_active' => true]);
+    $creator = User::query()->create(['name' => 'Fasilitator Pembuat', 'email' => 'fasil.pembuat@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $extra = User::query()->create(['name' => 'Fasilitator Tambahan', 'email' => 'fasil.tambahan@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $other = User::query()->create(['name' => 'Fasilitator Lain', 'email' => 'fasil.lain.tambah@isoc.id', 'password' => 'password', 'role' => UserRole::Admin, 'is_active' => true]);
+    $event->update(['created_by' => $creator->id]);
+    $service = app(TutorCertificateService::class);
+
+    $this->actingAs($extra)->get(route('facilitator-certificates.user-download', [$event, $extra->id]))->assertNotFound();
+
+    Filament::setCurrentPanel(Filament::getPanel('superadmin'));
+    Livewire::actingAs($superAdmin)->test(ManageFacilitatorCertificate::class, ['eventId' => $event->id])
+        ->callAction('addSpeakerCertificate', ['learning_event_id' => $event->id, 'user_id' => $extra->id])
+        ->assertHasNoActionErrors()
+        ->assertSee('Fasilitator Pembuat')
+        ->assertSee('Fasilitator Tambahan')
+        ->assertSee($service->facilitatorNumber($event, $extra));
+
+    $this->actingAs($extra)->get(route('facilitator-certificates.user-download', [$event, $extra->id]))->assertOk()->assertHeader('content-type', 'application/pdf');
+    $this->actingAs($creator)->get(route('facilitator-certificates.user-download', [$event, $extra->id]))->assertOk();
+    $this->actingAs($other)->get(route('facilitator-certificates.user-download', [$event, $extra->id]))->assertForbidden();
+    $this->actingAs($creator)->get(route('facilitator-certificates.download', $event))->assertOk();
+    expect($service->facilitatorEvents($extra)->pluck('id')->all())->toBe([$event->id]);
+
+    auth()->logout();
+    $this->get(TutorSignatureVerificationController::facilitatorUrl($event, $extra))
+        ->assertOk()->assertSee('TANDA TANGAN ELEKTRONIK SAH')->assertSee('Fasilitator Tambahan');
 });

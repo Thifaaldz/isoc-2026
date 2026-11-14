@@ -1,7 +1,7 @@
 <x-filament-panels::page>
     <x-filament::section>
         <x-slot name="heading">Sertifikat Tutor per Event</x-slot>
-        <x-slot name="description">Nomor sertifikat dibuat otomatis oleh sistem untuk setiap tutor yang ditugaskan di event.</x-slot>
+        <x-slot name="description">Nomor sertifikat dibuat otomatis oleh sistem untuk setiap tutor yang ditugaskan di event, serta tutor yang ditambahkan oleh Admin RTIK Pusat.</x-slot>
 
         <div style="display: grid; gap: 20px;">
             <label style="display: grid; gap: 6px; max-width: 720px;">
@@ -31,13 +31,21 @@
                         <tbody>
                             @foreach ($this->rows() as $row)
                                 <tr class="border-b border-gray-100 dark:border-white/5" wire:key="tutor-{{ $row['tutor']->id }}">
-                                    <td class="px-3 py-2 font-semibold text-gray-950 dark:text-white">{{ $row['tutor']->user?->name ?? '-' }}</td>
+                                    <td class="px-3 py-2 font-semibold text-gray-950 dark:text-white">
+                                        {{ $row['tutor']->user?->name ?? '-' }}
+                                        @if ($row['manual'])
+                                            <x-filament::badge color="info" size="sm" style="display: inline-flex; margin-left: 6px;">Tambahan</x-filament::badge>
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $row['tutor']->institution ?: ($row['tutor']->school?->name ?? '-') }}</td>
                                     <td class="px-3 py-2 text-gray-600 dark:text-gray-300" style="white-space: nowrap;">{{ $row['number'] }}</td>
                                     <td class="px-3 py-2">
                                         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                                             <x-filament::button size="sm" color="gray" icon="heroicon-o-eye" tag="a" target="_blank" :href="route('tutor-certificates.manager-preview', [$this->eventId, $row['tutor']->id])">Preview</x-filament::button>
                                             <x-filament::button size="sm" icon="heroicon-o-arrow-down-tray" tag="a" :href="route('tutor-certificates.manager-download', [$this->eventId, $row['tutor']->id])">Download</x-filament::button>
+                                            @if ($row['manual'])
+                                                {{ ($this->deleteManualAction)(['id' => $row['manual']['id']]) }}
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

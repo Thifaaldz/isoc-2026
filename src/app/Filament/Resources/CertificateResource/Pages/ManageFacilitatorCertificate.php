@@ -5,13 +5,14 @@ namespace App\Filament\Resources\CertificateResource\Pages;
 use App\Enums\UserRole;
 use App\Filament\Resources\CertificateResource;
 use App\Models\LearningEvent;
-use App\Models\User;
+use App\Support\SpeakerCertificates;
 use App\Services\TutorCertificateService;
+use Filament\Actions;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 
-/** Pilihan "Sertifikat Fasilitator" di menu e-Certificate: sertifikat narasumber untuk pembuat event. */
+/** Pilihan "Sertifikat Fasilitator" di menu e-Certificate: sertifikat narasumber untuk pembuat event dan fasilitator tambahan. */
 class ManageFacilitatorCertificate extends Page
 {
     protected static string $resource = CertificateResource::class;
@@ -50,13 +51,37 @@ class ManageFacilitatorCertificate extends Page
         return $this->eventOptions()->has($this->eventId) ? LearningEvent::query()->with('creator.school')->find($this->eventId) : null;
     }
 
-    public function getFacilitatorProperty(): ?User
+    /** @return Collection<int, array{user: \App\Models\User, number: string, manual: ?array}> */
+    public function rows(): Collection
     {
-        return $this->selectedEvent ? app(TutorCertificateService::class)->facilitator($this->selectedEvent) : null;
+        $event = $this->selectedEvent;
+
+        if (! $event) {
+            return collect();
+        }
+
+        $service = app(TutorCertificateService::class);
+        $creatorId = $service->facilitator($event)?->id;
+        $manual = $service->manualCertificates($event, SpeakerCertificates::ROLE_FACILITATOR);
+
+        return $service->facilitators($event)
+            ->map(fn ($user) => [
+                'user' => $user,
+                'number' => $service->facilitatorNumber($event, $user),
+                // Pembuat event selalu punya sertifikat; hanya tambahan manual yang bisa dihapus.
+                'manual' => $user->id === $creatorId ? null : $manual->get($user->id),
+            ]);
     }
 
-    public function certificateNumber(): ?string
+    public function deleteManualAction(): Actions\Action
     {
-        return $this->facilitator ? app(TutorCertificateService::class)->facilitatorNumber($this->selectedEvent, $this->facilitator) : null;
+        return SpeakerCertificateActions::delete();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            SpeakerCertificateActions::create(SpeakerCertificates::ROLE_FACILITATOR, $this),
+        ];
     }
 }

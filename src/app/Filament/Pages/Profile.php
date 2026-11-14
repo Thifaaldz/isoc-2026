@@ -533,8 +533,10 @@ class Profile extends Page implements HasForms
     {
         $service = app(TutorCertificateService::class);
 
-        return LearningEvent::query()->where('created_by', $user->id)->orderByDesc('starts_at')->get()
-            ->map(fn (LearningEvent $event) => $this->certificateRow($event, 'Narasumber', $service->facilitatorNumber($event, $user), route('facilitator-certificates.preview', $event), route('facilitator-certificates.download', $event)))
+        // Event buatannya dan event yang ditambahkan Admin RTIK Pusat.
+        return $service->facilitatorEvents($user)
+            ->map(fn (LearningEvent $event) => $this->certificateRow($event, 'Narasumber', $service->facilitatorNumber($event, $user), route('facilitator-certificates.user-preview', [$event, $user->id]), route('facilitator-certificates.user-download', [$event, $user->id])))
+            ->values()
             ->all();
     }
 

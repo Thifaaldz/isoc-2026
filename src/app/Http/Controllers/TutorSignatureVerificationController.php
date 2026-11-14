@@ -34,7 +34,7 @@ class TutorSignatureVerificationController
     public function show(Request $request, int $event, int $tutor): View
     {
         $learningEvent = LearningEvent::query()->with('school')->find($event);
-        $tutorModel = $learningEvent?->tutors()->with('user')->whereKey($tutor)->first();
+        $tutorModel = $learningEvent ? app(TutorCertificateService::class)->tutors($learningEvent)->firstWhere('id', $tutor) : null;
         $valid = $request->hasValidSignature() && $learningEvent && $tutorModel;
 
         return view('signatures.tutor-verify', [
@@ -49,8 +49,8 @@ class TutorSignatureVerificationController
     public function showFacilitator(Request $request, int $event, int $user): View
     {
         $learningEvent = LearningEvent::query()->with(['school', 'creator.school'])->find($event);
-        $facilitator = $learningEvent ? app(TutorCertificateService::class)->facilitator($learningEvent) : null;
-        $valid = $request->hasValidSignature() && $facilitator && $facilitator->id === $user;
+        $facilitator = $learningEvent ? app(TutorCertificateService::class)->facilitators($learningEvent)->firstWhere('id', $user) : null;
+        $valid = $request->hasValidSignature() && $facilitator;
 
         return view('signatures.tutor-verify', [
             'valid' => $valid,

@@ -97,6 +97,12 @@ Route::middleware('auth')->get('/facilitator-certificates/{event}/preview-pdf', 
     ->name('facilitator-certificates.preview');
 Route::middleware('auth')->get('/facilitator-certificates/{event}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorDownload'])
     ->name('facilitator-certificates.download');
+Route::middleware('auth')->get('/facilitator-certificates/{event}/users/{user}/preview-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorPreview'])
+    ->whereNumber('user')
+    ->name('facilitator-certificates.user-preview');
+Route::middleware('auth')->get('/facilitator-certificates/{event}/users/{user}/download-pdf', [\App\Http\Controllers\TutorCertificateController::class, 'facilitatorDownload'])
+    ->whereNumber('user')
+    ->name('facilitator-certificates.user-download');
 Route::middleware('auth')->get('/certificate-templates/{template}/preview-pdf', [CertificateTemplatePreviewController::class, 'show'])
     ->name('certificate-templates.preview-pdf');
 Route::middleware('auth')->get('/reports/events/{event}/activity-report/preview', [EventActivityReportController::class, 'preview'])
