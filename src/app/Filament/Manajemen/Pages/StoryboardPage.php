@@ -3,6 +3,9 @@
 namespace App\Filament\Manajemen\Pages;
 
 use App\Support\ProgramStoryboard;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Illuminate\Support\Str;
 use Livewire\WithPagination;
@@ -51,6 +54,98 @@ class StoryboardPage extends Page
     public function getSubheading(): ?string
     {
         return 'Laporan pekerjaan Program Digital Safety Champions: ringkasan eksekutif, gambaran pelaksanaan, enam kriteria pelaporan, serta kesimpulan dan tindak lanjut.';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('laporanPdf')
+                ->label('Unduh Laporan PDF')
+                ->icon('heroicon-o-document-arrow-down')
+                ->modalHeading('Unduh laporan akhir (PDF)')
+                ->modalDescription('Laporan berisi sampul, ringkasan eksekutif, Bab 1–3, dan lampiran metodologi. Pilih lampiran daftar yang ingin disertakan.')
+                ->modalSubmitActionLabel('Unduh PDF')
+                ->modalWidth('lg')
+                ->form([
+                    Select::make('tutor')->label('Lampiran daftar tutor')
+                        ->options(['all' => 'Semua tutor', 'filter' => 'Sesuai filter daftar tutor saat ini', 'none' => 'Tidak disertakan'])
+                        ->default('all')->selectablePlaceholder(false)->required(),
+                    Select::make('peserta')->label('Lampiran daftar peserta')
+                        ->options(['none' => 'Tidak disertakan', 'filter' => 'Sesuai filter daftar peserta saat ini', 'all' => 'Semua peserta (dokumen bisa sangat tebal)'])
+                        ->default('none')->selectablePlaceholder(false)->required()
+                        ->helperText('Daftar semua peserta bisa mencapai puluhan halaman dan butuh waktu lebih lama.'),
+                ])
+                ->action(fn (array $data) => $this->downloadLaporanPdf($data['tutor'] ?? 'all', $data['peserta'] ?? 'none')),
+        ];
+    }
+
+    /** Laporan akhir PDF seluruh storyboard; lampiran daftar mengikuti pilihan (semua / sesuai filter / tidak). */
+    public function downloadLaporanPdf(string $tutorMode = 'all', string $pesertaMode = 'none'): StreamedResponse
+    {
+        abort_unless(static::canAccess(), 403);
+        @ini_set('memory_limit', '1024M');
+        @set_time_limit(300);
+
+        $s = ProgramStoryboard::get();
+        [$pEvent, $pStatus, $pCari] = $this->pesertaFilter();
+        [$tEvent, $tStatus, $tCari] = $this->tutorFilter();
+
+        $tutorList = match ($tutorMode) {
+            'filter' => $s->tutorsQuery($tEvent, $tCari, $tStatus)->get(),
+            'none' => null,
+            default => $s->tutorsQuery()->get(),
+        };
+        $participantList = match ($pesertaMode) {
+            'filter' => $s->participantsQuery($pEvent, $pCari, $pStatus)->get(),
+            'all' => $s->participantsQuery()->get(),
+            default => null,
+        };
+        $tutorNote = $tutorMode === 'filter' ? 'Daftar tutor sesuai filter: ' . $this->describeFilter($tEvent, $tStatus ? ProgramStoryboard::STATUS_TUTOR[$tStatus] : null, $tCari) . '.' : 'Daftar seluruh penugasan tutor.';
+        $participantNote = $pesertaMode === 'filter' ? 'Daftar peserta sesuai filter: ' . $this->describeFilter($pEvent, $pStatus ? ProgramStoryboard::STATUS_PESERTA[$pStatus] : null, $pCari) . '.' : 'Daftar seluruh peserta terdaftar.';
+        $filterNote = collect([
+            $tutorList !== null ? ($tutorMode === 'filter' ? 'Daftar tutor (sesuai filter)' : 'Daftar tutor (semua)') : null,
+            $participantList !== null ? ($pesertaMode === 'filter' ? 'Daftar peserta (sesuai filter)' : 'Daftar peserta (semua)') : null,
+        ])->filter()->implode(' · ');
+
+        $pdf = Pdf::loadView('reports.storyboard', [
+            'generatedAt' => now(),
+            'totals' => $s->totals(),
+            'reach' => $s->reach(),
+            'funnel' => $s->funnel(),
+            'ind' => $s->indicators(),
+            'dist' => $s->distribution(),
+            'themes' => $s->themes(),
+            'trend' => $s->trend(),
+            'comp' => $s->completeness(),
+            'locations' => $s->locations(),
+            'attention' => $s->attention(),
+            'tutorList' => $tutorList,
+            'participantList' => $participantList,
+            'tutorNote' => $tutorNote,
+            'participantNote' => $participantNote,
+            'filterNote' => $filterNote,
+        ])->setPaper('a4', 'portrait')->setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => false, 'defaultFont' => 'DejaVu Sans']);
+
+        // Nomor halaman "Halaman X dari Y" ditulis langsung ke kanvas (CSS counter(pages) tidak didukung dompdf).
+        $dompdf = $pdf->getDomPDF();
+        $dompdf->render();
+        $canvas = $dompdf->getCanvas();
+        $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+        $canvas->page_text($canvas->get_width() - 51 - 72, $canvas->get_height() - 30, 'Halaman {PAGE_NUM} dari {PAGE_COUNT}', $font, 6.8, [0.39, 0.45, 0.55]);
+        $output = $dompdf->output();
+
+        return response()->streamDownload(fn () => print($output), 'laporan-akhir-dsc-' . now()->format('Ymd') . '.pdf', ['Content-Type' => 'application/pdf']);
+    }
+
+    private function describeFilter(?int $event, ?string $status, string $cari): string
+    {
+        $parts = array_filter([
+            $event ? 'lokasi ' . (ProgramStoryboard::get()->locationOptions()[$event] ?? '-') : 'semua lokasi',
+            $status ? 'status ' . mb_strtolower($status) : null,
+            $cari !== '' ? 'kata kunci "' . $cari . '"' : null,
+        ]);
+
+        return implode(', ', $parts);
     }
 
     public function updated(string $name): void
