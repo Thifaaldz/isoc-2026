@@ -161,3 +161,14 @@ test('endpoint publik dibatasi rate limit', function () {
 
     $this->post(route('event.register.store', 'event-throttle'), [])->assertStatus(429);
 });
+
+test('manajemen bisa membuka laporan kegiatan semua event, peserta tetap tidak', function () {
+    $school = School::query()->create(['name' => 'S']);
+    $event = secEvent($school, secUser(UserRole::Admin, 'owner.mgmt@isoc.id', $school->id));
+
+    $this->actingAs(secUser(UserRole::Manajemen, 'mgmt.report@isoc.id', null))
+        ->get(route('reports.events.activity.preview', $event))->assertOk();
+    $this->flushSession();
+    $this->actingAs(secUser(UserRole::Peserta, 'p.report@isoc.id', $school->id))
+        ->get(route('reports.events.activity.preview', $event))->assertForbidden();
+});

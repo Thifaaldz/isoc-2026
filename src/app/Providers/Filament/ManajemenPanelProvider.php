@@ -8,6 +8,7 @@ use App\Filament\Manajemen\Pages\LocationProgressPage;
 use App\Filament\Manajemen\Pages\ManagementDashboard;
 use App\Filament\Manajemen\Pages\ParticipantScoresPage;
 use App\Filament\Manajemen\Pages\ReportsTermsPage;
+use App\Filament\Manajemen\Pages\ChapterActivityPage;
 use App\Filament\Manajemen\Pages\TutorsPage;
 use App\Filament\Manajemen\Widgets;
 use App\Enums\UserRole;
@@ -52,7 +53,7 @@ class ManajemenPanelProvider extends PanelProvider
                     ->group('Akun')
                     ->visible(fn (): bool => auth()->user()?->role === UserRole::SuperAdmin),
             ])
-            ->pages([ManagementDashboard::class, LocationProgressPage::class, LocationDetailPage::class, ParticipantScoresPage::class, TutorsPage::class, EvidencePage::class, ReportsTermsPage::class, Profile::class])
+            ->pages([ManagementDashboard::class, LocationProgressPage::class, LocationDetailPage::class, ParticipantScoresPage::class, TutorsPage::class, EvidencePage::class, ReportsTermsPage::class, ChapterActivityPage::class, Profile::class])
             ->widgets([
                 Widgets\ManagementKpi::class,
                 Widgets\ManagementStages::class,

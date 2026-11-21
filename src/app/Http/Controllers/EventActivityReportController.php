@@ -40,6 +40,8 @@ class EventActivityReportController extends Controller
 
         return match ($user->role) {
             UserRole::SuperAdmin => true,
+            // Manajemen: baca saja, semua event (dipakai dari panel Manajemen & Excel Chapter Activity).
+            UserRole::Manajemen => true,
             // Fasilitator hanya membuka laporan event yang ia buat.
             UserRole::Admin => (int) $event->created_by === (int) $user->id,
             UserRole::Tutor => $event->tutors()->where('tutors.user_id', $user->id)->exists(),
