@@ -7,6 +7,7 @@ use App\Filament\Manajemen\Widgets\ManagementKpi;
 use App\Filament\Manajemen\Widgets\ManagementLocationProgressChart;
 use App\Filament\Manajemen\Widgets\ManagementTrendChart;
 use App\Filament\Manajemen\Widgets\ManagementStages;
+use Filament\Actions\Action;
 use Filament\Pages\Dashboard;
 
 /** Beranda panel Manajemen: KPI program dan tahapan seluruh lokasi (read-only). Rincian ada di menu Monitoring. */
@@ -31,6 +32,16 @@ class ManagementDashboard extends Dashboard
     public function getColumns(): int | string | array
     {
         return 2;
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('storyboard')
+                ->label('Buka Storyboard')
+                ->icon('heroicon-o-book-open')
+                ->url(StoryboardPage::getUrl()),
+        ];
     }
 
     /** Hanya ringkasan; widget lain tampil di halaman Monitoring masing-masing. */
